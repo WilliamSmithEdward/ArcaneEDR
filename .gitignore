@@ -1,0 +1,31 @@
+# Build output
+bin/
+obj/
+dist/
+publish/
+artifacts/
+tools/
+
+# Runtime logs and local state
+*.log
+*.jsonl
+*.state
+*.tsv
+
+# Local configuration overrides
+*.local.config
+*.local.json
+.env
+.env.*
+
+# IDE/editor files
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# OS files
+Thumbs.db
+Desktop.ini

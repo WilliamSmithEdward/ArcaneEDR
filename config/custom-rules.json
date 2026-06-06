@@ -1,0 +1,26 @@
+[
+  {
+    "id": "CUSTOM-PS-RMM-DOWNLOAD",
+    "title": "PowerShell referenced remote access tooling",
+    "source": "powershell",
+    "score": 85,
+    "contains_any": [ "anydesk", "teamviewer", "rustdesk", "screenconnect", "ngrok", "cloudflared" ],
+    "recommendation": "Confirm the tool is approved. Unauthorized RMM download or launch activity is a common hands-on-access pattern."
+  },
+  {
+    "id": "CUSTOM-PERSIST-TUNNEL",
+    "title": "Persistence references tunneling utility",
+    "source": "persistence",
+    "score": 90,
+    "contains_any": [ "ngrok.exe", "cloudflared.exe", "localtunnel", "serveo" ],
+    "recommendation": "Review the persistence entry immediately and remove it if unauthorized."
+  },
+  {
+    "id": "CUSTOM-AUDIT-LOLBIN-DOWNLOAD",
+    "title": "Audit event captured LOLBin download behavior",
+    "source": "windows",
+    "score": 78,
+    "contains_any": [ "certutil", "bitsadmin", "mshta", "regsvr32", "downloadstring", "invoke-webrequest" ],
+    "recommendation": "Review the process tree and downloaded payload. This can indicate staged execution."
+  }
+]
