@@ -9,6 +9,7 @@ namespace ArcaneEDR
         private readonly FileLogger logger;
         private readonly IAlertSink alertSink;
         private readonly ResponseManager responseManager;
+        private readonly ExternalAlertRetryQueue retryQueue;
         private readonly Dictionary<string, DateTime> cooldowns = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         private readonly Queue<DateTime> externalSends = new Queue<DateTime>();
         private DateTime lastThrottleWarningUtc = DateTime.MinValue;
@@ -19,10 +20,13 @@ namespace ArcaneEDR
             this.logger = logger;
             this.alertSink = alertSink;
             this.responseManager = responseManager;
+            retryQueue = new ExternalAlertRetryQueue(config, logger);
         }
 
         public void Dispatch(IEnumerable<Alert> alerts)
         {
+            RetryExternalAlerts();
+
             int sentThisDispatch = 0;
             foreach (Alert alert in alerts)
             {
@@ -37,9 +41,16 @@ namespace ArcaneEDR
 
                 if (ShouldSendExternal(alert, sentThisDispatch))
                 {
-                    SendExternalAlert(alert);
-                    RememberExternalSend();
-                    sentThisDispatch++;
+                    string failureReason;
+                    if (TrySendExternalAlert(alert, out failureReason))
+                    {
+                        RememberExternalSend();
+                        sentThisDispatch++;
+                    }
+                    else
+                    {
+                        QueueFailedExternal(alert, failureReason);
+                    }
                 }
             }
         }
@@ -47,7 +58,11 @@ namespace ArcaneEDR
         public void SendExternal(Alert alert)
         {
             logger.Alert(alert);
-            SendExternalAlert(alert);
+            string failureReason;
+            if (!TrySendExternalAlert(alert, out failureReason))
+            {
+                QueueFailedExternal(alert, failureReason);
+            }
         }
 
         private bool IsCoolingDown(Alert alert)
@@ -66,23 +81,43 @@ namespace ArcaneEDR
             cooldowns[alert.CooldownKey] = DateTime.UtcNow;
         }
 
-        private void SendExternalAlert(Alert alert)
+        private bool TrySendExternalAlert(Alert alert, out string failureReason)
         {
+            failureReason = "";
             if (alertSink.IsConfigured)
             {
                 try
                 {
                     alertSink.Send(alert);
+                    return true;
                 }
                 catch (Exception ex)
                 {
-                    logger.Error("External alert send failed: " + ex.Message);
+                    failureReason = ex.Message;
+                    logger.Error("External alert send failed: " + failureReason);
+                    return false;
                 }
             }
             else if (config.RequireExternalAlerting)
             {
-                logger.Error("External alerting is required but unavailable. Alert was logged locally only: " + alert.RuleId + ". Reason: " + alertSink.MissingConfigurationReason);
+                failureReason = alertSink.MissingConfigurationReason;
+                logger.Error("External alerting is required but unavailable. Alert was logged locally only: " + alert.RuleId + ". Reason: " + failureReason);
             }
+
+            return false;
+        }
+
+        private void QueueFailedExternal(Alert alert, string failureReason)
+        {
+            if (!config.ExternalAlertRetryEnabled) return;
+            if (!alertSink.IsConfigured) return;
+
+            retryQueue.Enqueue(alert, failureReason);
+        }
+
+        private void RetryExternalAlerts()
+        {
+            retryQueue.RetryDue(TrySendExternalAlert);
         }
 
         private bool ShouldSendExternal(Alert alert, int sentThisDispatch)

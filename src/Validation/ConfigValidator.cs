@@ -45,6 +45,11 @@ namespace ArcaneEDR
             if (config.AlertCooldownSeconds < 0) Fail(errors, "AlertCooldownSeconds must not be negative.");
             if (config.ExternalAlertMaxPerDispatch < 0) Fail(errors, "ExternalAlertMaxPerDispatch must not be negative.");
             if (config.ExternalAlertMaxPerHour < 0) Fail(errors, "ExternalAlertMaxPerHour must not be negative.");
+            if (config.ExternalAlertRetryIntervalSeconds <= 0) Fail(errors, "ExternalAlertRetryIntervalSeconds must be greater than zero.");
+            if (config.ExternalAlertRetryMaxIntervalSeconds < config.ExternalAlertRetryIntervalSeconds) Warn(warnings, "ExternalAlertRetryMaxIntervalSeconds is lower than ExternalAlertRetryIntervalSeconds; retry backoff will be capped immediately.");
+            if (config.ExternalAlertRetryMaxAttempts < 1) Fail(errors, "ExternalAlertRetryMaxAttempts must be at least 1.");
+            if (config.ExternalAlertRetryMaxQueued < 0) Fail(errors, "ExternalAlertRetryMaxQueued must not be negative.");
+            if (config.ExternalAlertRetryMaxPerPoll < 0) Fail(errors, "ExternalAlertRetryMaxPerPoll must not be negative.");
             ValidateSuppressionGroups(config, warnings);
             if (config.BaselineLearningEmailMinimumScore < 0 || config.BaselineLearningEmailMinimumScore > 100) Warn(warnings, "BaselineLearningEmailMinimumScore is outside the usual 0-100 range.");
             if (config.OpenAIAnalysisBaselineEmailMinimumScore < 0 || config.OpenAIAnalysisBaselineEmailMinimumScore > 100) Warn(warnings, "OpenAIAnalysisBaselineEmailMinimumScore is outside the usual 0-100 range.");

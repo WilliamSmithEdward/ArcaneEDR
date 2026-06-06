@@ -8,6 +8,15 @@ namespace ArcaneEDR
     {
         public static void Main(string[] args)
         {
+            if (args.Length > 0 &&
+                (args[0].Equals("--version", StringComparison.OrdinalIgnoreCase) ||
+                 args[0].Equals("-v", StringComparison.OrdinalIgnoreCase)))
+            {
+                Console.WriteLine(VersionInfo.DisplayVersion);
+                Console.WriteLine(VersionInfo.RepositoryUrl);
+                return;
+            }
+
             if (args.Length > 0 && args[0].Equals("--test-alert", StringComparison.OrdinalIgnoreCase))
             {
                 AlertTestHarness.SendTestAlert(AppDomain.CurrentDomain.BaseDirectory);

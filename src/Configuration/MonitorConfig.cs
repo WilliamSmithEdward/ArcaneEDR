@@ -21,6 +21,13 @@ namespace ArcaneEDR
         public int ExternalAlertMaxPerDispatch = 3;
         public int ExternalAlertMaxPerHour = 12;
         public HashSet<string> ExternalAlertSuppressionTermGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public bool ExternalAlertRetryEnabled = true;
+        public int ExternalAlertRetryIntervalSeconds = 300;
+        public int ExternalAlertRetryMaxIntervalSeconds = 3600;
+        public int ExternalAlertRetryMaxAttempts = 12;
+        public int ExternalAlertRetryMaxQueued = 50;
+        public int ExternalAlertRetryMaxPerPoll = 3;
+        public string ExternalAlertRetryQueueFile = "ArcaneExternalAlertRetry.queue";
         public bool RequireExternalAlerting;
         public string LogDirectory;
         public string ConfigPath;
@@ -135,6 +142,13 @@ namespace ArcaneEDR
             config.ExternalAlertSuppressionTermGroups = ReadStringSet(values, "ExternalAlertSuppressionTermGroups");
             config.RequireExternalAlerting = ReadBool(values, "RequireExternalAlerting", ReadBool(values, "RequireEmailConfig", false));
             config.LogDirectory = ResolvePath(baseDirectory, ReadString(values, "LogDirectory", "logs"));
+            config.ExternalAlertRetryEnabled = ReadBool(values, "ExternalAlertRetryEnabled", config.ExternalAlertRetryEnabled);
+            config.ExternalAlertRetryIntervalSeconds = ReadInt(values, "ExternalAlertRetryIntervalSeconds", config.ExternalAlertRetryIntervalSeconds);
+            config.ExternalAlertRetryMaxIntervalSeconds = ReadInt(values, "ExternalAlertRetryMaxIntervalSeconds", config.ExternalAlertRetryMaxIntervalSeconds);
+            config.ExternalAlertRetryMaxAttempts = ReadInt(values, "ExternalAlertRetryMaxAttempts", config.ExternalAlertRetryMaxAttempts);
+            config.ExternalAlertRetryMaxQueued = ReadInt(values, "ExternalAlertRetryMaxQueued", config.ExternalAlertRetryMaxQueued);
+            config.ExternalAlertRetryMaxPerPoll = ReadInt(values, "ExternalAlertRetryMaxPerPoll", config.ExternalAlertRetryMaxPerPoll);
+            config.ExternalAlertRetryQueueFile = ResolvePath(config.LogDirectory, ReadString(values, "ExternalAlertRetryQueueFile", config.ExternalAlertRetryQueueFile));
             config.NotifyOnServiceStart = ReadBool(values, "NotifyOnServiceStart", config.NotifyOnServiceStart);
             config.NotifyOnServiceStop = ReadBool(values, "NotifyOnServiceStop", config.NotifyOnServiceStop);
             config.NotifyOnCrashRecovery = ReadBool(values, "NotifyOnCrashRecovery", config.NotifyOnCrashRecovery);

@@ -233,6 +233,12 @@ namespace ArcaneEDR
             }
             catch (Exception ex)
             {
+                if (!forced)
+                {
+                    state.LastOpenAiAnalysisUtc = DateTime.UtcNow;
+                    Save();
+                }
+
                 logger.Error("OpenAI analysis failed: " + ex.Message);
             }
         }

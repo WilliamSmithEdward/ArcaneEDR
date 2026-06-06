@@ -1,12 +1,22 @@
 # Arcane EDR
 
-Arcane EDR is a lightweight Windows service for host network and telemetry
-detection. It watches TCP/UDP activity, enriches events with local process and
-host context, scores suspicious behavior, writes local evidence, and can send
-qualified alerts through Brevo.
+Arcane EDR is a lightweight Windows service for making unattended agent
+workstations safer while still allowing fast, bleeding-edge work. It is built
+for sandbox hosts, AI-agent boxes, and small environments where autonomous tools
+need broad local capability, but the owner still wants guardrails against
+supply-chain compromise, RAT-like activity, persistence, suspicious egress, and
+credential or remote-access abuse.
+
+It watches TCP/UDP activity, enriches events with local process and host
+context, scores suspicious behavior, writes local evidence, and can send
+qualified alerts through modular notification paths. The goal is practical
+host-level safety without needing to set up or pay for a full enterprise EDR,
+SIEM, MDM, or SOC deployment.
 
 The project intentionally uses .NET Framework and built-in Windows components
 only, so it can be built on a Windows host without downloading NuGet packages.
+
+See [docs/project-mission.md](docs/project-mission.md) for the project mission.
 
 ## What It Detects
 
@@ -35,8 +45,10 @@ only, so it can be built on a Windows host without downloading NuGet packages.
 - Untrusted process connections to internal lateral-movement ports.
 
 Arcane EDR is not a packet sniffer or a full EDR platform. It is a focused
-Windows sensor intended for agent workstations, sandbox hosts, and small
-environments where local visibility and simple alerting are useful.
+Windows safety layer intended for unattended agent workstations, sandbox hosts,
+and small environments where local visibility and simple alerting are useful.
+
+See [ROADMAP.md](ROADMAP.md) for the beta-to-`v1.0.0` roadmap.
 
 ## Requirements
 
@@ -77,6 +89,12 @@ Validate configuration and host prerequisites:
 
 ```powershell
 .\bin\ArcaneEDR.exe --validate-config
+```
+
+Print the executable version:
+
+```powershell
+.\bin\ArcaneEDR.exe --version
 ```
 
 ## Configuration
@@ -137,6 +155,15 @@ Existing published `config\Deployment.config` is also preserved by default. Use
 `-OverwriteDeploymentConfig` only when replacing the live deployment config is
 intentional.
 
+Create a release ZIP from tracked templates, scripts, docs, and build output:
+
+```powershell
+.\scripts\package-release.ps1
+```
+
+The release ZIP is written under `artifacts` with a SHA256 checksum file. Local
+machine configs, runtime logs, and Sysmon binaries are not included.
+
 ## Install As A Windows Service
 
 Run PowerShell as Administrator from the published application folder:
@@ -160,6 +187,54 @@ The installer configures Windows Service Control Manager recovery actions:
 - restart after 60 seconds on second failure
 - restart after 5 minutes on subsequent failure
 - reset the failure counter after 24 hours
+
+## Optional Constrained Admin Tasks
+
+If you do not want to run the Codex desktop app as Administrator, you can create
+on-demand scheduled tasks for specific elevated maintenance operations. This is
+more constrained than giving a tool a general admin shell.
+
+This is the preferred elevation strategy for Arcane EDR maintenance from Codex.
+See `docs\elevation-strategy.md` for the operating model.
+
+Run once from an elevated PowerShell session in the source repo:
+
+```powershell
+cd C:\Development\ArcaneEDR
+.\scripts\install-admin-tasks.cmd
+```
+
+This registers these on-demand tasks under `\ArcaneEDR\`:
+
+- `PublishRestart`: stop service if installed, build from source, publish while
+  preserving live config, then restart the service.
+- `InstallService`: publish, install the Windows service, configure service
+  recovery, then start it.
+- `UninstallService`: stop and remove the Windows service.
+- `InstallSysmon`: install or update Sysmon from the published `tools` folder.
+- `ValidateAdmin`: run `ArcaneEDR.exe --validate-config` elevated.
+
+After setup, a normal shell can trigger an approved task:
+
+```powershell
+.\scripts\run-admin-task.cmd -TaskName PublishRestart
+.\scripts\run-admin-task.cmd -TaskName ValidateAdmin
+```
+
+The `.cmd` wrappers use `powershell.exe -ExecutionPolicy Bypass -File` so the
+workflow still works on machines where local `.ps1` execution is restricted.
+
+Task output is written to:
+
+```text
+C:\Security\AdminTasks\<TaskName>.log
+```
+
+Remove the tasks from an elevated PowerShell session:
+
+```powershell
+.\scripts\uninstall-admin-tasks.cmd
+```
 
 ## Optional Sysmon
 
