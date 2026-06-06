@@ -27,8 +27,20 @@ function Get-ConfigValue {
     return $Default
 }
 
+function Resolve-ConfigPath {
+    param(
+        [string]$Primary,
+        [string]$Example
+    )
+
+    if (Test-Path $Primary) { return $Primary }
+    return $Example
+}
+
 $root = Split-Path -Parent $PSScriptRoot
-$deploymentConfig = Join-Path $root "config\Deployment.config"
+$deploymentConfig = Resolve-ConfigPath `
+    -Primary (Join-Path $root "config\Deployment.config") `
+    -Example (Join-Path $root "config\Deployment.example.config")
 $executableName = Get-ConfigValue -Path $deploymentConfig -Name "ExecutableName" -Default "ArcaneEDR.exe"
 $srcRoot = Join-Path $root "src"
 $sources = Get-ChildItem -Path $srcRoot -Recurse -Filter "*.cs" | Sort-Object FullName | ForEach-Object { $_.FullName }
@@ -54,5 +66,9 @@ New-Item -ItemType Directory -Force -Path $bin | Out-Null
     /reference:System.Xml.dll `
     /reference:System.Web.Extensions.dll `
     $sources
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Build failed with compiler exit code $LASTEXITCODE."
+}
 
 Write-Host "Built $out"

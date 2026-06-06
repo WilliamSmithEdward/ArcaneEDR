@@ -1,7 +1,8 @@
 param(
     [string]$ApplicationName = "",
     [string]$DestinationRoot = "",
-    [switch]$OverwriteConfig
+    [switch]$OverwriteConfig,
+    [switch]$OverwriteDeploymentConfig
 )
 
 $ErrorActionPreference = "Stop"
@@ -29,8 +30,20 @@ function Get-ConfigValue {
     return $Default
 }
 
+function Resolve-ConfigPath {
+    param(
+        [string]$Primary,
+        [string]$Example
+    )
+
+    if (Test-Path $Primary) { return $Primary }
+    return $Example
+}
+
 $root = Split-Path -Parent $PSScriptRoot
-$deploymentConfig = Join-Path $root "config\Deployment.config"
+$deploymentConfig = Resolve-ConfigPath `
+    -Primary (Join-Path $root "config\Deployment.config") `
+    -Example (Join-Path $root "config\Deployment.example.config")
 if ([string]::IsNullOrWhiteSpace($ApplicationName)) {
     $ApplicationName = Get-ConfigValue -Path $deploymentConfig -Name "ApplicationName" -Default "ArcaneEDR"
 }
@@ -51,6 +64,9 @@ New-Item -ItemType Directory -Force -Path $bin, $config, $scripts, $docs, $tools
 
 Copy-Item -LiteralPath (Join-Path $root "bin\$executableName") -Destination $bin -Force
 $sourceConfig = Join-Path $root "config\ArcaneEDR.config"
+if (!(Test-Path $sourceConfig)) {
+    $sourceConfig = Join-Path $root "config\ArcaneEDR.example.config"
+}
 $destinationConfig = Join-Path $config "ArcaneEDR.config"
 if ($OverwriteConfig -or !(Test-Path $destinationConfig)) {
     Copy-Item -LiteralPath $sourceConfig -Destination $destinationConfig -Force
@@ -59,14 +75,20 @@ if ($OverwriteConfig -or !(Test-Path $destinationConfig)) {
     Write-Host "Preserved existing config: $destinationConfig"
     Write-Host "Wrote source config example: $(Join-Path $config "ArcaneEDR.example.config")"
 }
-Copy-Item -LiteralPath (Join-Path $root "config\Deployment.config") -Destination $config -Force
+$sourceDeploymentConfig = $deploymentConfig
+$destinationDeploymentConfig = Join-Path $config "Deployment.config"
+if ($OverwriteDeploymentConfig -or !(Test-Path $destinationDeploymentConfig)) {
+    Copy-Item -LiteralPath $sourceDeploymentConfig -Destination $destinationDeploymentConfig -Force
+} else {
+    Copy-Item -LiteralPath $sourceDeploymentConfig -Destination (Join-Path $config "Deployment.example.config") -Force
+    Write-Host "Preserved existing deployment config: $destinationDeploymentConfig"
+    Write-Host "Wrote source deployment config example: $(Join-Path $config "Deployment.example.config")"
+}
 Copy-Item -LiteralPath (Join-Path $root "config\arcaneedr-sysmon.xml") -Destination $config -Force
 Copy-Item -LiteralPath (Join-Path $root "config\custom-rules.json") -Destination $config -Force
 Copy-Item -LiteralPath (Join-Path $root "README.md") -Destination $destination -Force
 Copy-Item -LiteralPath (Join-Path $root "docs\traffic-analysis-guidance.md") -Destination $docs -Force
-Copy-Item -LiteralPath (Join-Path $root "scripts\install-service.ps1") -Destination $scripts -Force
-Copy-Item -LiteralPath (Join-Path $root "scripts\uninstall-service.ps1") -Destination $scripts -Force
-Copy-Item -LiteralPath (Join-Path $root "scripts\install-sysmon.ps1") -Destination $scripts -Force
+Copy-Item -Path (Join-Path $root "scripts\*.ps1") -Destination $scripts -Force
 Copy-Item -Path (Join-Path $root "scripts\*.cmd") -Destination $scripts -Force
 
 Write-Host "Published to $destination"

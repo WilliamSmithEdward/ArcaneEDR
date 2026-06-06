@@ -61,19 +61,34 @@ agent/sandbox workstation.
 
 Machine/user-specific values are kept in config files:
 
-- `config\ArcaneEDR.config`: runtime identity, log directory, alert
-  recipients/senders, environment variable names, event log names, thresholds,
-  schedules, and detection tuning.
-- `config\Deployment.config`: publish destination, application folder name,
-  executable name, Sysmon executable name, and Sysmon config filename.
+- `config\ArcaneEDR.example.config`: tracked template with safe defaults for
+  GitHub. External alerting and OpenAI analysis are disabled in this template.
+- `config\ArcaneEDR.config`: untracked local/runtime config for log directory,
+  alert recipients/senders, environment variable names, event log names,
+  thresholds, schedules, and detection tuning.
+- `config\Deployment.example.config`: tracked template for publish/install
+  defaults.
+- `config\Deployment.config`: untracked local deployment config for publish
+  destination, application folder name, executable name, Sysmon executable name,
+  and Sysmon config filename.
 
-Source and scripts use generic fallbacks only; the published setup uses these
-config files as the source of truth.
+Source and scripts use generic fallbacks only. Keep machine-specific values out
+of the repository. For local development, copy the example config and edit the
+copy:
+
+```powershell
+Copy-Item .\config\ArcaneEDR.example.config .\config\ArcaneEDR.config
+Copy-Item .\config\Deployment.example.config .\config\Deployment.config
+```
+
+The published setup uses `config\ArcaneEDR.config` in the published application
+folder as the runtime source of truth.
 
 ## Publish
 
 Publish the runnable app to the `DestinationRoot` and `ApplicationName` defined
-in `config\Deployment.config`:
+in local `config\Deployment.config`, or `config\Deployment.example.config` when
+no local deployment config exists:
 
 ```powershell
 .\scripts\publish.ps1
@@ -82,10 +97,19 @@ in `config\Deployment.config`:
 The published folder contains the executable, runtime config, deployment config,
 docs, Sysmon config, and service install scripts.
 
+If the published folder already has `config\ArcaneEDR.config`, publish preserves
+that live machine config and writes the source config as
+`config\ArcaneEDR.example.config`. Use `-OverwriteConfig` only when you
+intentionally want to replace the live runtime config.
+
+Likewise, an existing published `config\Deployment.config` is preserved by
+default. Use `-OverwriteDeploymentConfig` only when you intentionally want to
+replace the live deployment config.
+
 ## Optional Sysmon
 
 Sysmon is not bundled. Place the executable named by
-`SysmonExecutableName` in `config\Deployment.config` inside the published
+`SysmonExecutableName` in local `config\Deployment.config` inside the published
 `tools` folder, then install it with:
 
 ```powershell

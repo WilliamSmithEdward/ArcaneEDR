@@ -28,8 +28,20 @@ function Get-ConfigValue {
     return $Default
 }
 
+function Resolve-ConfigPath {
+    param(
+        [string]$Primary,
+        [string]$Example
+    )
+
+    if (Test-Path $Primary) { return $Primary }
+    return $Example
+}
+
 $root = Split-Path -Parent $PSScriptRoot
-$deploymentConfig = Join-Path $root "config\Deployment.config"
+$deploymentConfig = Resolve-ConfigPath `
+    -Primary (Join-Path $root "config\Deployment.config") `
+    -Example (Join-Path $root "config\Deployment.example.config")
 if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
     $sysmonConfigFile = Get-ConfigValue -Path $deploymentConfig -Name "SysmonConfigFile" -Default "arcaneedr-sysmon.xml"
     $ConfigPath = Join-Path $root "config\$sysmonConfigFile"

@@ -28,9 +28,23 @@ function Get-ConfigValue {
     return $Default
 }
 
+function Resolve-ConfigPath {
+    param(
+        [string]$Primary,
+        [string]$Example
+    )
+
+    if (Test-Path $Primary) { return $Primary }
+    return $Example
+}
+
 $root = Split-Path -Parent $PSScriptRoot
-$runtimeConfig = Join-Path $root "config\ArcaneEDR.config"
-$deploymentConfig = Join-Path $root "config\Deployment.config"
+$runtimeConfig = Resolve-ConfigPath `
+    -Primary (Join-Path $root "config\ArcaneEDR.config") `
+    -Example (Join-Path $root "config\ArcaneEDR.example.config")
+$deploymentConfig = Resolve-ConfigPath `
+    -Primary (Join-Path $root "config\Deployment.config") `
+    -Example (Join-Path $root "config\Deployment.example.config")
 $executableName = Get-ConfigValue -Path $deploymentConfig -Name "ExecutableName" -Default "ArcaneEDR.exe"
 $exe = Join-Path $root "bin\$executableName"
 if ([string]::IsNullOrWhiteSpace($ServiceName)) {

@@ -294,7 +294,19 @@ namespace ArcaneEDR
                 if (File.Exists(configPath)) return configPath;
             }
 
-            return Path.Combine(Directory.GetCurrentDirectory(), "config\\ArcaneEDR.config");
+            configPath = Path.Combine(Directory.GetCurrentDirectory(), "config\\ArcaneEDR.config");
+            if (File.Exists(configPath)) return configPath;
+
+            configPath = Path.Combine(baseDirectory, "config\\ArcaneEDR.example.config");
+            if (File.Exists(configPath)) return configPath;
+
+            if (baseInfo.Parent != null)
+            {
+                configPath = Path.Combine(baseInfo.Parent.FullName, "config\\ArcaneEDR.example.config");
+                if (File.Exists(configPath)) return configPath;
+            }
+
+            return Path.Combine(Directory.GetCurrentDirectory(), "config\\ArcaneEDR.example.config");
         }
 
         private static string ResolvePath(string baseDirectory, string path)
