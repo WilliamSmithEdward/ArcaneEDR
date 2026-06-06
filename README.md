@@ -163,11 +163,17 @@ The installer configures Windows Service Control Manager recovery actions:
 
 ## Optional Sysmon
 
-Sysmon is not bundled. Place the executable named by `SysmonExecutableName`
-inside the published `tools` folder, then install it:
+Arcane EDR can read Sysmon when Sysmon is already installed on the machine. If
+the `SysmonServiceName` from `config\ArcaneEDR.config` is running, no Sysmon
+binary is needed in the Arcane EDR folder.
+
+The `tools` folder is only for installing or updating Sysmon from the published
+app folder. Sysmon is not bundled. To use that workflow, download Sysmon from
+Microsoft Sysinternals, place the executable named by `SysmonExecutableName` in
+`tools`, then run:
 
 ```powershell
-.\scripts\install-sysmon.ps1
+.\scripts\install-sysmon.cmd
 ```
 
 The included `config\arcaneedr-sysmon.xml` enables process creation, network
