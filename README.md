@@ -398,6 +398,12 @@ key. Local alert logs, incident grouping, response handling, and high-score
 alerts are not affected. Leave `LowValueRepeatDampeningCategories` populated;
 an explicitly blank category list disables repeat dampening matches.
 
+Persistence trust handling reduces noise from expected Windows/vendor service
+and scheduled-task activity without trusting names by themselves. A service or
+task change is classified as trusted-location only when configured trusted
+name/path indicators match and suspicious command, user-writable path, and
+RMM/RAT-like traits are absent.
+
 Arcane can also group alert records into local investigation incidents. This is
 local-only JSONL state, intended to make recent related alerts easier to scan:
 

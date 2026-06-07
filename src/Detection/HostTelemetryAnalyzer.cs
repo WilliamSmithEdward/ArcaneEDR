@@ -209,14 +209,17 @@ namespace ArcaneEDR
         {
             string text = ev.SearchText;
             bool suspicious = IsSuspiciousCommandText(text) || IsUserWritableText(text) || IsKnownRmmText(text);
+            bool trusted = !suspicious && IsTrustedPersistenceText(ev.ServiceName, ev.ProcessName, ev.CommandLine);
 
             alerts.Add(Alert.FromWindowsEvent(
-                suspicious ? "PERSIST-SERVICE-INSTALL-SUSPICIOUS" : "PERSIST-SERVICE-INSTALL",
-                suspicious ? "Suspicious service installation" : "Service installation observed",
-                suspicious ? 90 : 78,
+                suspicious ? "PERSIST-SERVICE-INSTALL-SUSPICIOUS" : (trusted ? "PERSIST-SERVICE-INSTALL-TRUSTED" : "PERSIST-SERVICE-INSTALL"),
+                suspicious ? "Suspicious service installation" : (trusted ? "Trusted-location service installation observed" : "Service installation observed"),
+                suspicious ? 90 : (trusted ? 50 : 78),
                 suspicious
                     ? "A new service was installed with command/path traits associated with RAT persistence or remote management tooling."
-                    : "A new service installation was observed.",
+                    : (trusted
+                        ? "A service installation matched configured trusted persistence name/path indicators and did not include suspicious command, user-writable path, or RMM traits."
+                        : "A new service installation was observed."),
                 "Confirm the service owner, binary path, signer, and install source. Unauthorized services are common persistence mechanisms.",
                 ev));
         }
@@ -225,14 +228,17 @@ namespace ArcaneEDR
         {
             string text = ev.SearchText;
             bool suspicious = IsSuspiciousCommandText(text) || IsUserWritableText(text) || IsKnownRmmText(text);
+            bool trusted = !suspicious && IsTrustedPersistenceText(ev.TaskName, ev.ProcessName, ev.CommandLine);
 
             alerts.Add(Alert.FromWindowsEvent(
-                suspicious ? "PERSIST-SCHEDULED-TASK-SUSPICIOUS" : "PERSIST-SCHEDULED-TASK-CHANGE",
-                suspicious ? "Suspicious scheduled task change" : "Scheduled task change observed",
-                suspicious ? 85 : 70,
+                suspicious ? "PERSIST-SCHEDULED-TASK-SUSPICIOUS" : (trusted ? "PERSIST-SCHEDULED-TASK-TRUSTED" : "PERSIST-SCHEDULED-TASK-CHANGE"),
+                suspicious ? "Suspicious scheduled task change" : (trusted ? "Trusted-location scheduled task change observed" : "Scheduled task change observed"),
+                suspicious ? 85 : (trusted ? 45 : 70),
                 suspicious
                     ? "A scheduled task was created or updated with command/path traits associated with staging or RAT persistence."
-                    : "A scheduled task was created or updated.",
+                    : (trusted
+                        ? "A scheduled task change matched configured trusted persistence name/path indicators and did not include suspicious command, user-writable path, or RMM traits."
+                        : "A scheduled task was created or updated."),
                 "Review task action, author, trigger, and command path. Unauthorized tasks are a common persistence mechanism.",
                 ev));
         }
@@ -427,9 +433,14 @@ namespace ArcaneEDR
 
         private bool IsTrustedPersistence(PersistenceItem item)
         {
-            string name = item.Name ?? "";
-            string path = item.Path ?? "";
-            string command = item.Command ?? "";
+            return IsTrustedPersistenceText(item.Name, item.Path, item.Command);
+        }
+
+        private bool IsTrustedPersistenceText(string nameValue, string pathValue, string commandValue)
+        {
+            string name = nameValue ?? "";
+            string path = pathValue ?? "";
+            string command = commandValue ?? "";
 
             bool trustedName = false;
             foreach (string prefix in config.TrustedPersistenceNamePrefixes)

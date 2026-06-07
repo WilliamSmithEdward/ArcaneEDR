@@ -68,6 +68,10 @@ Rule IDs include `PERSIST-*`.
 - Tuning knobs: `TrustedPersistenceNamePrefixes`,
   `TrustedPersistencePathIndicators`, `KnownRmmProcesses`,
   `UserWritablePathIndicators`, and baseline/reputation settings.
+- Trust handling: service and scheduled-task changes can be classified as
+  trusted-location variants only when configured trusted name/path indicators
+  match and suspicious command, user-writable path, and RMM/RAT-like traits are
+  absent. Microsoft-looking names alone are not trusted.
 - Safe test: `scripts\simulate-detection.cmd -Scenario ScheduledTaskPersistence`
   followed by `scripts\simulate-detection.cmd -Scenario Cleanup`.
 - Expected alert shape: `why` explains persistence telemetry; entity describes

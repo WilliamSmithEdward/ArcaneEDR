@@ -194,6 +194,9 @@ Progress:
 - Added external-only low-value repeat dampening so stable low-score behavior
   can stop repeating notifications while remaining visible in local logs and
   incidents.
+- Added conservative trusted-location variants for service installs and
+  scheduled-task changes when trusted name/path indicators match and suspicious
+  impersonation traits are absent.
 
 Exit criteria:
 
