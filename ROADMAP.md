@@ -228,6 +228,15 @@ Progress:
 - Added `PS-ENCODED-APP-INVENTORY` so encoded Start-app/process/UserAssist
   inventory is recorded as medium-severity context instead of being treated as a
   generic critical encoded-command alert.
+- Empirical tuning observations from local baseline:
+  - Hyper-V host-to-guest login can produce expected Windows logon type 10 /
+    RDP-style alerts with source IP `0.0.0.0`.
+  - OpenAI-signed Codex app-server traffic to Cloudflare-backed HTTPS endpoints
+    can resemble low-jitter beaconing even when it is expected agent backend
+    traffic.
+  - Repeated Windows `4672` special-privileges events around expected service,
+    desktop, and Hyper-V session activity are low-value unless paired with
+    unexplained remote logon, process staging, or persistence changes.
 
 Exit criteria:
 
@@ -327,6 +336,17 @@ Required for `v1.0.0`:
   shells, and approved workspaces.
 - Alert when known agent processes write outside approved workspace or publish
   roots.
+- Add high-confidence malicious file-behavior indicators without broad
+  file-auditing:
+  - executable or script drops into Startup, Run-key target paths, scheduled-task
+    action paths, service binary paths, browser extension locations, or other
+    persistence-adjacent locations
+  - user-writable executable/script drops followed by execution, network egress,
+    PowerShell staging, or persistence within a short window
+  - archive/download/extract/run chains launched by agent child shells or
+    package-manager tooling outside approved workspace roots
+  - credential, token, SSH-key, certificate, or `.env` material created or
+    touched by unexpected processes outside approved project roots
 - Alert when known agent processes invoke unexpected elevation paths, service
   creation, scheduled tasks, firewall changes, registry persistence, or ACL
   changes outside approved maintenance scripts.
@@ -346,6 +366,8 @@ Deferred beyond `v1.0.0`:
 
 - Deep secret scanning of file contents, prompts, transcripts, browser data, or
   model memory.
+- Whole-disk file auditing, generic document-change monitoring, or DLP-style
+  content inspection.
 - Egress drift intelligence by ASN, dynamic DNS, paste sites, file-sharing
   services, and destination reputation.
 - Automatic agent kill-switch behavior. A manual or dry-run containment command

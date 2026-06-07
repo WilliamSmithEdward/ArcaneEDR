@@ -19,6 +19,8 @@ only, so it can be built on a Windows host without downloading NuGet packages.
 See [docs/project-mission.md](docs/project-mission.md) for the project mission.
 See [docs/release-deployment-policy.md](docs/release-deployment-policy.md) for
 the source-vs-live deployment policy.
+If you are using an LLM or coding agent to operate the repo, see
+[AGENTS.md](AGENTS.md) for agent-specific workflow and tuning instructions.
 
 ## What It Detects
 
