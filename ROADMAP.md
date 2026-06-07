@@ -18,11 +18,45 @@ deployment.
   baseline learning, and daily summaries.
 - `v0.2.0`: install, upgrade, validation, and packaging hardening.
 - `v0.3.0`: detection quality, false-positive reduction, and per-rule tuning.
-- `v0.4.0`: modular notification, reporting, response, and collector framework.
-- `v0.5.0`: active response safety, rollback, and dry-run support.
+- `v0.4.0`: modular notification and reporting framework.
+- `v0.5.0`: agentic workstation guardrails MVP and active-response dry-run.
+- `v0.6.0`: collector/rule interface cleanup and privacy hardening.
 - `v1.0.0`: documented stable release with tested install, upgrade, alerting,
   privacy, recovery behavior, and a clear mission as an agent-workstation safety
   layer.
+
+## `v1.0.0` Scope Boundary
+
+`v1.0.0` should be a stable local safety layer, not an enterprise EDR clone.
+Features should make unattended agent workstations safer while preserving a
+small install footprint and predictable behavior.
+
+Required for `v1.0.0`:
+
+- Reliable install, upgrade, uninstall, validation, and release packaging.
+- Documented source-vs-live deployment policy: normal source changes are not
+  redeployed, and live deployment happens only for tagged releases or explicit
+  operator requests.
+- Complete documentation for install, configuration, operations, privacy,
+  alerting, upgrades, troubleshooting, and release verification.
+- Stable service recovery, startup notifications, daily summaries, and log
+  retention behavior.
+- Manageable alert volume after baseline tuning.
+- Modular alert sinks with Brevo, SMTP, webhook, and generic HTTP/API support.
+- Optional compact AI analysis with documented redaction and hard payload caps.
+- Agent-aware detection and labeling for known unattended agent processes.
+- Dry-run or manual-only active response. Automatic containment remains off by
+  default.
+
+Deferred beyond `v1.0.0`:
+
+- Fleet console, cloud management, and central policy.
+- Human MDR workflows, case management, and analyst handoff.
+- Full identity/SaaS monitoring.
+- Deep AI governance, prompt inspection, memory inspection, or tool-permission
+  policy engines.
+- Automated broad containment without a rollback ledger and strong safeguards.
+- Deep reputation feeds, ransomware canary management, and deception features.
 
 ## Phase 1: Stabilize The Current Beta
 
@@ -76,6 +110,8 @@ Exit criteria:
 
 - A user can go from fresh clone to running service using only the README.
 - Normal `publish.cmd` never wipes live machine config.
+- Ordinary source and documentation changes can be built and validated without
+  touching the live service.
 - Service recovery restarts the service after a forced crash.
 - Release artifacts are reproducible enough to checksum.
 
@@ -98,6 +134,56 @@ Exit criteria:
 - Baseline learning can be disabled without causing a flood.
 - High-confidence detections remain visible after local tuning.
 
+## Phase 3.5: Agentic AI Workstation Guardrails MVP
+
+Keep this phase narrow for `v1.0.0`. Arcane should harden unattended agent
+workstations without trying to become a full enterprise AI governance platform.
+
+Required for `v1.0.0`:
+
+- Add an `AgentProfile` config section for expected agent executables,
+  workspace roots, package-manager tools, browser tools, and approved admin
+  bridge tasks.
+- Label and correlate alerts that involve known agent processes, their child
+  shells, and approved workspaces.
+- Alert when known agent processes write outside approved workspace or publish
+  roots.
+- Alert when known agent processes invoke unexpected elevation paths, service
+  creation, scheduled tasks, firewall changes, registry persistence, or ACL
+  changes outside approved maintenance scripts.
+- Add a compact agent activity ledger that records high-risk process trees,
+  parent process, command category, touched paths, remote endpoint category, and
+  rule hits without storing raw sensitive payloads by default.
+- Add simple secret-exposure indicators for commands or script blocks that
+  reference high-risk token names, credential files, cloud keys, SSH material,
+  or browser credential stores.
+- Add package-install and supply-chain indicators for `npm`, `pip`, `curl`,
+  `Invoke-WebRequest`, `git clone`, unsigned downloads, and install scripts run
+  by agent-launched shells.
+- Add a maintenance/session marker so expected publish, package, install, and
+  validation work can be labeled without globally suppressing detections.
+
+Deferred beyond `v1.0.0`:
+
+- Deep secret scanning of file contents, prompts, transcripts, browser data, or
+  model memory.
+- Egress drift intelligence by ASN, dynamic DNS, paste sites, file-sharing
+  services, and destination reputation.
+- Automatic agent kill-switch behavior. A manual or dry-run containment command
+  can exist in `v1.0.0`, but broad automated blocking should wait.
+- Fine-grained tool permission policy, prompt firewalling, or AI governance
+  workflows.
+
+Exit criteria:
+
+- Agent-specific guardrails improve signal without requiring enterprise
+  identity, SIEM, or MDM integration.
+- Raw prompts, secrets, command output, and private file contents are not stored
+  or sent externally by default.
+- Expected agent development work can be labeled and reviewed without hiding
+  genuinely unusual behavior.
+- Response remains `AlertOnly` by default.
+
 ## Phase 4: Modular Notification And Reporting
 
 Brevo should be one notification sink, not the notification architecture.
@@ -109,18 +195,31 @@ Brevo should be one notification sink, not the notification architecture.
 - Keep secrets in environment variables, Windows Credential Manager, or another
   secret provider, not in tracked config.
 
-Candidate alert sinks:
+Required `v1.0.0` alert sinks:
 
 - `BrevoEmailAlertSink`
 - `SmtpEmailAlertSink`
 - `WebhookAlertSink`
+- `GenericHttpApiAlertSink`
+- `WindowsEventLogAlertSink`
+- `LocalJsonlAlertSink`
+
+Candidate post-`v1.0.0` alert sinks:
+
 - `SlackAlertSink`
 - `TeamsAlertSink`
 - `DiscordAlertSink`
-- `WindowsEventLogAlertSink`
 - `SyslogAlertSink`
 - `NtfyAlertSink`
 - `PushoverAlertSink`
+
+Progress:
+
+- Added `CompositeAlertSink` fan-out with per-sink failure isolation.
+- Added required `v1.0.0` sink implementations for Brevo, SMTP, webhook,
+  generic HTTP/API JSON POST, Windows Event Log, and local JSONL.
+- Added config loading and validation for supported sink providers and
+  provider-specific secrets.
 
 Reporting should be separate from alerting where useful:
 
@@ -180,6 +279,7 @@ Active response should stay disabled by default until it is safer and easier to
 audit.
 
 - Keep `AlertOnly` as the default response mode.
+- Treat dry-run and manual response as the `v1.0.0` target.
 - Split response into actions:
   - `FirewallBlockResponse`
   - `TerminateProcessResponse`
@@ -202,13 +302,15 @@ audit.
 
 Exit criteria:
 
-- Every active response is logged with rule, target, action, and result.
+- Every dry-run or manual response is logged with rule, target, action, and
+  result.
 - Firewall blocks can be listed and rolled back.
 - Trusted Windows, browser, Git, and development processes cannot be killed by
   broad rules.
 - Active response can be tested safely in dry-run mode.
+- Fully automatic containment is explicitly out of scope for `v1.0.0`.
 
-## Phase 7: Privacy And OpenAI
+## Phase 7: Privacy And Modular AI Analysis
 
 - Keep OpenAI analysis optional and disabled in example config.
 - Keep payloads compact, bounded, and redacted.
@@ -226,14 +328,58 @@ Exit criteria:
   - secrets
 - Consider sending only rule summaries, counters, and score metadata by default.
 
+Modular AI analysis providers:
+
+- Introduce an `IAiAnalysisProvider` abstraction so OpenAI is one provider, not
+  the analysis architecture.
+- Keep OpenAI as the first supported provider.
+- Add provider adapters for widely used AI APIs:
+  - OpenAI
+  - Azure OpenAI
+  - Anthropic Claude
+  - Google Gemini
+  - OpenAI-compatible endpoints
+  - Local/self-hosted providers such as Ollama or LM Studio
+- Move provider-specific API keys, model names, base URLs, payload limits, and
+  timeout settings into config.
+- Keep provider secrets in environment variables, Windows Credential Manager,
+  or another secret provider rather than tracked config.
+- Support disabling AI analysis entirely.
+- Support local-only AI analysis for users who do not want security telemetry
+  sent to an external API.
+
 Exit criteria:
 
 - No raw command lines, script blocks, user paths, emails, secrets, or private
   values are sent by default.
 - Payload size remains capped.
-- OpenAI failures do not block alerting or monitoring.
+- AI provider failures do not block alerting or monitoring.
+- Multiple AI providers can share the same compact, redacted analysis payload
+  contract.
 
-## Phase 8: Testing And CI
+## Phase 8: Documentation, Testing, And CI
+
+Documentation should be complete enough that a careful Windows user can install,
+validate, operate, and remove Arcane EDR without prior project knowledge.
+
+Required `v1.0.0` documentation:
+
+- Step-by-step install guide using a release ZIP.
+- Developer install guide using a source clone.
+- Configuration reference for every supported config key.
+- Alerting and notification sink guide.
+- OpenAI and modular AI analysis privacy guide.
+- Sysmon setup guide.
+- Admin-task elevation guide.
+- Operations guide for start, stop, restart, validate, logs, daily summaries,
+  and test alerts.
+- Upgrade and rollback guide that explains config preservation.
+- Troubleshooting guide for script policy, service install, missing emails,
+  Sysmon, event log access, and noisy alerts.
+- Release checklist that verifies the whole happy path:
+  fresh install, validate config, optional Sysmon, install service, startup
+  notification, test alert, daily summary, upgrade without wiping config, and
+  clean uninstall.
 
 - Add unit tests for:
   - config loading
@@ -250,6 +396,9 @@ Exit criteria:
 
 Exit criteria:
 
+- A new user can install from a release ZIP using only
+  `docs\step-by-step-install.md`.
+- Each supported operational task has one documented command path.
 - CI builds from a clean clone.
 - Example configs validate.
 - Local configs and runtime logs are not tracked.
@@ -276,7 +425,8 @@ Exit criteria for `v1.0.0`:
 - Upgrade preserves local config.
 - Baseline and alerting behavior are predictable.
 - External notifications are modular.
-- Active response is safe, auditable, and disabled by default.
+- Agent-aware detections label and correlate known unattended agent behavior.
+- Active response is dry-run or manual, auditable, and disabled by default.
 - Privacy posture is documented and tested.
 - The project remains useful without enterprise infrastructure or paid security
   platform dependencies.

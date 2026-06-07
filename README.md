@@ -17,6 +17,8 @@ The project intentionally uses .NET Framework and built-in Windows components
 only, so it can be built on a Windows host without downloading NuGet packages.
 
 See [docs/project-mission.md](docs/project-mission.md) for the project mission.
+See [docs/release-deployment-policy.md](docs/release-deployment-policy.md) for
+the source-vs-live deployment policy.
 
 ## What It Detects
 
@@ -63,6 +65,9 @@ See [ROADMAP.md](ROADMAP.md) for the beta-to-`v1.0.0` roadmap.
 - Optional: OpenAI API key for compact secondary log analysis.
 
 ## Quick Start
+
+For a release-ZIP install with every step spelled out, start with
+[docs/step-by-step-install.md](docs/step-by-step-install.md).
 
 Clone the repo and create local config files from the tracked templates:
 
@@ -131,6 +136,12 @@ external alerting and OpenAI analysis by default.
 - `scripts`: build, publish, service install, service removal, and Sysmon install helpers.
 
 ## Build And Publish
+
+Source work is separate from live deployment. Ordinary source and documentation
+changes should be built and validated from the source folder, but not published
+to the live application folder unless a tagged release is being deployed or the
+operator explicitly asks for a live update. See
+[docs/release-deployment-policy.md](docs/release-deployment-policy.md).
 
 Build:
 
@@ -304,9 +315,61 @@ BrevoSenderEmail=<verified sender>
 BrevoRecipientEmail=<recipient>
 ```
 
+`ExternalAlertProvider` can be a single provider or a comma-separated list.
+Supported providers in the current source tree:
+
+- `Disabled`
+- `Brevo`
+- `Smtp`
+- `Webhook`
+- `GenericHttpApi`
+- `LocalJsonl`
+- `WindowsEventLog`
+
+Example fan-out to Brevo, a local external-alert JSONL file, and Windows Event
+Log:
+
+```ini
+ExternalAlertProvider=Brevo,LocalJsonl,WindowsEventLog
+LocalJsonlAlertSinkFile=ArcaneExternalAlerts.jsonl
+WindowsEventLogAlertSource=ArcaneEDR
+WindowsEventLogAlertLogName=Application
+WindowsEventLogAlertEventId=9100
+```
+
+SMTP:
+
+```ini
+ExternalAlertProvider=Smtp
+SmtpHost=smtp.example.com
+SmtpPort=587
+SmtpEnableSsl=true
+SmtpUsername=alerts@example.com
+SmtpPasswordEnvironmentVariable=SMTP_PASSWORD
+SmtpSenderEmail=alerts@example.com
+SmtpRecipientEmail=security@example.com
+```
+
+Webhook or generic HTTP/API JSON POST:
+
+```ini
+ExternalAlertProvider=Webhook
+WebhookAlertUrl=https://example.com/arcane-alert
+WebhookSecretEnvironmentVariable=WEBHOOK_TOKEN
+WebhookSecretHeaderName=Authorization
+WebhookSecretPrefix=Bearer
+
+ExternalAlertProvider=GenericHttpApi
+GenericHttpApiAlertUrl=https://example.com/api/security-alerts
+GenericHttpApiSecretEnvironmentVariable=API_TOKEN
+GenericHttpApiSecretHeaderName=Authorization
+GenericHttpApiSecretPrefix=Bearer
+```
+
 The Brevo API key is read from Process, User, then Machine environment scope.
-`ExternalAlertSuppressionTermGroups` suppresses email only, not local logging.
-Each comma-separated group uses `|` for terms that must all appear.
+`ExternalAlertSuppressionTermGroups` suppresses external delivery only, not
+local logging. Each comma-separated group uses `|` for terms that must all
+appear.
 
 ## Health Notifications
 

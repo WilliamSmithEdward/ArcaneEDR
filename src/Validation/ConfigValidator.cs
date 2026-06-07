@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.Eventing.Reader;
 using System.IO;
 using System.ServiceProcess;
@@ -50,6 +51,7 @@ namespace ArcaneEDR
             if (config.ExternalAlertRetryMaxAttempts < 1) Fail(errors, "ExternalAlertRetryMaxAttempts must be at least 1.");
             if (config.ExternalAlertRetryMaxQueued < 0) Fail(errors, "ExternalAlertRetryMaxQueued must not be negative.");
             if (config.ExternalAlertRetryMaxPerPoll < 0) Fail(errors, "ExternalAlertRetryMaxPerPoll must not be negative.");
+            ValidateExternalAlertProviders(config, errors, warnings);
             ValidateSuppressionGroups(config, warnings);
             if (config.BaselineLearningEmailMinimumScore < 0 || config.BaselineLearningEmailMinimumScore > 100) Warn(warnings, "BaselineLearningEmailMinimumScore is outside the usual 0-100 range.");
             if (config.OpenAIAnalysisBaselineEmailMinimumScore < 0 || config.OpenAIAnalysisBaselineEmailMinimumScore > 100) Warn(warnings, "OpenAIAnalysisBaselineEmailMinimumScore is outside the usual 0-100 range.");
@@ -58,6 +60,11 @@ namespace ArcaneEDR
             ValidateDailySummarySchedule(config, errors, warnings);
             if (config.MinimumEmailScore < 0 || config.MinimumEmailScore > 100) Warn(warnings, "MinimumEmailScore is outside the usual 0-100 range.");
             if (config.OpenAIAnalysisMaxChars > 20000) Warn(warnings, "OpenAIAnalysisMaxChars is above 20000; compact analysis may use more tokens than intended.");
+            if (config.SmtpPort < 1 || config.SmtpPort > 65535) Fail(errors, "SmtpPort must be between 1 and 65535.");
+            if (config.SmtpTimeoutSeconds <= 0) Fail(errors, "SmtpTimeoutSeconds must be greater than zero.");
+            if (config.WebhookTimeoutSeconds <= 0) Fail(errors, "WebhookTimeoutSeconds must be greater than zero.");
+            if (config.GenericHttpApiTimeoutSeconds <= 0) Fail(errors, "GenericHttpApiTimeoutSeconds must be greater than zero.");
+            if (config.WindowsEventLogAlertEventId < 1 || config.WindowsEventLogAlertEventId > 65535) Fail(errors, "WindowsEventLogAlertEventId must be between 1 and 65535.");
             if (!IsResponseMode(config.ResponseMode)) Fail(errors, "ResponseMode must be AlertOnly, BlockRemoteIp, TerminateProcess, or BlockAndTerminate.");
             if (config.ResponseMinimumScore < 90 && !config.ResponseMode.Equals("AlertOnly", StringComparison.OrdinalIgnoreCase))
             {
@@ -119,6 +126,78 @@ namespace ArcaneEDR
             }
         }
 
+        private static void ValidateExternalAlertProviders(MonitorConfig config, List<string> errors, List<string> warnings)
+        {
+            bool sawProvider = false;
+            foreach (string provider in config.GetExternalAlertProviders())
+            {
+                sawProvider = true;
+                if (!IsExternalAlertProvider(provider))
+                {
+                    Fail(errors, "ExternalAlertProvider contains unsupported provider: " + provider);
+                }
+            }
+
+            if (!sawProvider)
+            {
+                Warn(warnings, "ExternalAlertProvider is empty; external alerts are disabled.");
+            }
+
+            if (ProviderEnabled(config, "LocalJsonl") && String.IsNullOrWhiteSpace(config.LocalJsonlAlertSinkFile))
+            {
+                Fail(errors, "LocalJsonl provider is enabled but LocalJsonlAlertSinkFile is empty.");
+            }
+
+            if (ProviderEnabled(config, "Smtp"))
+            {
+                if (!config.HasSmtpEmailConfig)
+                {
+                    Fail(errors, "SMTP provider is enabled but host, sender, or recipient settings are incomplete.");
+                }
+            }
+
+            if (ProviderEnabled(config, "Webhook"))
+            {
+                if (String.IsNullOrWhiteSpace(config.WebhookAlertUrl))
+                {
+                    Fail(errors, "Webhook provider is enabled but WebhookAlertUrl is empty.");
+                }
+            }
+
+            if (ProviderEnabled(config, "GenericHttpApi"))
+            {
+                if (String.IsNullOrWhiteSpace(config.GenericHttpApiAlertUrl))
+                {
+                    Fail(errors, "GenericHttpApi provider is enabled but GenericHttpApiAlertUrl is empty.");
+                }
+            }
+
+            if (ProviderEnabled(config, "WindowsEventLog"))
+            {
+                if (String.IsNullOrWhiteSpace(config.WindowsEventLogAlertSource))
+                {
+                    Fail(errors, "WindowsEventLog provider is enabled but WindowsEventLogAlertSource is empty.");
+                }
+
+                if (String.IsNullOrWhiteSpace(config.WindowsEventLogAlertLogName))
+                {
+                    Fail(errors, "WindowsEventLog provider is enabled but WindowsEventLogAlertLogName is empty.");
+                }
+
+                try
+                {
+                    if (!EventLog.SourceExists(config.WindowsEventLogAlertSource))
+                    {
+                        Warn(warnings, "Windows Event Log source does not exist yet and will be created on first alert if the service account has permission: " + config.WindowsEventLogAlertSource);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Warn(warnings, "Windows Event Log source could not be checked: " + ex.Message);
+                }
+            }
+        }
+
         private static void ValidateLogDirectory(MonitorConfig config, List<string> errors)
         {
             try
@@ -139,7 +218,7 @@ namespace ArcaneEDR
         {
             ISecretProvider secrets = new EnvironmentSecretProvider();
 
-            if (config.ExternalAlertProvider.Equals("Brevo", StringComparison.OrdinalIgnoreCase))
+            if (ProviderEnabled(config, "Brevo"))
             {
                 if (!config.HasBrevoEmailConfig)
                 {
@@ -160,6 +239,66 @@ namespace ArcaneEDR
                 else
                 {
                     Pass("Brevo API key is visible via environment variable: " + config.BrevoApiKeyEnvironmentVariable);
+                }
+            }
+
+            if (ProviderEnabled(config, "Smtp") &&
+                !String.IsNullOrWhiteSpace(config.SmtpPasswordEnvironmentVariable))
+            {
+                if (String.IsNullOrWhiteSpace(secrets.GetSecret(config.SmtpPasswordEnvironmentVariable)))
+                {
+                    if (config.RequireExternalAlerting)
+                    {
+                        Fail(errors, "SMTP password environment variable is not visible: " + config.SmtpPasswordEnvironmentVariable);
+                    }
+                    else
+                    {
+                        Warn(warnings, "SMTP password environment variable is not visible: " + config.SmtpPasswordEnvironmentVariable);
+                    }
+                }
+                else
+                {
+                    Pass("SMTP password is visible via environment variable: " + config.SmtpPasswordEnvironmentVariable);
+                }
+            }
+
+            if (ProviderEnabled(config, "Webhook") &&
+                !String.IsNullOrWhiteSpace(config.WebhookSecretEnvironmentVariable))
+            {
+                if (String.IsNullOrWhiteSpace(secrets.GetSecret(config.WebhookSecretEnvironmentVariable)))
+                {
+                    if (config.RequireExternalAlerting)
+                    {
+                        Fail(errors, "Webhook secret environment variable is not visible: " + config.WebhookSecretEnvironmentVariable);
+                    }
+                    else
+                    {
+                        Warn(warnings, "Webhook secret environment variable is not visible: " + config.WebhookSecretEnvironmentVariable);
+                    }
+                }
+                else
+                {
+                    Pass("Webhook secret is visible via environment variable: " + config.WebhookSecretEnvironmentVariable);
+                }
+            }
+
+            if (ProviderEnabled(config, "GenericHttpApi") &&
+                !String.IsNullOrWhiteSpace(config.GenericHttpApiSecretEnvironmentVariable))
+            {
+                if (String.IsNullOrWhiteSpace(secrets.GetSecret(config.GenericHttpApiSecretEnvironmentVariable)))
+                {
+                    if (config.RequireExternalAlerting)
+                    {
+                        Fail(errors, "Generic HTTP API secret environment variable is not visible: " + config.GenericHttpApiSecretEnvironmentVariable);
+                    }
+                    else
+                    {
+                        Warn(warnings, "Generic HTTP API secret environment variable is not visible: " + config.GenericHttpApiSecretEnvironmentVariable);
+                    }
+                }
+                else
+                {
+                    Pass("Generic HTTP API secret is visible via environment variable: " + config.GenericHttpApiSecretEnvironmentVariable);
                 }
             }
 
@@ -254,6 +393,82 @@ namespace ArcaneEDR
                 value.Equals("BlockRemoteIp", StringComparison.OrdinalIgnoreCase) ||
                 value.Equals("TerminateProcess", StringComparison.OrdinalIgnoreCase) ||
                 value.Equals("BlockAndTerminate", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool ProviderEnabled(MonitorConfig config, string expectedProvider)
+        {
+            foreach (string provider in config.GetExternalAlertProviders())
+            {
+                if (ProviderMatches(provider, expectedProvider)) return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsExternalAlertProvider(string provider)
+        {
+            return ProviderMatches(provider, "Disabled") ||
+                ProviderMatches(provider, "None") ||
+                ProviderMatches(provider, "Off") ||
+                ProviderMatches(provider, "Brevo") ||
+                ProviderMatches(provider, "Smtp") ||
+                ProviderMatches(provider, "SmtpEmail") ||
+                ProviderMatches(provider, "SmtpEmailAlertSink") ||
+                ProviderMatches(provider, "Webhook") ||
+                ProviderMatches(provider, "WebhookAlertSink") ||
+                ProviderMatches(provider, "GenericHttpApi") ||
+                ProviderMatches(provider, "GenericHttpApiAlertSink") ||
+                ProviderMatches(provider, "HttpApi") ||
+                ProviderMatches(provider, "LocalJsonl") ||
+                ProviderMatches(provider, "LocalJsonlAlertSink") ||
+                ProviderMatches(provider, "WindowsEventLog") ||
+                ProviderMatches(provider, "EventLog") ||
+                ProviderMatches(provider, "WindowsEventLogAlertSink");
+        }
+
+        private static bool ProviderMatches(string provider, string expected)
+        {
+            return CanonicalProvider(provider).Equals(CanonicalProvider(expected), StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string CanonicalProvider(string provider)
+        {
+            if (provider == null) return "";
+            if (provider.Equals("None", StringComparison.OrdinalIgnoreCase) ||
+                provider.Equals("Off", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Disabled";
+            }
+
+            if (provider.Equals("SmtpEmail", StringComparison.OrdinalIgnoreCase) ||
+                provider.Equals("SmtpEmailAlertSink", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Smtp";
+            }
+
+            if (provider.Equals("WebhookAlertSink", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Webhook";
+            }
+
+            if (provider.Equals("GenericHttpApiAlertSink", StringComparison.OrdinalIgnoreCase) ||
+                provider.Equals("HttpApi", StringComparison.OrdinalIgnoreCase))
+            {
+                return "GenericHttpApi";
+            }
+
+            if (provider.Equals("LocalJsonlAlertSink", StringComparison.OrdinalIgnoreCase))
+            {
+                return "LocalJsonl";
+            }
+
+            if (provider.Equals("EventLog", StringComparison.OrdinalIgnoreCase) ||
+                provider.Equals("WindowsEventLogAlertSink", StringComparison.OrdinalIgnoreCase))
+            {
+                return "WindowsEventLog";
+            }
+
+            return provider;
         }
 
         private static int Finish(List<string> errors, List<string> warnings)

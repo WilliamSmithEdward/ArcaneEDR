@@ -62,6 +62,30 @@ namespace ArcaneEDR
         public string BrevoSenderName = "Arcane EDR";
         public string BrevoRecipientEmail;
         public string BrevoRecipientName;
+        public string SmtpHost;
+        public int SmtpPort = 587;
+        public bool SmtpEnableSsl = true;
+        public int SmtpTimeoutSeconds = 15;
+        public string SmtpUsername;
+        public string SmtpPasswordEnvironmentVariable;
+        public string SmtpSenderEmail;
+        public string SmtpSenderName = "Arcane EDR";
+        public string SmtpRecipientEmail;
+        public string SmtpRecipientName;
+        public string WebhookAlertUrl;
+        public string WebhookSecretEnvironmentVariable;
+        public string WebhookSecretHeaderName = "Authorization";
+        public string WebhookSecretPrefix = "Bearer ";
+        public int WebhookTimeoutSeconds = 15;
+        public string GenericHttpApiAlertUrl;
+        public string GenericHttpApiSecretEnvironmentVariable;
+        public string GenericHttpApiSecretHeaderName = "Authorization";
+        public string GenericHttpApiSecretPrefix = "Bearer ";
+        public int GenericHttpApiTimeoutSeconds = 15;
+        public string LocalJsonlAlertSinkFile = "ArcaneExternalAlerts.jsonl";
+        public string WindowsEventLogAlertSource = "ArcaneEDR";
+        public string WindowsEventLogAlertLogName = "Application";
+        public int WindowsEventLogAlertEventId = 9100;
         public bool EnableSysmonIngestion = true;
         public string SysmonServiceName = "Sysmon";
         public string SysmonEventLogName = "Microsoft-Windows-Sysmon/Operational";
@@ -123,6 +147,17 @@ namespace ArcaneEDR
             }
         }
 
+        public bool HasSmtpEmailConfig
+        {
+            get
+            {
+                return !String.IsNullOrWhiteSpace(SmtpHost) &&
+                    SmtpPort > 0 &&
+                    !String.IsNullOrWhiteSpace(SmtpSenderEmail) &&
+                    !String.IsNullOrWhiteSpace(SmtpRecipientEmail);
+            }
+        }
+
         public static MonitorConfig Load(string baseDirectory)
         {
             string configPath = ResolveConfigPath(baseDirectory);
@@ -180,6 +215,30 @@ namespace ArcaneEDR
             config.BrevoSenderName = ReadString(values, "BrevoSenderName", config.BrevoSenderName);
             config.BrevoRecipientEmail = ReadString(values, "BrevoRecipientEmail", "");
             config.BrevoRecipientName = ReadString(values, "BrevoRecipientName", "");
+            config.SmtpHost = ReadString(values, "SmtpHost", "");
+            config.SmtpPort = ReadInt(values, "SmtpPort", config.SmtpPort);
+            config.SmtpEnableSsl = ReadBool(values, "SmtpEnableSsl", config.SmtpEnableSsl);
+            config.SmtpTimeoutSeconds = ReadInt(values, "SmtpTimeoutSeconds", config.SmtpTimeoutSeconds);
+            config.SmtpUsername = ReadString(values, "SmtpUsername", "");
+            config.SmtpPasswordEnvironmentVariable = ReadString(values, "SmtpPasswordEnvironmentVariable", "");
+            config.SmtpSenderEmail = ReadString(values, "SmtpSenderEmail", "");
+            config.SmtpSenderName = ReadString(values, "SmtpSenderName", config.SmtpSenderName);
+            config.SmtpRecipientEmail = ReadString(values, "SmtpRecipientEmail", "");
+            config.SmtpRecipientName = ReadString(values, "SmtpRecipientName", "");
+            config.WebhookAlertUrl = ReadString(values, "WebhookAlertUrl", "");
+            config.WebhookSecretEnvironmentVariable = ReadString(values, "WebhookSecretEnvironmentVariable", "");
+            config.WebhookSecretHeaderName = ReadString(values, "WebhookSecretHeaderName", config.WebhookSecretHeaderName);
+            config.WebhookSecretPrefix = ReadString(values, "WebhookSecretPrefix", config.WebhookSecretPrefix);
+            config.WebhookTimeoutSeconds = ReadInt(values, "WebhookTimeoutSeconds", config.WebhookTimeoutSeconds);
+            config.GenericHttpApiAlertUrl = ReadString(values, "GenericHttpApiAlertUrl", "");
+            config.GenericHttpApiSecretEnvironmentVariable = ReadString(values, "GenericHttpApiSecretEnvironmentVariable", "");
+            config.GenericHttpApiSecretHeaderName = ReadString(values, "GenericHttpApiSecretHeaderName", config.GenericHttpApiSecretHeaderName);
+            config.GenericHttpApiSecretPrefix = ReadString(values, "GenericHttpApiSecretPrefix", config.GenericHttpApiSecretPrefix);
+            config.GenericHttpApiTimeoutSeconds = ReadInt(values, "GenericHttpApiTimeoutSeconds", config.GenericHttpApiTimeoutSeconds);
+            config.LocalJsonlAlertSinkFile = ResolvePath(config.LogDirectory, ReadString(values, "LocalJsonlAlertSinkFile", config.LocalJsonlAlertSinkFile));
+            config.WindowsEventLogAlertSource = ReadString(values, "WindowsEventLogAlertSource", config.WindowsEventLogAlertSource);
+            config.WindowsEventLogAlertLogName = ReadString(values, "WindowsEventLogAlertLogName", config.WindowsEventLogAlertLogName);
+            config.WindowsEventLogAlertEventId = ReadInt(values, "WindowsEventLogAlertEventId", config.WindowsEventLogAlertEventId);
             config.EnableSysmonIngestion = ReadBool(values, "EnableSysmonIngestion", config.EnableSysmonIngestion);
             config.SysmonServiceName = ReadString(values, "SysmonServiceName", config.SysmonServiceName);
             config.SysmonEventLogName = ReadString(values, "SysmonEventLogName", config.SysmonEventLogName);
@@ -269,6 +328,22 @@ namespace ArcaneEDR
         public bool IsBlockedHash(string hash)
         {
             return !String.IsNullOrWhiteSpace(hash) && BlockedHashes.Contains(hash);
+        }
+
+        public IEnumerable<string> GetExternalAlertProviders()
+        {
+            if (String.IsNullOrWhiteSpace(ExternalAlertProvider))
+            {
+                yield return "Disabled";
+                yield break;
+            }
+
+            char[] separators = new[] { ',', ';', '+' };
+            foreach (string raw in ExternalAlertProvider.Split(separators, StringSplitOptions.RemoveEmptyEntries))
+            {
+                string provider = raw.Trim();
+                if (provider.Length > 0) yield return provider;
+            }
         }
 
         private static bool Contains(List<CidrRange> ranges, IPAddress address)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace ArcaneEDR
 {
@@ -6,14 +7,83 @@ namespace ArcaneEDR
     {
         public static IAlertSink Create(MonitorConfig config, FileLogger logger)
         {
-            if (config.ExternalAlertProvider.Equals("Brevo", StringComparison.OrdinalIgnoreCase))
+            List<IAlertSink> sinks = new List<IAlertSink>();
+            ISecretProvider secretProvider = new EnvironmentSecretProvider();
+            foreach (string provider in config.GetExternalAlertProviders())
             {
-                ISecretProvider secretProvider = new EnvironmentSecretProvider();
-                BrevoTransactionalEmailClient client = new BrevoTransactionalEmailClient(config, secretProvider);
-                return new BrevoEmailAlertSink(config, logger, client);
+                if (provider.Equals("Disabled", StringComparison.OrdinalIgnoreCase) ||
+                    provider.Equals("None", StringComparison.OrdinalIgnoreCase) ||
+                    provider.Equals("Off", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (provider.Equals("Brevo", StringComparison.OrdinalIgnoreCase))
+                {
+                    BrevoTransactionalEmailClient client = new BrevoTransactionalEmailClient(config, secretProvider);
+                    sinks.Add(new BrevoEmailAlertSink(config, logger, client));
+                }
+                else if (provider.Equals("Smtp", StringComparison.OrdinalIgnoreCase) ||
+                    provider.Equals("SmtpEmail", StringComparison.OrdinalIgnoreCase) ||
+                    provider.Equals("SmtpEmailAlertSink", StringComparison.OrdinalIgnoreCase))
+                {
+                    sinks.Add(new SmtpEmailAlertSink(config, logger, secretProvider));
+                }
+                else if (provider.Equals("Webhook", StringComparison.OrdinalIgnoreCase) ||
+                    provider.Equals("WebhookAlertSink", StringComparison.OrdinalIgnoreCase))
+                {
+                    sinks.Add(new HttpJsonAlertSink(
+                        "Webhook",
+                        config.WebhookAlertUrl,
+                        config.WebhookSecretEnvironmentVariable,
+                        config.WebhookSecretHeaderName,
+                        config.WebhookSecretPrefix,
+                        config.WebhookTimeoutSeconds,
+                        logger,
+                        secretProvider));
+                }
+                else if (provider.Equals("GenericHttpApi", StringComparison.OrdinalIgnoreCase) ||
+                    provider.Equals("GenericHttpApiAlertSink", StringComparison.OrdinalIgnoreCase) ||
+                    provider.Equals("HttpApi", StringComparison.OrdinalIgnoreCase))
+                {
+                    sinks.Add(new HttpJsonAlertSink(
+                        "Generic HTTP API",
+                        config.GenericHttpApiAlertUrl,
+                        config.GenericHttpApiSecretEnvironmentVariable,
+                        config.GenericHttpApiSecretHeaderName,
+                        config.GenericHttpApiSecretPrefix,
+                        config.GenericHttpApiTimeoutSeconds,
+                        logger,
+                        secretProvider));
+                }
+                else if (provider.Equals("LocalJsonl", StringComparison.OrdinalIgnoreCase) ||
+                    provider.Equals("LocalJsonlAlertSink", StringComparison.OrdinalIgnoreCase))
+                {
+                    sinks.Add(new LocalJsonlAlertSink(config, logger));
+                }
+                else if (provider.Equals("WindowsEventLog", StringComparison.OrdinalIgnoreCase) ||
+                    provider.Equals("EventLog", StringComparison.OrdinalIgnoreCase) ||
+                    provider.Equals("WindowsEventLogAlertSink", StringComparison.OrdinalIgnoreCase))
+                {
+                    sinks.Add(new WindowsEventLogAlertSink(config, logger));
+                }
+                else
+                {
+                    sinks.Add(new DisabledAlertSink("Unsupported external alert provider: " + provider));
+                }
             }
 
-            return new DisabledAlertSink("External email delivery is disabled. Alerts are written to local logs only.");
+            if (sinks.Count == 0)
+            {
+                return new DisabledAlertSink("External alert delivery is disabled. Alerts are written to local logs only.");
+            }
+
+            if (sinks.Count == 1)
+            {
+                return sinks[0];
+            }
+
+            return new CompositeAlertSink(sinks, logger);
         }
     }
 }
