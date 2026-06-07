@@ -55,6 +55,12 @@ namespace ArcaneEDR
                 return;
             }
 
+            if (args.Length > 0 && args[0].Equals("--support-bundle", StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.ExitCode = SupportBundleConsole.Generate(AppDomain.CurrentDomain.BaseDirectory);
+                return;
+            }
+
             if (args.Length > 0 && args[0].Equals("--validate-config", StringComparison.OrdinalIgnoreCase))
             {
                 Environment.ExitCode = ConfigValidator.Run(AppDomain.CurrentDomain.BaseDirectory);

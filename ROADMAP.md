@@ -196,6 +196,9 @@ Progress:
 - Added a local incident grouping MVP backed by `ArcaneIncidents.jsonl`, plus
   `--incidents --last <duration>` and `--timeline <incident-id>` commands for
   recent summary and timeline review.
+- Added `--support-bundle` to generate a bounded local folder with version,
+  redacted config, health state, collector/sink/runtime checks, summarized
+  alerts, recent warning/error lines, and incident summaries.
 
 Exit criteria:
 

@@ -293,6 +293,18 @@ an API call:
 .\bin\ArcaneEDR.exe --preview-openai-payload
 ```
 
+Generate a privacy-first local support bundle:
+
+```powershell
+.\bin\ArcaneEDR.exe --support-bundle
+```
+
+The bundle is written under `LogDirectory` and includes version, redacted
+config, service health state, collector/sink/runtime checks, recent alert
+summaries, recent warning/error lines, and recent incident summaries. It does
+not copy raw alert bodies, entities, command lines, script blocks, OpenAI
+payloads, or secret values.
+
 ## Alerting
 
 All alerts are always written locally under `LogDirectory`:
