@@ -25,6 +25,11 @@ namespace ArcaneEDR
         public int ExternalAlertMaxPerDispatch = 3;
         public int ExternalAlertMaxPerHour = 12;
         public HashSet<string> ExternalAlertSuppressionTermGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public bool EnableLowValueRepeatDampening = true;
+        public int LowValueRepeatDampeningMaximumScore = 60;
+        public int LowValueRepeatDampeningWindowMinutes = 60;
+        public int LowValueRepeatDampeningMaxExternalAlertsPerWindow = 2;
+        public HashSet<string> LowValueRepeatDampeningCategories = DefaultLowValueRepeatDampeningCategories();
         public bool EnableMaintenanceContext = true;
         public HashSet<string> MaintenanceContextTermGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public int MaintenanceContextExternalAlertMinimumScore = 95;
@@ -198,6 +203,13 @@ namespace ArcaneEDR
             config.ExternalAlertMaxPerDispatch = ReadInt(values, "ExternalAlertMaxPerDispatch", config.ExternalAlertMaxPerDispatch);
             config.ExternalAlertMaxPerHour = ReadInt(values, "ExternalAlertMaxPerHour", config.ExternalAlertMaxPerHour);
             config.ExternalAlertSuppressionTermGroups = ReadStringSet(values, "ExternalAlertSuppressionTermGroups");
+            config.EnableLowValueRepeatDampening = ReadBool(values, "EnableLowValueRepeatDampening", config.EnableLowValueRepeatDampening);
+            config.LowValueRepeatDampeningMaximumScore = ReadInt(values, "LowValueRepeatDampeningMaximumScore", config.LowValueRepeatDampeningMaximumScore);
+            config.LowValueRepeatDampeningWindowMinutes = ReadInt(values, "LowValueRepeatDampeningWindowMinutes", config.LowValueRepeatDampeningWindowMinutes);
+            config.LowValueRepeatDampeningMaxExternalAlertsPerWindow = ReadInt(values, "LowValueRepeatDampeningMaxExternalAlertsPerWindow", config.LowValueRepeatDampeningMaxExternalAlertsPerWindow);
+            config.LowValueRepeatDampeningCategories = values.ContainsKey("LowValueRepeatDampeningCategories")
+                ? ReadStringSet(values, "LowValueRepeatDampeningCategories")
+                : DefaultLowValueRepeatDampeningCategories();
             config.EnableMaintenanceContext = ReadBool(values, "EnableMaintenanceContext", config.EnableMaintenanceContext);
             config.MaintenanceContextTermGroups = ReadStringSet(values, "MaintenanceContextTermGroups");
             config.MaintenanceContextExternalAlertMinimumScore = ReadInt(values, "MaintenanceContextExternalAlertMinimumScore", config.MaintenanceContextExternalAlertMinimumScore);
@@ -515,6 +527,17 @@ namespace ArcaneEDR
                 if (trimmed.Length > 0) result.Add(trimmed);
             }
 
+            return result;
+        }
+
+        private static HashSet<string> DefaultLowValueRepeatDampeningCategories()
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            result.Add("Network");
+            result.Add("DNS");
+            result.Add("Baseline");
+            result.Add("Reputation");
+            result.Add("Process");
             return result;
         }
 

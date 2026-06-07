@@ -23,7 +23,8 @@ Rule IDs include `NET-EGRESS-*`, `NET-LISTEN-*`, `NET-INBOUND-*`,
 - Tuning knobs: `AllowedListeningPorts`, `AllowedOutboundPorts`,
   `HighRiskRemotePorts`, `TrustedProcesses`, `AllowedRemoteCidrs`,
   `AllowedDnsResolvers`, `ConnectionBurstThreshold`, `BeaconMinimumSamples`,
-  `BeaconMaxAverageIntervalSeconds`, and `BeaconMaxJitterRatio`.
+  `BeaconMaxAverageIntervalSeconds`, `BeaconMaxJitterRatio`, and low-value
+  repeat dampening settings.
 - Safe test: `scripts\simulate-detection.cmd -Scenario UnexpectedListener`.
   This opens a localhost-only TCP listener and should produce
   `NET-LISTEN-TCP-LOCALHOST-UNEXPECTED`.
@@ -145,7 +146,8 @@ Rule IDs include `BASELINE-*` and `REPUTATION-*`.
   newly installed tools, and browser/package-manager churn.
 - Tuning knobs: `BaselineEnabled`, `BaselineLearningMode`,
   `BaselineWarmupHours`, `BaselineLearningEmailMinimumScore`,
-  `EnableReputationCache`, and `ReputationCacheFile`.
+  `EnableReputationCache`, `ReputationCacheFile`, and low-value repeat
+  dampening settings.
 - Safe test: run during a lab baseline transition; no standalone simulation is
   included because novelty depends on local state.
 - Expected alert shape: `why` explains local baseline or reputation novelty.

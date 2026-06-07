@@ -53,6 +53,7 @@ namespace ArcaneEDR
             if (config.ExternalAlertRetryMaxPerPoll < 0) Fail(errors, "ExternalAlertRetryMaxPerPoll must not be negative.");
             ValidateExternalAlertProviders(config, errors, warnings);
             ValidateTermGroups(config.ExternalAlertSuppressionTermGroups, "ExternalAlertSuppressionTermGroups", warnings);
+            ValidateLowValueRepeatDampening(config, errors, warnings);
             ValidateTermGroups(config.MaintenanceContextTermGroups, "MaintenanceContextTermGroups", warnings);
             if (config.MaintenanceContextExternalAlertMinimumScore < 0 || config.MaintenanceContextExternalAlertMinimumScore > 100) Warn(warnings, "MaintenanceContextExternalAlertMinimumScore is outside the usual 0-100 range.");
             if (config.BaselineLearningEmailMinimumScore < 0 || config.BaselineLearningEmailMinimumScore > 100) Warn(warnings, "BaselineLearningEmailMinimumScore is outside the usual 0-100 range.");
@@ -145,6 +146,39 @@ namespace ArcaneEDR
                 if (item.Value < 0 || item.Value > 100)
                 {
                     Warn(warnings, "CategoryMinimumEmailScores entry is outside the usual 0-100 range: " + item.Key + "=" + item.Value);
+                }
+            }
+        }
+
+        private static void ValidateLowValueRepeatDampening(MonitorConfig config, List<string> errors, List<string> warnings)
+        {
+            if (!config.EnableLowValueRepeatDampening) return;
+
+            if (config.LowValueRepeatDampeningMaximumScore < 0 || config.LowValueRepeatDampeningMaximumScore > 100)
+            {
+                Warn(warnings, "LowValueRepeatDampeningMaximumScore is outside the usual 0-100 range.");
+            }
+
+            if (config.LowValueRepeatDampeningWindowMinutes <= 0)
+            {
+                Fail(errors, "LowValueRepeatDampeningWindowMinutes must be greater than zero when repeat dampening is enabled.");
+            }
+
+            if (config.LowValueRepeatDampeningMaxExternalAlertsPerWindow <= 0)
+            {
+                Fail(errors, "LowValueRepeatDampeningMaxExternalAlertsPerWindow must be greater than zero when repeat dampening is enabled.");
+            }
+
+            if (config.LowValueRepeatDampeningCategories.Count == 0)
+            {
+                Warn(warnings, "LowValueRepeatDampeningCategories is empty; repeat dampening will not match any categories.");
+            }
+
+            foreach (string category in config.LowValueRepeatDampeningCategories)
+            {
+                if (!AlertRuleCatalog.IsKnownCategory(category))
+                {
+                    Warn(warnings, "LowValueRepeatDampeningCategories contains an unknown category: " + category);
                 }
             }
         }

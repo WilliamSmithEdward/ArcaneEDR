@@ -191,6 +191,9 @@ Progress:
 - Split unexpected listener alerts into lower-severity localhost-only listener
   rules and higher-severity reachable listener rules, and limited inbound
   listener correlation to non-loopback TCP listeners.
+- Added external-only low-value repeat dampening so stable low-score behavior
+  can stop repeating notifications while remaining visible in local logs and
+  incidents.
 
 Exit criteria:
 

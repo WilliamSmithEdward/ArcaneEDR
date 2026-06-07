@@ -381,6 +381,23 @@ text. Matching alerts get `maintenance_context=true`, retain their local log and
 incident records, and only suppress external delivery when the score is below
 `MaintenanceContextExternalAlertMinimumScore`.
 
+Low-value repeat dampening reduces external notification volume for the same
+stable behavior while preserving local evidence:
+
+```ini
+EnableLowValueRepeatDampening=true
+LowValueRepeatDampeningMaximumScore=60
+LowValueRepeatDampeningWindowMinutes=60
+LowValueRepeatDampeningMaxExternalAlertsPerWindow=2
+LowValueRepeatDampeningCategories=Network,DNS,Baseline,Reputation,Process
+```
+
+When enabled, Arcane allows the first few matching low-score external alerts in
+the window, then suppresses additional external delivery for the same repeat
+key. Local alert logs, incident grouping, response handling, and high-score
+alerts are not affected. Leave `LowValueRepeatDampeningCategories` populated;
+an explicitly blank category list disables repeat dampening matches.
+
 Arcane can also group alert records into local investigation incidents. This is
 local-only JSONL state, intended to make recent related alerts easier to scan:
 

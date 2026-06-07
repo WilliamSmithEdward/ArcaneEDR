@@ -11,6 +11,7 @@ namespace ArcaneEDR
         private readonly ResponseManager responseManager;
         private readonly ExternalAlertRetryQueue retryQueue;
         private readonly IncidentStore incidentStore;
+        private readonly LowValueRepeatDampener lowValueRepeatDampener;
         private readonly Dictionary<string, DateTime> cooldowns = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         private readonly Queue<DateTime> externalSends = new Queue<DateTime>();
         private DateTime lastThrottleWarningUtc = DateTime.MinValue;
@@ -23,6 +24,7 @@ namespace ArcaneEDR
             this.responseManager = responseManager;
             retryQueue = new ExternalAlertRetryQueue(config, logger);
             incidentStore = new IncidentStore(config, logger);
+            lowValueRepeatDampener = new LowValueRepeatDampener(config);
         }
 
         public void Dispatch(IEnumerable<Alert> alerts)
@@ -171,6 +173,12 @@ namespace ArcaneEDR
             if (TermGroupRules.MatchesAnyGroup(AlertText(alert), config.ExternalAlertSuppressionTermGroups))
             {
                 WarnThrottled("configured suppression group matched");
+                return false;
+            }
+
+            if (lowValueRepeatDampener.ShouldDampen(alert))
+            {
+                WarnThrottled("repeated low-value alert dampened");
                 return false;
             }
 
