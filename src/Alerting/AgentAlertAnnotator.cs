@@ -36,6 +36,7 @@ namespace ArcaneEDR
             string summary = String.Join(",", reasons.ToArray());
             alert.Body = AppendLine(alert.Body, "AgentContext: involved=true reasons=" + summary);
             alert.EntitySummary = AppendEntity(alert.EntitySummary, "agent_context=involved reasons=" + summary);
+            alert.AddWhy("The alert involves configured unattended-agent context: " + summary + ".");
             return alert;
         }
 

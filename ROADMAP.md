@@ -188,6 +188,12 @@ Deferred beyond `v1.0.0`:
 - Long-term searchable database.
 - Complex query language.
 
+Progress:
+
+- Added structured `why` alert metadata at dispatch time. The explanation is
+  included in local JSONL, local text logs, email/SMTP formatting, Windows Event
+  Log alerts, webhook/generic HTTP JSON payloads, and queued retry delivery.
+
 Exit criteria:
 
 - A new user can run a safe simulation and see the expected local alert.

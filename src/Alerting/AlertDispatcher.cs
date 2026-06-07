@@ -30,7 +30,7 @@ namespace ArcaneEDR
             int sentThisDispatch = 0;
             foreach (Alert alert in alerts)
             {
-                Alert annotatedAlert = AgentAlertAnnotator.Annotate(config, alert);
+                Alert annotatedAlert = Annotate(alert);
 
                 if (IsCoolingDown(annotatedAlert))
                 {
@@ -59,13 +59,19 @@ namespace ArcaneEDR
 
         public void SendExternal(Alert alert)
         {
-            Alert annotatedAlert = AgentAlertAnnotator.Annotate(config, alert);
+            Alert annotatedAlert = Annotate(alert);
             logger.Alert(annotatedAlert);
             string failureReason;
             if (!TrySendExternalAlert(annotatedAlert, out failureReason))
             {
                 QueueFailedExternal(annotatedAlert, failureReason);
             }
+        }
+
+        private Alert Annotate(Alert alert)
+        {
+            Alert reasonedAlert = AlertReasonAnnotator.Annotate(alert);
+            return AgentAlertAnnotator.Annotate(config, reasonedAlert);
         }
 
         private bool IsCoolingDown(Alert alert)

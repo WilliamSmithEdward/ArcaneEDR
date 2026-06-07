@@ -179,6 +179,7 @@ namespace ArcaneEDR
                 Body = source.Body,
                 Recommendation = source.Recommendation,
                 EntitySummary = source.EntitySummary,
+                Why = source.Why == null ? new List<string>() : new List<string>(source.Why),
                 CooldownKey = source.CooldownKey,
                 TimestampUtc = source.TimestampUtc,
                 ResponseProcessId = source.ResponseProcessId,
@@ -205,7 +206,8 @@ namespace ArcaneEDR
                 Format(alert.TimestampUtc),
                 alert.ResponseProcessId.ToString(CultureInfo.InvariantCulture),
                 Encode(remoteAddress),
-                Encode(item.LastFailureReason)
+                Encode(item.LastFailureReason),
+                Encode(WhyText(alert))
             };
 
             return String.Join("\t", fields);
@@ -254,6 +256,14 @@ namespace ArcaneEDR
                 ResponseRemoteAddress = remoteAddress
             };
 
+            if (fields.Length > 14)
+            {
+                foreach (string reason in Decode(fields[14]).Split('\n'))
+                {
+                    alert.AddWhy(reason);
+                }
+            }
+
             item = new ExternalAlertRetryItem();
             item.Alert = alert;
             item.Attempts = attempts;
@@ -282,6 +292,12 @@ namespace ArcaneEDR
             {
                 return "";
             }
+        }
+
+        private static string WhyText(Alert alert)
+        {
+            if (alert.Why == null || alert.Why.Count == 0) return "";
+            return String.Join("\n", alert.Why.ToArray());
         }
     }
 

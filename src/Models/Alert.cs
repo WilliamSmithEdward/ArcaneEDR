@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Net;
 
@@ -14,6 +15,7 @@ namespace ArcaneEDR
         public string Recommendation;
         public string EntitySummary;
         public string CooldownKey;
+        public List<string> Why = new List<string>();
         public DateTime TimestampUtc;
         public int ResponseProcessId;
         public IPAddress ResponseRemoteAddress;
@@ -175,6 +177,7 @@ namespace ArcaneEDR
                 "\"severity\":\"" + JsonEscape(Severity) + "\"," +
                 "\"score\":" + Score.ToString(CultureInfo.InvariantCulture) + "," +
                 "\"title\":\"" + JsonEscape(Title) + "\"," +
+                "\"why\":" + WhyToJson() + "," +
                 "\"body\":\"" + JsonEscape(Body) + "\"," +
                 "\"recommendation\":\"" + JsonEscape(Recommendation) + "\"," +
                 "\"entity\":\"" + JsonEscape(EntitySummary) + "\"," +
@@ -183,12 +186,39 @@ namespace ArcaneEDR
                 "}";
         }
 
+        public void AddWhy(string reason)
+        {
+            if (String.IsNullOrWhiteSpace(reason)) return;
+            if (Why == null) Why = new List<string>();
+
+            string normalized = reason.Trim();
+            foreach (string existing in Why)
+            {
+                if (existing.Equals(normalized, StringComparison.OrdinalIgnoreCase)) return;
+            }
+
+            Why.Add(normalized);
+        }
+
         private static string SeverityFromScore(int score)
         {
             if (score >= 90) return "critical";
             if (score >= 75) return "high";
             if (score >= 60) return "medium";
             return "low";
+        }
+
+        private string WhyToJson()
+        {
+            if (Why == null || Why.Count == 0) return "[]";
+
+            List<string> encoded = new List<string>();
+            foreach (string reason in Why)
+            {
+                encoded.Add("\"" + JsonEscape(reason) + "\"");
+            }
+
+            return "[" + String.Join(",", encoded.ToArray()) + "]";
         }
 
         private static string JsonEscape(string value)

@@ -34,7 +34,7 @@ namespace ArcaneEDR
 
         public void Alert(Alert alert)
         {
-            Write("ALERT", "[" + alert.Score.ToString(CultureInfo.InvariantCulture) + "] " + alert.RuleId + " " + alert.Title + " | " + alert.Body.Replace(Environment.NewLine, " | "));
+            Write("ALERT", "[" + alert.Score.ToString(CultureInfo.InvariantCulture) + "] " + alert.RuleId + " " + alert.Title + " | " + WhyText(alert) + alert.Body.Replace(Environment.NewLine, " | "));
             try
             {
                 AppendLine("ArcaneAlerts.jsonl", alert.ToJson());
@@ -43,6 +43,12 @@ namespace ArcaneEDR
             {
                 Write("WARN", "Alert JSONL write failed: " + ex.Message);
             }
+        }
+
+        private static string WhyText(Alert alert)
+        {
+            if (alert.Why == null || alert.Why.Count == 0) return "";
+            return "Why: " + String.Join("; ", alert.Why.ToArray()) + " | ";
         }
 
         private void Write(string level, string message)

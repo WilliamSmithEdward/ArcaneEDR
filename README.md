@@ -302,6 +302,11 @@ All alerts are always written locally under `LogDirectory`:
 <LogDirectory>\ArcaneAlerts.jsonl
 ```
 
+Every alert carries structured `why` metadata that explains the rule-family
+conditions that caused it to fire. Email, SMTP, Windows Event Log, local text
+logs, local JSONL, webhook, and generic HTTP/API sinks all receive the same
+explained alert object.
+
 External delivery is controlled by config:
 
 ```ini
@@ -474,10 +479,11 @@ AgentApprovedAdminTaskNames=\ArcaneEDR\PublishRestart,\ArcaneEDR\InstallService,
 AgentSecretIndicatorTerms=apikey,api_key,access_token,refresh_token,client_secret,private_key,id_rsa,.pem,.pfx,.env
 ```
 
-When an alert matches the profile, Arcane appends an `AgentContext` line and an
-`agent_context=` entity field. This does not raise the score, bypass cooldowns,
-trigger response actions, or send email by itself. It is correlation context for
-the local log, external alert sinks, and later review.
+When an alert matches the profile, Arcane appends an `AgentContext` line, an
+`agent_context=` entity field, and an additional `why` explanation. This does
+not raise the score, bypass cooldowns, trigger response actions, or send email
+by itself. It is correlation context for the local log, external alert sinks,
+and later review.
 
 ## Custom Rules
 
