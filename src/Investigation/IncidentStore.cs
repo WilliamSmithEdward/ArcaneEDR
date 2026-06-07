@@ -120,7 +120,7 @@ namespace ArcaneEDR
         private IncidentRecord BuildRecord(Alert alert)
         {
             string text = AlertText(alert);
-            string category = RuleCategory(alert.RuleId);
+            string category = AlertRulePolicy.AlertCategory(alert);
             string user = FirstNonEmpty(
                 ExtractField(text, "user="),
                 ExtractField(text, "account="),
@@ -262,25 +262,6 @@ namespace ArcaneEDR
                 .Replace("|", "_")
                 .Replace("\r", "")
                 .Replace("\n", "");
-        }
-
-        private static string RuleCategory(string ruleId)
-        {
-            string value = ruleId ?? "";
-            if (value.StartsWith("NET-", StringComparison.OrdinalIgnoreCase)) return "Network";
-            if (value.StartsWith("DNS-", StringComparison.OrdinalIgnoreCase)) return "DNS";
-            if (value.StartsWith("PS-", StringComparison.OrdinalIgnoreCase)) return "PowerShell";
-            if (value.StartsWith("PERSIST-", StringComparison.OrdinalIgnoreCase)) return "Persistence";
-            if (value.StartsWith("AUTH-", StringComparison.OrdinalIgnoreCase)) return "Auth";
-            if (value.StartsWith("PROC-", StringComparison.OrdinalIgnoreCase)) return "Process";
-            if (value.StartsWith("AUDIT-PROC-", StringComparison.OrdinalIgnoreCase)) return "Process";
-            if (value.StartsWith("RAT-", StringComparison.OrdinalIgnoreCase)) return "RAT";
-            if (value.StartsWith("OPENAI-", StringComparison.OrdinalIgnoreCase)) return "AI";
-            if (value.StartsWith("SERVICE-", StringComparison.OrdinalIgnoreCase)) return "Health";
-            if (value.StartsWith("APP-", StringComparison.OrdinalIgnoreCase)) return "Integrity";
-            if (value.StartsWith("BASELINE-", StringComparison.OrdinalIgnoreCase)) return "Baseline";
-            if (value.StartsWith("REPUTATION-", StringComparison.OrdinalIgnoreCase)) return "Reputation";
-            return "General";
         }
 
         private static string ExtractField(string text, string fieldName)

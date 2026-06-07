@@ -345,6 +345,26 @@ conditions that caused it to fire. Email, SMTP, Windows Event Log, local text
 logs, local JSONL, webhook, and generic HTTP/API sinks all receive the same
 explained alert object.
 
+Alerts also carry a rule `category`, derived from the rule ID. Current
+categories include `Network`, `DNS`, `PowerShell`, `Persistence`, `Auth`,
+`Process`, `RAT`, `AI`, `Health`, `Integrity`, `Baseline`, `Reputation`,
+`Custom`, `Test`, and `General`.
+
+Rule policy tuning is controlled by config:
+
+```ini
+DisabledRuleIds=
+DisabledRuleCategories=
+RuleMinimumEmailScores=NET-EGRESS-NEW-UNTRUSTED=80,BASELINE-NEW-PROCESS-DOMAIN=95
+CategoryMinimumEmailScores=Baseline=95,Health=60
+```
+
+`DisabledRuleIds` and `DisabledRuleCategories` suppress matching alerts before
+local alert logging, incident grouping, response handling, and external
+delivery. `RuleMinimumEmailScores` and `CategoryMinimumEmailScores` affect
+external delivery only; local logging and incident grouping still use the
+normal alert path.
+
 Arcane can also group alert records into local investigation incidents. This is
 local-only JSONL state, intended to make recent related alerts easier to scan:
 
@@ -489,9 +509,9 @@ OpenAIAnalysisMaxChars=12000
 
 The payload is intentionally compact and redacted. It includes health counters,
 recent event summaries, and alert metadata only: timestamp, rule ID, severity,
-score, and title. It does not send alert bodies, entities, command lines,
-script blocks, decoded payload previews, usernames, file paths, IPs, URLs,
-emails, or configured secret values.
+category, score, and title. It does not send alert bodies, entities, command
+lines, script blocks, decoded payload previews, usernames, file paths, IPs,
+URLs, emails, or configured secret values.
 
 Results are written to:
 

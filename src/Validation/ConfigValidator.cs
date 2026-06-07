@@ -59,6 +59,7 @@ namespace ArcaneEDR
             if (config.OpenAIAnalysisBaselineMinimumIncludedAlertScore < 0 || config.OpenAIAnalysisBaselineMinimumIncludedAlertScore > 100) Warn(warnings, "OpenAIAnalysisBaselineMinimumIncludedAlertScore is outside the usual 0-100 range.");
             ValidateDailySummarySchedule(config, errors, warnings);
             if (config.MinimumEmailScore < 0 || config.MinimumEmailScore > 100) Warn(warnings, "MinimumEmailScore is outside the usual 0-100 range.");
+            ValidateRulePolicy(config, warnings);
             if (config.OpenAIAnalysisMaxChars > 20000) Warn(warnings, "OpenAIAnalysisMaxChars is above 20000; compact analysis may use more tokens than intended.");
             if (config.SmtpPort < 1 || config.SmtpPort > 65535) Fail(errors, "SmtpPort must be between 1 and 65535.");
             if (config.SmtpTimeoutSeconds <= 0) Fail(errors, "SmtpTimeoutSeconds must be greater than zero.");
@@ -110,6 +111,38 @@ namespace ArcaneEDR
                 catch (Exception ex)
                 {
                     Fail(errors, "DailySummaryTimeZoneId is not valid on this machine: " + config.DailySummaryTimeZoneId + " (" + ex.Message + ")");
+                }
+            }
+        }
+
+        private static void ValidateRulePolicy(MonitorConfig config, List<string> warnings)
+        {
+            foreach (string category in config.DisabledRuleCategories)
+            {
+                if (!AlertRuleCatalog.IsKnownCategory(category))
+                {
+                    Warn(warnings, "DisabledRuleCategories contains an unknown category: " + category);
+                }
+            }
+
+            foreach (KeyValuePair<string, int> item in config.RuleMinimumEmailScores)
+            {
+                if (item.Value < 0 || item.Value > 100)
+                {
+                    Warn(warnings, "RuleMinimumEmailScores entry is outside the usual 0-100 range: " + item.Key + "=" + item.Value);
+                }
+            }
+
+            foreach (KeyValuePair<string, int> item in config.CategoryMinimumEmailScores)
+            {
+                if (!AlertRuleCatalog.IsKnownCategory(item.Key))
+                {
+                    Warn(warnings, "CategoryMinimumEmailScores contains an unknown category: " + item.Key);
+                }
+
+                if (item.Value < 0 || item.Value > 100)
+                {
+                    Warn(warnings, "CategoryMinimumEmailScores entry is outside the usual 0-100 range: " + item.Key + "=" + item.Value);
                 }
             }
         }

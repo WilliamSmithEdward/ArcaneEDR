@@ -33,17 +33,19 @@ whenever that is practical. A later milestone may be touched early only when it
 unblocks the active milestone, prevents avoidable rework, fixes an urgent
 operational issue, or is a very small adjacent change with low risk.
 
-Current active milestone: `v0.5.0`.
+Current active milestone: `v0.3.0`.
 
-Definition of done before moving focus to `v0.6.0`:
+Definition of done before moving focus to `v0.4.0`:
 
-- Safe simulations cover the representative v1 detection paths well enough for
-  a new user to prove the detection loop.
-- `why` explanations and the rule-family reference make real alerts
-  understandable without source-code inspection.
-- Incident summary and timeline commands are usable for recent local alerts.
-- Support bundle output is bounded, redacted, and useful for troubleshooting.
-- Remaining `v0.5.0` gaps are either completed or explicitly deferred with a
+- Per-rule enable/disable and per-rule external alert thresholds exist.
+- Rule categories are assigned consistently and included in alert metadata.
+- Maintenance/session labeling or suppression covers expected build, publish,
+  install, validation, and admin-bridge workflows without hiding unrelated
+  suspicious behavior.
+- Microsoft-signed scheduled-task and service trust handling is improved enough
+  to reduce known Windows noise.
+- Alert-volume tuning produces manageable local and external alert volume.
+- Remaining `v0.3.0` gaps are either completed or explicitly deferred with a
   reason.
 
 ## Milestone Status
@@ -55,16 +57,15 @@ phase sections below.
 | --- | --- | --- | --- |
 | `v0.1.x-preview` | Done | Complete | Functional preview: service, local logging, Brevo alerting, Sysmon ingestion, OpenAI compact analysis, baseline learning, and daily summaries. |
 | `v0.2.0-beta` | Done | Complete | Tagged beta with install, upgrade, validation, package-release script, config preservation, and scheduled-task admin bridge. |
-| `v0.3.0` | In progress | Partial | Detection quality work remains: per-rule enablement/scores, categories, maintenance labeling, better trust handling, and alert-volume tuning. |
+| `v0.3.0` | In progress | Partial | Rule categories and rule-policy tuning are in progress. Remaining detection quality work includes maintenance labeling, better trust handling, and alert-volume tuning. |
 | `v0.4.0` | Mostly done | Substantial | Modular alert sinks are implemented for Brevo, SMTP, webhook, generic HTTP/API, Windows Event Log, and local JSONL. Reporting-specific sinks remain future work. |
 | `v0.5.0` | Mostly done | Substantial | `why` explanations, incident grouping, timeline command, support bundle, simulations, and rule-family docs are implemented. Remaining work is polishing expected alert shapes and demo flow. |
 | `v0.6.0` | Started | Partial | Agent Profile labeling exists. Remaining work includes agent write/elevation guardrails, compact activity ledger, maintenance/session markers, and active-response dry-run. |
 | `v0.7.0` | Not started | Planned | Collector/rule interface cleanup, privacy hardening, and AI provider abstraction remain planned. |
 | `v1.0.0` | Not ready | Planned | Requires completed docs, tuned alert volume, tested install/upgrade/release flow, dry-run/manual response safety, and stable privacy/operations posture. |
 
-Current milestone focus: finish `v0.5.0` polish, then move into `v0.6.0`
-agentic workstation guardrails without broadening beyond the local safety-layer
-scope.
+Current milestone focus: finish `v0.3.0` detection quality and alert-volume
+tuning, then move into `v0.4.0` modular notification/reporting polish.
 
 ## `v1.0.0` Scope Boundary
 
@@ -169,6 +170,17 @@ Exit criteria:
 - Reduce repeated low-value alerts from the same stable process and behavior.
 - Improve localhost-only listener classification.
 - Keep high and critical alerts rare and actionable.
+
+Progress:
+
+- Added central rule categories derived from rule IDs and included category in
+  alert JSON, email/plain-text formatting, Windows Event Log alerts, local
+  logs, retry queue state, incident records, and support-bundle summaries.
+- Added config-driven rule policy:
+  - `DisabledRuleIds`
+  - `DisabledRuleCategories`
+  - `RuleMinimumEmailScores`
+  - `CategoryMinimumEmailScores`
 
 Exit criteria:
 

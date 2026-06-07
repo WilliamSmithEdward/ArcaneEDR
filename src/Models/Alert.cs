@@ -11,6 +11,7 @@ namespace ArcaneEDR
         public string Title;
         public int Score;
         public string Severity;
+        public string Category;
         public string Body;
         public string Recommendation;
         public string EntitySummary;
@@ -174,6 +175,7 @@ namespace ArcaneEDR
             return "{" +
                 "\"timestamp_utc\":\"" + JsonEscape(TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)) + "\"," +
                 "\"rule_id\":\"" + JsonEscape(RuleId) + "\"," +
+                "\"category\":\"" + JsonEscape(Category) + "\"," +
                 "\"severity\":\"" + JsonEscape(Severity) + "\"," +
                 "\"score\":" + Score.ToString(CultureInfo.InvariantCulture) + "," +
                 "\"title\":\"" + JsonEscape(Title) + "\"," +

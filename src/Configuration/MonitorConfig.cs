@@ -18,6 +18,10 @@ namespace ArcaneEDR
         public int PollIntervalSeconds = 10;
         public int AlertCooldownSeconds = 300;
         public int MinimumEmailScore = 60;
+        public HashSet<string> DisabledRuleIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> DisabledRuleCategories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, int> RuleMinimumEmailScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, int> CategoryMinimumEmailScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public int ExternalAlertMaxPerDispatch = 3;
         public int ExternalAlertMaxPerHour = 12;
         public HashSet<string> ExternalAlertSuppressionTermGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -184,6 +188,10 @@ namespace ArcaneEDR
             config.PollIntervalSeconds = ReadInt(values, "PollIntervalSeconds", config.PollIntervalSeconds);
             config.AlertCooldownSeconds = ReadInt(values, "AlertCooldownSeconds", config.AlertCooldownSeconds);
             config.MinimumEmailScore = ReadInt(values, "MinimumEmailScore", config.MinimumEmailScore);
+            config.DisabledRuleIds = ReadStringSet(values, "DisabledRuleIds");
+            config.DisabledRuleCategories = ReadStringSet(values, "DisabledRuleCategories");
+            config.RuleMinimumEmailScores = ReadStringIntMap(values, "RuleMinimumEmailScores");
+            config.CategoryMinimumEmailScores = ReadStringIntMap(values, "CategoryMinimumEmailScores");
             config.ExternalAlertMaxPerDispatch = ReadInt(values, "ExternalAlertMaxPerDispatch", config.ExternalAlertMaxPerDispatch);
             config.ExternalAlertMaxPerHour = ReadInt(values, "ExternalAlertMaxPerHour", config.ExternalAlertMaxPerHour);
             config.ExternalAlertSuppressionTermGroups = ReadStringSet(values, "ExternalAlertSuppressionTermGroups");
@@ -499,6 +507,33 @@ namespace ArcaneEDR
             {
                 string trimmed = part.Trim();
                 if (trimmed.Length > 0) result.Add(trimmed);
+            }
+
+            return result;
+        }
+
+        private static Dictionary<string, int> ReadStringIntMap(Dictionary<string, string> values, string key)
+        {
+            Dictionary<string, int> result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            string value;
+            if (!values.TryGetValue(key, out value)) return result;
+
+            foreach (string part in value.Split(','))
+            {
+                string item = part.Trim();
+                if (item.Length == 0) continue;
+
+                int separator = item.IndexOf('=');
+                if (separator <= 0) separator = item.IndexOf(':');
+                if (separator <= 0) continue;
+
+                string name = item.Substring(0, separator).Trim();
+                string scoreText = item.Substring(separator + 1).Trim();
+                int score;
+                if (name.Length > 0 && Int32.TryParse(scoreText, out score))
+                {
+                    result[name] = score;
+                }
             }
 
             return result;

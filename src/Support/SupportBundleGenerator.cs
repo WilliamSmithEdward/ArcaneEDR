@@ -228,6 +228,7 @@ namespace ArcaneEDR
                 Dictionary<string, object> summary = new Dictionary<string, object>();
                 Copy(parsed, summary, "timestamp_utc");
                 Copy(parsed, summary, "rule_id");
+                Copy(parsed, summary, "category");
                 Copy(parsed, summary, "severity");
                 Copy(parsed, summary, "score");
                 Copy(parsed, summary, "title");

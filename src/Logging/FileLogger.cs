@@ -34,7 +34,9 @@ namespace ArcaneEDR
 
         public void Alert(Alert alert)
         {
-            Write("ALERT", "[" + alert.Score.ToString(CultureInfo.InvariantCulture) + "] " + alert.RuleId + " " + alert.Title + " | " + WhyText(alert) + alert.Body.Replace(Environment.NewLine, " | "));
+            Write("ALERT", "[" + alert.Score.ToString(CultureInfo.InvariantCulture) + "] " +
+                alert.RuleId + " category=" + AlertRulePolicy.AlertCategory(alert) + " " +
+                alert.Title + " | " + WhyText(alert) + alert.Body.Replace(Environment.NewLine, " | "));
             try
             {
                 AppendLine("ArcaneAlerts.jsonl", alert.ToJson());

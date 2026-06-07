@@ -168,6 +168,7 @@ namespace ArcaneEDR
 
                 return "timestamp_utc=" + Read(parsed, "timestamp_utc") +
                     " rule_id=" + SanitizeToken(ruleId) +
+                    " category=" + SanitizeToken(Read(parsed, "category")) +
                     " severity=" + SanitizeToken(Read(parsed, "severity")) +
                     " score=" + score.ToString(CultureInfo.InvariantCulture) +
                     " title=" + SanitizeText(Read(parsed, "title"));

@@ -40,6 +40,7 @@ namespace ArcaneEDR
             EventLogEntryType entryType = EntryTypeFor(alert);
             string message =
                 "Rule: " + alert.RuleId + Environment.NewLine +
+                "Category: " + AlertRulePolicy.AlertCategory(alert) + Environment.NewLine +
                 "Severity: " + alert.Severity + Environment.NewLine +
                 "Score: " + alert.Score.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +
                 "UTC: " + alert.TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture) + Environment.NewLine +

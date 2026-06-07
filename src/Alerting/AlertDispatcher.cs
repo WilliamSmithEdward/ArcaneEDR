@@ -32,7 +32,15 @@ namespace ArcaneEDR
             int sentThisDispatch = 0;
             foreach (Alert alert in alerts)
             {
+                if (alert == null) continue;
                 Alert annotatedAlert = Annotate(alert);
+
+                if (AlertRulePolicy.IsDisabled(config, annotatedAlert))
+                {
+                    logger.Warn("Alert suppressed by rule policy: " + annotatedAlert.RuleId +
+                        " category=" + annotatedAlert.Category + ".");
+                    continue;
+                }
 
                 if (IsCoolingDown(annotatedAlert))
                 {
@@ -62,7 +70,15 @@ namespace ArcaneEDR
 
         public void SendExternal(Alert alert)
         {
+            if (alert == null) return;
             Alert annotatedAlert = Annotate(alert);
+            if (AlertRulePolicy.IsDisabled(config, annotatedAlert))
+            {
+                logger.Warn("External alert suppressed by rule policy: " + annotatedAlert.RuleId +
+                    " category=" + annotatedAlert.Category + ".");
+                return;
+            }
+
             logger.Alert(annotatedAlert);
             incidentStore.Record(annotatedAlert);
             string failureReason;
@@ -74,6 +90,7 @@ namespace ArcaneEDR
 
         private Alert Annotate(Alert alert)
         {
+            AlertRuleCatalog.Annotate(alert);
             Alert reasonedAlert = AlertReasonAnnotator.Annotate(alert);
             return AgentAlertAnnotator.Annotate(config, reasonedAlert);
         }
@@ -135,7 +152,8 @@ namespace ArcaneEDR
 
         private bool ShouldSendExternal(Alert alert, int sentThisDispatch)
         {
-            if (alert.Score < config.MinimumEmailScore) return false;
+            int minimumExternalScore = AlertRulePolicy.MinimumExternalScore(config, alert);
+            if (alert.Score < minimumExternalScore) return false;
 
             if (config.BaselineLearningMode && alert.Score < config.BaselineLearningEmailMinimumScore)
             {

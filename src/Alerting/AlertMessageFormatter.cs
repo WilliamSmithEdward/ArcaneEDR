@@ -21,6 +21,7 @@ namespace ArcaneEDR
             return "<html><body>" +
                 "<h2>" + HtmlEscape(alert.Title) + "</h2>" +
                 "<p><strong>Rule:</strong> " + HtmlEscape(alert.RuleId) + "</p>" +
+                "<p><strong>Category:</strong> " + HtmlEscape(AlertRulePolicy.AlertCategory(alert)) + "</p>" +
                 "<p><strong>Severity:</strong> " + HtmlEscape(alert.Severity) + "</p>" +
                 "<p><strong>Score:</strong> " + alert.Score.ToString(CultureInfo.InvariantCulture) + "</p>" +
                 "<p><strong>UTC:</strong> " + HtmlEscape(alert.TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)) + "</p>" +
@@ -36,6 +37,7 @@ namespace ArcaneEDR
             return
                 alert.Title + Environment.NewLine + Environment.NewLine +
                 "Rule: " + alert.RuleId + Environment.NewLine +
+                "Category: " + AlertRulePolicy.AlertCategory(alert) + Environment.NewLine +
                 "Severity: " + alert.Severity + Environment.NewLine +
                 "Score: " + alert.Score.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +
                 "UTC: " + alert.TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture) + Environment.NewLine + Environment.NewLine +
@@ -85,10 +87,7 @@ namespace ArcaneEDR
 
         private static bool IsServiceLifecycleAlert(string ruleId)
         {
-            return ruleId != null &&
-                (ruleId.Equals("SERVICE-STARTED", StringComparison.OrdinalIgnoreCase) ||
-                 ruleId.Equals("SERVICE-RECOVERED-AFTER-UNCLEAN-STOP", StringComparison.OrdinalIgnoreCase) ||
-                 ruleId.Equals("SERVICE-STOPPED", StringComparison.OrdinalIgnoreCase));
+            return AlertRuleCatalog.IsServiceLifecycleAlert(ruleId);
         }
 
         private static string HtmlEscape(string value)
