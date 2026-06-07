@@ -307,6 +307,28 @@ conditions that caused it to fire. Email, SMTP, Windows Event Log, local text
 logs, local JSONL, webhook, and generic HTTP/API sinks all receive the same
 explained alert object.
 
+Arcane can also group alert records into local investigation incidents. This is
+local-only JSONL state, intended to make recent related alerts easier to scan:
+
+```ini
+EnableIncidentGrouping=true
+IncidentStoreFile=ArcaneIncidents.jsonl
+IncidentWindowMinutes=30
+IncidentMinimumScore=60
+```
+
+List recent incident summaries:
+
+```powershell
+.\bin\ArcaneEDR.exe --incidents --last 24h
+```
+
+Show the alert timeline for one incident:
+
+```powershell
+.\bin\ArcaneEDR.exe --timeline INC-...
+```
+
 External delivery is controlled by config:
 
 ```ini

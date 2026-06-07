@@ -193,6 +193,9 @@ Progress:
 - Added structured `why` alert metadata at dispatch time. The explanation is
   included in local JSONL, local text logs, email/SMTP formatting, Windows Event
   Log alerts, webhook/generic HTTP JSON payloads, and queued retry delivery.
+- Added a local incident grouping MVP backed by `ArcaneIncidents.jsonl`, plus
+  `--incidents --last <duration>` and `--timeline <incident-id>` commands for
+  recent summary and timeline review.
 
 Exit criteria:
 

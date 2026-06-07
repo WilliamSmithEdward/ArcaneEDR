@@ -10,6 +10,7 @@ namespace ArcaneEDR
         private readonly IAlertSink alertSink;
         private readonly ResponseManager responseManager;
         private readonly ExternalAlertRetryQueue retryQueue;
+        private readonly IncidentStore incidentStore;
         private readonly Dictionary<string, DateTime> cooldowns = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         private readonly Queue<DateTime> externalSends = new Queue<DateTime>();
         private DateTime lastThrottleWarningUtc = DateTime.MinValue;
@@ -21,6 +22,7 @@ namespace ArcaneEDR
             this.alertSink = alertSink;
             this.responseManager = responseManager;
             retryQueue = new ExternalAlertRetryQueue(config, logger);
+            incidentStore = new IncidentStore(config, logger);
         }
 
         public void Dispatch(IEnumerable<Alert> alerts)
@@ -39,6 +41,7 @@ namespace ArcaneEDR
 
                 Remember(annotatedAlert);
                 logger.Alert(annotatedAlert);
+                incidentStore.Record(annotatedAlert);
                 responseManager.Handle(annotatedAlert);
 
                 if (ShouldSendExternal(annotatedAlert, sentThisDispatch))
@@ -61,6 +64,7 @@ namespace ArcaneEDR
         {
             Alert annotatedAlert = Annotate(alert);
             logger.Alert(annotatedAlert);
+            incidentStore.Record(annotatedAlert);
             string failureReason;
             if (!TrySendExternalAlert(annotatedAlert, out failureReason))
             {

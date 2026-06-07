@@ -106,6 +106,10 @@ namespace ArcaneEDR
         public string ReputationCacheFile = "ArcaneReputation.tsv";
         public bool EnableCustomRules = true;
         public string CustomRulesFile = "custom-rules.json";
+        public bool EnableIncidentGrouping = true;
+        public string IncidentStoreFile = "ArcaneIncidents.jsonl";
+        public int IncidentWindowMinutes = 30;
+        public int IncidentMinimumScore = 60;
         public bool BaselineEnabled = true;
         public bool BaselineLearningMode = true;
         public int BaselineLearningEmailMinimumScore = 90;
@@ -267,6 +271,10 @@ namespace ArcaneEDR
             config.ReputationCacheFile = ResolvePath(config.LogDirectory, ReadString(values, "ReputationCacheFile", config.ReputationCacheFile));
             config.EnableCustomRules = ReadBool(values, "EnableCustomRules", config.EnableCustomRules);
             config.CustomRulesFile = ResolvePath(Path.GetDirectoryName(config.ConfigPath), ReadString(values, "CustomRulesFile", config.CustomRulesFile));
+            config.EnableIncidentGrouping = ReadBool(values, "EnableIncidentGrouping", config.EnableIncidentGrouping);
+            config.IncidentStoreFile = ResolvePath(config.LogDirectory, ReadString(values, "IncidentStoreFile", config.IncidentStoreFile));
+            config.IncidentWindowMinutes = ReadInt(values, "IncidentWindowMinutes", config.IncidentWindowMinutes);
+            config.IncidentMinimumScore = ReadInt(values, "IncidentMinimumScore", config.IncidentMinimumScore);
             config.BaselineEnabled = ReadBool(values, "BaselineEnabled", config.BaselineEnabled);
             config.BaselineLearningMode = ReadBool(values, "BaselineLearningMode", config.BaselineLearningMode);
             config.BaselineLearningEmailMinimumScore = ReadInt(values, "BaselineLearningEmailMinimumScore", config.BaselineLearningEmailMinimumScore);

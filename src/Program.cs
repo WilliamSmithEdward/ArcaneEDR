@@ -41,6 +41,20 @@ namespace ArcaneEDR
                 return;
             }
 
+            if (args.Length > 0 && args[0].Equals("--incidents", StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.ExitCode = IncidentConsole.PrintIncidents(AppDomain.CurrentDomain.BaseDirectory, args);
+                return;
+            }
+
+            if (args.Length > 0 && args[0].Equals("--timeline", StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.ExitCode = IncidentConsole.PrintTimeline(
+                    AppDomain.CurrentDomain.BaseDirectory,
+                    args.Length > 1 ? args[1] : "");
+                return;
+            }
+
             if (args.Length > 0 && args[0].Equals("--validate-config", StringComparison.OrdinalIgnoreCase))
             {
                 Environment.ExitCode = ConfigValidator.Run(AppDomain.CurrentDomain.BaseDirectory);
