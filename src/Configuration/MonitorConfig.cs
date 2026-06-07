@@ -145,6 +145,7 @@ namespace ArcaneEDR
         public HashSet<string> UserWritablePathIndicators = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> TrustedPersistencePathIndicators = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> TrustedPersistenceNamePrefixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> TrustedPersistenceSignerSubjects = DefaultTrustedPersistenceSignerSubjects();
         public bool EnableAgentProfile = true;
         public HashSet<string> AgentProcessNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> AgentChildProcessNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -324,6 +325,9 @@ namespace ArcaneEDR
             config.UserWritablePathIndicators = ReadStringSet(values, "UserWritablePathIndicators");
             config.TrustedPersistencePathIndicators = ReadStringSet(values, "TrustedPersistencePathIndicators");
             config.TrustedPersistenceNamePrefixes = ReadStringSet(values, "TrustedPersistenceNamePrefixes");
+            config.TrustedPersistenceSignerSubjects = values.ContainsKey("TrustedPersistenceSignerSubjects")
+                ? ReadStringSet(values, "TrustedPersistenceSignerSubjects")
+                : DefaultTrustedPersistenceSignerSubjects();
             config.EnableAgentProfile = ReadBool(values, "EnableAgentProfile", config.EnableAgentProfile);
             config.AgentProcessNames = ReadStringSet(values, "AgentProcessNames");
             config.AgentChildProcessNames = ReadStringSet(values, "AgentChildProcessNames");
@@ -538,6 +542,15 @@ namespace ArcaneEDR
             result.Add("Baseline");
             result.Add("Reputation");
             result.Add("Process");
+            return result;
+        }
+
+        private static HashSet<string> DefaultTrustedPersistenceSignerSubjects()
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            result.Add("Microsoft Windows");
+            result.Add("Microsoft Corporation");
+            result.Add("Microsoft Windows Publisher");
             return result;
         }
 

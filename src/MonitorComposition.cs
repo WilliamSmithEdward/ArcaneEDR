@@ -11,7 +11,7 @@ namespace ArcaneEDR
             ISysmonEventCollector sysmonCollector = new SysmonEventCollector(config, logger, processEnricher);
             IHostTelemetryCollector hostTelemetryCollector = new CompositeHostTelemetryCollector(new IHostTelemetryCollector[]
             {
-                new PowerShellEventCollector(config, logger),
+                new PowerShellEventCollector(config, logger, processEnricher),
                 new WindowsEventCollector(config, logger),
                 new PersistenceInventoryCollector(config, logger)
             });

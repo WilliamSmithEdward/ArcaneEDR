@@ -110,7 +110,7 @@ namespace ArcaneEDR
             ev.ProcessName = GetFirst(data, "ProcessName", "NewProcessName", "Application");
             ev.ServiceName = GetFirst(data, "ServiceName", "ServiceFileName");
             ev.TaskName = GetFirst(data, "TaskName");
-            ev.CommandLine = GetFirst(data, "CommandLine", "ProcessCommandLine", "ServiceFileName", "ImagePath");
+            ev.CommandLine = GetFirst(data, "CommandLine", "ProcessCommandLine", "ServiceFileName", "ImagePath", "TaskContentNew", "TaskContent", "ActionName");
             ev.Message = EventRecordDataReader.FormatDescription(record);
             return ev;
         }

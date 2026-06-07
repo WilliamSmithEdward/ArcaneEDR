@@ -308,6 +308,13 @@ summaries, recent warning/error lines, and recent incident summaries. It does
 not copy raw alert bodies, entities, command lines, script blocks, OpenAI
 payloads, or secret values.
 
+Run one monitor poll and exit without starting the Windows service or writing
+service lifecycle health state:
+
+```powershell
+.\bin\ArcaneEDR.exe --poll-once
+```
+
 List safe detection simulations:
 
 ```powershell
@@ -401,8 +408,16 @@ an explicitly blank category list disables repeat dampening matches.
 Persistence trust handling reduces noise from expected Windows/vendor service
 and scheduled-task activity without trusting names by themselves. A service or
 task change is classified as trusted-location only when configured trusted
-name/path indicators match and suspicious command, user-writable path, and
-RMM/RAT-like traits are absent.
+name indicators match a trusted path or trusted signer, and suspicious command,
+untrusted user-writable path, and RMM/RAT-like traits are absent. For
+scheduled-task create/update events, Arcane also inspects task action XML when
+Windows provides it.
+
+```ini
+TrustedPersistenceNamePrefixes=\Microsoft\Windows\,MDCoreSvc,WinDefend
+TrustedPersistencePathIndicators=\windows\system32\,\program files\,\programdata\microsoft\windows defender\
+TrustedPersistenceSignerSubjects=Microsoft Windows,Microsoft Corporation,Microsoft Windows Publisher
+```
 
 Arcane can also group alert records into local investigation incidents. This is
 local-only JSONL state, intended to make recent related alerts easier to scan:
@@ -425,6 +440,21 @@ Show the alert timeline for one incident:
 ```powershell
 .\bin\ArcaneEDR.exe --timeline INC-...
 ```
+
+Summarize recent local alert volume for tuning:
+
+```powershell
+.\bin\ArcaneEDR.exe --alert-volume --last 24h
+```
+
+The summary groups local alert records by severity, category, rule, and process,
+and estimates which records would qualify for external delivery before
+provider, rate-limit, retry, or repeat-dampening behavior.
+Run `--poll-once` first when you want a fresh one-poll sample without leaving
+the monitor running.
+If the published app uses a protected `LogDirectory` such as `C:\Security`, run
+`--poll-once` elevated or collect the sample from a source build with a
+user-writable log directory.
 
 External delivery is controlled by config:
 
@@ -537,8 +567,8 @@ OpenAIAnalysisIntervalMinutes=60
 OpenAIAnalysisScoreThreshold=95
 OpenAIAnalysisBaselineEmailMinimumScore=95
 OpenAIAnalysisMinimumIncludedAlertScore=60
-OpenAIAnalysisBaselineMinimumIncludedAlertScore=90
-OpenAIAnalysisExcludedRuleIds=OPENAI-LOG-ANALYSIS-ALERT,OPENAI-LOG-ANALYSIS-TEST,SERVICE-STARTED,SERVICE-STOPPED,SERVICE-DAILY-SUMMARY,SERVICE-HEALTH-TEST
+OpenAIAnalysisBaselineMinimumIncludedAlertScore=95
+OpenAIAnalysisExcludedRuleIds=OPENAI-LOG-ANALYSIS-ALERT,OPENAI-LOG-ANALYSIS-TEST,SERVICE-STARTED,SERVICE-STOPPED,SERVICE-DAILY-SUMMARY,SERVICE-HEALTH-TEST,TEST-ALERT-DELIVERY
 OpenAIAnalysisModel=gpt-5.5
 OpenAIApiKeyEnvironmentVariable=<configured env var>
 OpenAIAnalysisMaxLogLines=80
@@ -547,10 +577,16 @@ OpenAIAnalysisMaxChars=12000
 ```
 
 The payload is intentionally compact and redacted. It includes health counters,
-recent event summaries, and alert metadata only: timestamp, rule ID, severity,
-category, maintenance-context flag, score, and title. It does not send alert
-bodies, entities, command lines, script blocks, decoded payload previews,
-usernames, file paths, IPs, URLs, emails, or configured secret values.
+recent event summaries, alert metadata, and sanitized aggregate context. The
+aggregate context includes score buckets, category/rule counts, repeated-rule
+indicators, maintenance/agent-context counts, trend counters, and top sanitized
+reasons for score-60+ activity. Detailed alert summaries still honor
+`OpenAIAnalysisMinimumIncludedAlertScore` or
+`OpenAIAnalysisBaselineMinimumIncludedAlertScore`.
+
+Arcane EDR does not send alert bodies, entities, command lines, script blocks,
+decoded payload previews, usernames, file paths, IPs, URLs, emails, or
+configured secret values.
 
 Results are written to:
 

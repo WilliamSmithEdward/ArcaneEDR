@@ -55,6 +55,12 @@ namespace ArcaneEDR
                 return;
             }
 
+            if (args.Length > 0 && args[0].Equals("--alert-volume", StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.ExitCode = AlertVolumeConsole.PrintSummary(AppDomain.CurrentDomain.BaseDirectory, args);
+                return;
+            }
+
             if (args.Length > 0 && args[0].Equals("--support-bundle", StringComparison.OrdinalIgnoreCase))
             {
                 Environment.ExitCode = SupportBundleConsole.Generate(AppDomain.CurrentDomain.BaseDirectory);
@@ -64,6 +70,13 @@ namespace ArcaneEDR
             if (args.Length > 0 && args[0].Equals("--validate-config", StringComparison.OrdinalIgnoreCase))
             {
                 Environment.ExitCode = ConfigValidator.Run(AppDomain.CurrentDomain.BaseDirectory);
+                return;
+            }
+
+            if (args.Length > 0 && args[0].Equals("--poll-once", StringComparison.OrdinalIgnoreCase))
+            {
+                MonitorEngine engine = MonitorComposition.Create(AppDomain.CurrentDomain.BaseDirectory);
+                Environment.ExitCode = engine.RunOnce();
                 return;
             }
 

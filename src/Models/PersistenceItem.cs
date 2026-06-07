@@ -10,6 +10,7 @@ namespace ArcaneEDR
         public string Path;
         public string Command;
         public string Source;
+        public string Signer;
         public DateTime ObservedUtc;
 
         public string Identity
@@ -29,6 +30,7 @@ namespace ArcaneEDR
                     " path=" + Safe(Path) +
                     " command=" + Safe(Command) +
                     " source=" + Safe(Source) +
+                    " signer=" + Safe(Signer) +
                     " observed_utc=" + ObservedUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
             }
         }
@@ -38,7 +40,7 @@ namespace ArcaneEDR
             get
             {
                 return (Safe(Type) + " " + Safe(Name) + " " + Safe(Path) + " " +
-                    Safe(Command) + " " + Safe(Source)).Trim();
+                    Safe(Command) + " " + Safe(Source) + " " + Safe(Signer)).Trim();
             }
         }
 

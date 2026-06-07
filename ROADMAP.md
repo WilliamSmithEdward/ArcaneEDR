@@ -57,7 +57,7 @@ phase sections below.
 | --- | --- | --- | --- |
 | `v0.1.x-preview` | Done | Complete | Functional preview: service, local logging, Brevo alerting, Sysmon ingestion, OpenAI compact analysis, baseline learning, and daily summaries. |
 | `v0.2.0-beta` | Done | Complete | Tagged beta with install, upgrade, validation, package-release script, config preservation, and scheduled-task admin bridge. |
-| `v0.3.0` | In progress | Partial | Rule categories, rule-policy tuning, and maintenance-context labeling are in progress. Remaining detection quality work includes better trust handling and alert-volume tuning. |
+| `v0.3.0` | In progress | Substantial | Rule categories, rule-policy tuning, maintenance-context labeling, persistence trust handling, PowerShell noise reduction, and alert-volume dampening are implemented. Remaining detection quality work is mostly empirical volume tuning. |
 | `v0.4.0` | Mostly done | Substantial | Modular alert sinks are implemented for Brevo, SMTP, webhook, generic HTTP/API, Windows Event Log, and local JSONL. Reporting-specific sinks remain future work. |
 | `v0.5.0` | Mostly done | Substantial | `why` explanations, incident grouping, timeline command, support bundle, simulations, and rule-family docs are implemented. Remaining work is polishing expected alert shapes and demo flow. |
 | `v0.6.0` | Started | Partial | Agent Profile labeling exists. Remaining work includes agent write/elevation guardrails, compact activity ledger, maintenance/session markers, and active-response dry-run. |
@@ -197,6 +197,37 @@ Progress:
 - Added conservative trusted-location variants for service installs and
   scheduled-task changes when trusted name/path indicators match and suspicious
   impersonation traits are absent.
+- Extended persistence trust handling to inspect scheduled-task action XML,
+  resolve local service/task executable signer subjects, and use configured
+  trusted signer fragments such as Microsoft signer subjects. Trusted variants
+  still require a trusted name plus trusted path or signer evidence, and broad
+  user-writable indicators are overridden only when trusted name, path, and
+  signer evidence all match.
+- Added `ArcaneEDR.exe --alert-volume --last <duration>` to summarize recent
+  local alert volume by severity, category, rule, and process, including an
+  external-delivery qualification estimate before provider, rate-limit, retry,
+  or repeat-dampening behavior.
+- Added `ArcaneEDR.exe --poll-once` to collect one monitor poll and exit
+  without starting the service or writing service lifecycle health state, making
+  short local alert-volume samples easier to collect.
+- Used one-shot samples to tune clear local noise: the example sandbox profile
+  now treats the Codex app itself as trusted for routine outbound app traffic,
+  and the persistence inventory skips Startup-folder `desktop.ini` metadata.
+  In the local sample this reduced a one-poll alert burst from 22 alerts to one
+  local-only Codex unusual-port notice.
+- Live local publish/restart validation succeeded via the constrained admin
+  bridge. Elevated validation from the published app passed with event-log
+  access, and a post-fix live alert-volume check showed zero external-qualified
+  alerts in the tight validation window.
+- Suppressed built-in PowerShell ScheduledTasks cmdletization scaffolding so
+  generated module script blocks do not alert as persistence commands while
+  actual service, scheduled-task, Run-key, and startup persistence commands
+  remain alertable.
+- Added parent/source process enrichment for PowerShell Operational events when
+  the associated process is still observable at collection time.
+- Added `PS-ENCODED-APP-INVENTORY` so encoded Start-app/process/UserAssist
+  inventory is recorded as medium-severity context instead of being treated as a
+  generic critical encoded-command alert.
 
 Exit criteria:
 
@@ -472,6 +503,9 @@ Exit criteria:
 - Keep OpenAI analysis optional and disabled in example config.
 - Keep payloads compact, bounded, and redacted.
 - Add a command that previews exactly what would be sent.
+- Include sanitized aggregate rule, category, score, trend, maintenance-context,
+  agent-context, and score-60+ reason buckets so compact analysis has useful
+  signal without raw entities.
 - Document omitted fields clearly:
   - alert body
   - entity

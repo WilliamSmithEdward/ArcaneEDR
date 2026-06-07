@@ -44,21 +44,31 @@ namespace ArcaneEDR
                 if (!state.MarkEventSeen("powershell|" + ev.CooldownKey)) continue;
 
                 string text = ev.SearchText;
+                if (IsPowerShellCmdletizationScaffolding(text))
+                {
+                    continue;
+                }
+
                 EncodedCommandFinding encoded = CommandLineRules.FindEncodedCommand(text, config);
                 bool suspiciousTerm = FileSystemRules.ContainsAny(text, config.SuspiciousCommandLineTerms);
                 bool downloadCradle = ContainsAny(text, "downloadstring", "downloadfile", "invoke-webrequest", " iwr ", "curl ", "wget ", "bitsadmin", "certutil", "http://", "https://");
                 bool defenderTamper = ContainsAny(text, "set-mppreference", "disableantispyware", "disablerealtimemonitoring", "add-mppreference", "exclusionpath", "exclusionprocess");
                 bool stealth = ContainsAny(text, "-windowstyle hidden", "-w hidden", "-nop", "-noprofile", "executionpolicy bypass", "-ep bypass");
                 bool persistence = ContainsAny(text, "new-service", "sc.exe create", "schtasks", "\\currentversion\\run", "startup");
+                bool appInventory = encoded.Detected && IsPowerShellAppInventoryEnumeration(text);
 
                 if (encoded.Detected)
                 {
                     alerts.Add(Alert.FromPowerShellEvent(
-                        "PS-ENCODED-COMMAND",
-                        "PowerShell encoded or obfuscated command detected",
-                        92,
-                        "PowerShell telemetry includes encoded/base64-like content. Reason: " + encoded.Reason + ". DecodedPreview: " + encoded.DecodedPreview,
-                        "Review the decoded payload and parent process. Encoded PowerShell is common in loader and RAT staging activity.",
+                        appInventory ? "PS-ENCODED-APP-INVENTORY" : "PS-ENCODED-COMMAND",
+                        appInventory ? "Encoded PowerShell app inventory observed" : "PowerShell encoded or obfuscated command detected",
+                        appInventory ? 62 : 92,
+                        appInventory
+                            ? "PowerShell used encoded execution for app/process inventory telemetry. Reason: " + encoded.Reason + ". DecodedPreview: " + encoded.DecodedPreview
+                            : "PowerShell telemetry includes encoded/base64-like content. Reason: " + encoded.Reason + ". DecodedPreview: " + encoded.DecodedPreview,
+                        appInventory
+                            ? "Confirm the parent/source is expected inventory tooling. Investigate if this appears outside known agent or browser workflows."
+                            : "Review the decoded payload and parent process. Encoded PowerShell is common in loader and RAT staging activity.",
                         ev));
                 }
 
@@ -83,7 +93,7 @@ namespace ArcaneEDR
                         "Treat as suspicious staging unless explicitly expected. Inspect downloaded content and subsequent process creation.",
                         ev));
                 }
-                else if (downloadCradle || suspiciousTerm)
+                else if (!appInventory && (downloadCradle || suspiciousTerm))
                 {
                     alerts.Add(Alert.FromPowerShellEvent(
                         "PS-SUSPICIOUS-COMMAND",
@@ -208,8 +218,10 @@ namespace ArcaneEDR
         private void AnalyzeServiceInstall(WindowsAuditEvent ev, List<Alert> alerts)
         {
             string text = ev.SearchText;
-            bool suspicious = IsSuspiciousCommandText(text) || IsUserWritableText(text) || IsKnownRmmText(text);
-            bool trusted = !suspicious && IsTrustedPersistenceText(ev.ServiceName, ev.ProcessName, ev.CommandLine);
+            PersistenceTrustResult trust = PersistenceTrust.Evaluate(config, ev.ServiceName, ev.ProcessName, ev.CommandLine, "");
+            bool userWritable = IsUntrustedUserWritablePersistenceText(text, trust);
+            bool suspicious = IsSuspiciousCommandText(text) || userWritable || IsKnownRmmText(text);
+            bool trusted = !suspicious && trust.Trusted;
 
             alerts.Add(Alert.FromWindowsEvent(
                 suspicious ? "PERSIST-SERVICE-INSTALL-SUSPICIOUS" : (trusted ? "PERSIST-SERVICE-INSTALL-TRUSTED" : "PERSIST-SERVICE-INSTALL"),
@@ -218,7 +230,7 @@ namespace ArcaneEDR
                 suspicious
                     ? "A new service was installed with command/path traits associated with RAT persistence or remote management tooling."
                     : (trusted
-                        ? "A service installation matched configured trusted persistence name/path indicators and did not include suspicious command, user-writable path, or RMM traits."
+                        ? TrustedPersistenceBody("service installation", trust)
                         : "A new service installation was observed."),
                 "Confirm the service owner, binary path, signer, and install source. Unauthorized services are common persistence mechanisms.",
                 ev));
@@ -227,8 +239,10 @@ namespace ArcaneEDR
         private void AnalyzeScheduledTaskEvent(WindowsAuditEvent ev, List<Alert> alerts)
         {
             string text = ev.SearchText;
-            bool suspicious = IsSuspiciousCommandText(text) || IsUserWritableText(text) || IsKnownRmmText(text);
-            bool trusted = !suspicious && IsTrustedPersistenceText(ev.TaskName, ev.ProcessName, ev.CommandLine);
+            PersistenceTrustResult trust = PersistenceTrust.Evaluate(config, ev.TaskName, ev.ProcessName, ev.CommandLine, "");
+            bool userWritable = IsUntrustedUserWritablePersistenceText(text, trust);
+            bool suspicious = IsSuspiciousCommandText(text) || userWritable || IsKnownRmmText(text);
+            bool trusted = !suspicious && trust.Trusted;
 
             alerts.Add(Alert.FromWindowsEvent(
                 suspicious ? "PERSIST-SCHEDULED-TASK-SUSPICIOUS" : (trusted ? "PERSIST-SCHEDULED-TASK-TRUSTED" : "PERSIST-SCHEDULED-TASK-CHANGE"),
@@ -237,7 +251,7 @@ namespace ArcaneEDR
                 suspicious
                     ? "A scheduled task was created or updated with command/path traits associated with staging or RAT persistence."
                     : (trusted
-                        ? "A scheduled task change matched configured trusted persistence name/path indicators and did not include suspicious command, user-writable path, or RMM traits."
+                        ? TrustedPersistenceBody("scheduled task change", trust)
                         : "A scheduled task was created or updated."),
                 "Review task action, author, trigger, and command path. Unauthorized tasks are a common persistence mechanism.",
                 ev));
@@ -275,12 +289,15 @@ namespace ArcaneEDR
             {
                 if (!state.MarkEventSeen("persistence|" + item.Identity)) continue;
 
+                PersistenceTrustResult trust = PersistenceTrust.Evaluate(config, item.Name, item.Path, item.Command, item.Signer);
+                if (String.IsNullOrWhiteSpace(item.Signer)) item.Signer = trust.Signer;
+
                 bool firstSeen = reputationCache.Observe("persistence", item.Identity, item.EntitySummary);
-                bool trustedPersistence = IsTrustedPersistence(item);
+                bool trustedPersistence = trust.Trusted;
                 bool knownRmm = IsKnownRmmText(item.SearchText);
                 bool highRiskCommand = IsHighRiskPersistenceCommandText(item.SearchText);
                 bool encodedOrSuspiciousCommand = IsSuspiciousCommandText(item.Command);
-                bool userWritable = IsUserWritableText(item.SearchText);
+                bool userWritable = IsUntrustedUserWritablePersistenceText(item.SearchText, trust);
                 bool lolbin = IsLolbinText(item.SearchText);
                 bool suspicious = knownRmm || highRiskCommand || userWritable ||
                     (!trustedPersistence && (encodedOrSuspiciousCommand || lolbin));
@@ -426,37 +443,71 @@ namespace ArcaneEDR
                 "vbscript:");
         }
 
+        private static bool IsPowerShellCmdletizationScaffolding(string text)
+        {
+            if (String.IsNullOrWhiteSpace(text)) return false;
+
+            return ContainsAny(
+                text,
+                "Microsoft.PowerShell.Cmdletization.MethodParameter",
+                "$__cmdletization_methodParameter",
+                "$__cmdletization_objectModelWrapper") &&
+                ContainsAny(
+                    text,
+                    "MSFT_TaskTrigger",
+                    "MSFT_TaskSettings",
+                    "NewTriggerBy",
+                    "GetScheduledTask",
+                    "ScheduledTasks");
+        }
+
+        private static bool IsPowerShellAppInventoryEnumeration(string text)
+        {
+            if (String.IsNullOrWhiteSpace(text)) return false;
+
+            bool inventoryShape =
+                ContainsAny(text, "get-startapps") &&
+                ContainsAny(text, "userassist") &&
+                ContainsAny(text, "get-process") &&
+                ContainsAny(text, "convertto-json", "converttojson");
+
+            if (!inventoryShape) return false;
+
+            return !ContainsAny(
+                text,
+                "downloadstring",
+                "downloadfile",
+                "invoke-webrequest",
+                " iwr ",
+                "curl ",
+                "wget ",
+                "bitsadmin",
+                "certutil",
+                "http://",
+                "https://",
+                "iex",
+                "invoke-expression",
+                "frombase64string",
+                "start-process",
+                "new-service",
+                "schtasks",
+                "set-mppreference",
+                "add-mppreference",
+                "disableantispyware",
+                "disablerealtimemonitoring");
+        }
+
         private bool IsUserWritableText(string text)
         {
-            return ContainsConfiguredIndicator(text, config.UserWritablePathIndicators);
+            return PersistenceTrust.ContainsConfiguredIndicator(text, config.UserWritablePathIndicators);
         }
 
-        private bool IsTrustedPersistence(PersistenceItem item)
+        private bool IsUntrustedUserWritablePersistenceText(string text, PersistenceTrustResult trust)
         {
-            return IsTrustedPersistenceText(item.Name, item.Path, item.Command);
-        }
+            if (!IsUserWritableText(text)) return false;
+            if (trust == null || !trust.TrustedUserWritablePath) return true;
 
-        private bool IsTrustedPersistenceText(string nameValue, string pathValue, string commandValue)
-        {
-            string name = nameValue ?? "";
-            string path = pathValue ?? "";
-            string command = commandValue ?? "";
-
-            bool trustedName = false;
-            foreach (string prefix in config.TrustedPersistenceNamePrefixes)
-            {
-                if (!String.IsNullOrWhiteSpace(prefix) &&
-                    name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                {
-                    trustedName = true;
-                    break;
-                }
-            }
-
-            bool trustedPath = ContainsConfiguredIndicator(path, config.TrustedPersistencePathIndicators) ||
-                ContainsConfiguredIndicator(command, config.TrustedPersistencePathIndicators);
-
-            return trustedName && trustedPath;
+            return !PersistenceTrust.ContainsConfiguredIndicator(trust.ExecutablePath, config.UserWritablePathIndicators);
         }
 
         private bool IsKnownRmmText(string text)
@@ -477,22 +528,6 @@ namespace ArcaneEDR
             foreach (string process in config.LolbinProcesses)
             {
                 if (ContainsProcessToken(text, process))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private static bool ContainsConfiguredIndicator(string text, HashSet<string> indicators)
-        {
-            if (String.IsNullOrWhiteSpace(text)) return false;
-
-            foreach (string indicator in indicators)
-            {
-                if (!String.IsNullOrWhiteSpace(indicator) &&
-                    text.IndexOf(indicator, StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     return true;
                 }
@@ -574,6 +609,16 @@ namespace ArcaneEDR
             }
 
             return "";
+        }
+
+        private static string TrustedPersistenceBody(string changeDescription, PersistenceTrustResult trust)
+        {
+            string context = trust.TrustedPath && trust.TrustedSigner
+                ? "trusted path and signer"
+                : (trust.TrustedSigner ? "trusted signer" : "trusted path");
+
+            return "A " + changeDescription + " matched configured trusted persistence name plus " +
+                context + " indicators and did not include suspicious command, untrusted user-writable path, or RMM traits.";
         }
     }
 }

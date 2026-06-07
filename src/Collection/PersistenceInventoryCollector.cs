@@ -82,12 +82,13 @@ namespace ArcaneEDR
             ScanStartupFolder(Environment.GetFolderPath(Environment.SpecialFolder.Startup), "UserStartup", telemetry);
         }
 
-        private static void ScanStartupFolder(string folder, string source, HostTelemetry telemetry)
+        private void ScanStartupFolder(string folder, string source, HostTelemetry telemetry)
         {
             if (String.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder)) return;
 
             foreach (string file in Directory.GetFiles(folder))
             {
+                if (Path.GetFileName(file).Equals("desktop.ini", StringComparison.OrdinalIgnoreCase)) continue;
                 telemetry.PersistenceItems.Add(Create("StartupFolder", Path.GetFileName(file), file, file, source));
             }
         }
@@ -161,7 +162,7 @@ namespace ArcaneEDR
             }
         }
 
-        private static void ParseScheduledTaskCsv(string output, HostTelemetry telemetry)
+        private void ParseScheduledTaskCsv(string output, HostTelemetry telemetry)
         {
             if (String.IsNullOrWhiteSpace(output)) return;
 
@@ -243,7 +244,7 @@ namespace ArcaneEDR
             return value == null ? "" : value.ToString();
         }
 
-        private static PersistenceItem Create(string type, string name, string path, string command, string source)
+        private PersistenceItem Create(string type, string name, string path, string command, string source)
         {
             PersistenceItem item = new PersistenceItem();
             item.Type = type;
@@ -251,6 +252,7 @@ namespace ArcaneEDR
             item.Path = path ?? "";
             item.Command = command ?? "";
             item.Source = source ?? "";
+            item.Signer = PersistenceTrust.Evaluate(config, item.Name, item.Path, item.Command, "").Signer;
             item.ObservedUtc = DateTime.UtcNow;
             return item;
         }

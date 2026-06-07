@@ -107,7 +107,7 @@ namespace ArcaneEDR
                 EntitySummary = ev.EntitySummary,
                 CooldownKey = ruleId + "|" + ev.CooldownKey,
                 TimestampUtc = DateTime.UtcNow,
-                ResponseProcessId = 0,
+                ResponseProcessId = ev.ProcessId,
                 ResponseRemoteAddress = null
             };
         }

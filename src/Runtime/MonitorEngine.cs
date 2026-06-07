@@ -65,6 +65,23 @@ namespace ArcaneEDR
             healthMonitor.Stop();
         }
 
+        public int RunOnce()
+        {
+            logger.Info("Monitor one-shot poll started.");
+            try
+            {
+                List<Alert> alerts = CollectAlerts(DateTime.UtcNow);
+                alertDispatcher.Dispatch(alerts);
+                logger.Info("Monitor one-shot poll completed alerts=" + alerts.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".");
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                logger.Error("One-shot poll failed: " + ex);
+                return 1;
+            }
+        }
+
         private void Poll(object state)
         {
             lock (gate)
@@ -75,10 +92,7 @@ namespace ArcaneEDR
 
             try
             {
-                NetworkSnapshot snapshot = collector.Capture();
-                List<Alert> alerts = analyzer.Analyze(snapshot, DateTime.UtcNow);
-                alerts.AddRange(hostAnalyzer.Analyze(snapshot, DateTime.UtcNow));
-                alerts.AddRange(integrityMonitor.Check());
+                List<Alert> alerts = CollectAlerts(DateTime.UtcNow);
                 alertDispatcher.Dispatch(alerts);
                 healthMonitor.RecordPoll(alerts);
             }
@@ -94,6 +108,15 @@ namespace ArcaneEDR
                     polling = false;
                 }
             }
+        }
+
+        private List<Alert> CollectAlerts(DateTime timestampUtc)
+        {
+            NetworkSnapshot snapshot = collector.Capture();
+            List<Alert> alerts = analyzer.Analyze(snapshot, timestampUtc);
+            alerts.AddRange(hostAnalyzer.Analyze(snapshot, timestampUtc));
+            alerts.AddRange(integrityMonitor.Check());
+            return alerts;
         }
     }
 }

@@ -46,6 +46,12 @@ Rule IDs include `PS-*`, `PROC-ENCODED-CLI`, `AUDIT-PROC-ENCODED-CLI`, and
   RAT staging, and post-exploitation chains.
 - Common false positives: administrative scripts, installers, endpoint tools,
   configuration management, and test harnesses.
+- Parent/source context: PowerShell Operational events include host process and
+  parent process context when the process is still observable at collection
+  time.
+- App inventory carveout: `PS-ENCODED-APP-INVENTORY` records encoded
+  Start-app/process/UserAssist inventory as medium severity instead of the
+  critical generic encoded-command rule.
 - Tuning knobs: `DetectEncodedCommandLines`, `EncodedCommandMinimumLength`, and
   `SuspiciousCommandLineTerms`.
 - Safe test: `scripts\simulate-detection.cmd -Scenario EncodedPowerShell`.
@@ -66,12 +72,14 @@ Rule IDs include `PERSIST-*`.
 - Common false positives: software installers, driver updates, Windows feature
   tasks, legitimate remote-support tools, and expected admin maintenance.
 - Tuning knobs: `TrustedPersistenceNamePrefixes`,
-  `TrustedPersistencePathIndicators`, `KnownRmmProcesses`,
-  `UserWritablePathIndicators`, and baseline/reputation settings.
+  `TrustedPersistencePathIndicators`, `TrustedPersistenceSignerSubjects`,
+  `KnownRmmProcesses`, `UserWritablePathIndicators`, and baseline/reputation
+  settings.
 - Trust handling: service and scheduled-task changes can be classified as
-  trusted-location variants only when configured trusted name/path indicators
-  match and suspicious command, user-writable path, and RMM/RAT-like traits are
-  absent. Microsoft-looking names alone are not trusted.
+  trusted-location variants only when configured trusted name indicators match
+  a trusted path or trusted signer, and suspicious command, untrusted
+  user-writable path, and RMM/RAT-like traits are absent. Microsoft-looking
+  names alone are not trusted.
 - Safe test: `scripts\simulate-detection.cmd -Scenario ScheduledTaskPersistence`
   followed by `scripts\simulate-detection.cmd -Scenario Cleanup`.
 - Expected alert shape: `why` explains persistence telemetry; entity describes
