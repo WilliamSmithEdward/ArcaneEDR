@@ -51,6 +51,9 @@ Windows safety layer intended for unattended agent workstations, sandbox hosts,
 and small environments where local visibility and simple alerting are useful.
 
 See [ROADMAP.md](ROADMAP.md) for the beta-to-`v1.0.0` roadmap.
+See [docs/rule-family-reference.md](docs/rule-family-reference.md) for a
+practical guide to current rule families, telemetry requirements, tuning knobs,
+false positives, and safe tests.
 
 ## Requirements
 

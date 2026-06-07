@@ -202,6 +202,9 @@ Progress:
 - Added `scripts\simulate-detection.cmd` / `.ps1` for safe representative
   simulations covering encoded PowerShell, unexpected localhost listener, and
   scheduled-task persistence telemetry.
+- Added `docs\rule-family-reference.md` covering current rule families,
+  required telemetry, value, false positives, tuning knobs, safe tests, and
+  expected alert shape.
 
 Exit criteria:
 
