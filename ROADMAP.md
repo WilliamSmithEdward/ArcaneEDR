@@ -26,6 +26,26 @@ deployment.
   privacy, recovery behavior, and a clear mission as an agent-workstation safety
   layer.
 
+## Milestone Status
+
+This section is the high-level completion tracker. Detailed work remains in the
+phase sections below.
+
+| Milestone | Status | Completion | Notes |
+| --- | --- | --- | --- |
+| `v0.1.x-preview` | Done | Complete | Functional preview: service, local logging, Brevo alerting, Sysmon ingestion, OpenAI compact analysis, baseline learning, and daily summaries. |
+| `v0.2.0-beta` | Done | Complete | Tagged beta with install, upgrade, validation, package-release script, config preservation, and scheduled-task admin bridge. |
+| `v0.3.0` | In progress | Partial | Detection quality work remains: per-rule enablement/scores, categories, maintenance labeling, better trust handling, and alert-volume tuning. |
+| `v0.4.0` | Mostly done | Substantial | Modular alert sinks are implemented for Brevo, SMTP, webhook, generic HTTP/API, Windows Event Log, and local JSONL. Reporting-specific sinks remain future work. |
+| `v0.5.0` | Mostly done | Substantial | `why` explanations, incident grouping, timeline command, support bundle, simulations, and rule-family docs are implemented. Remaining work is polishing expected alert shapes and demo flow. |
+| `v0.6.0` | Started | Partial | Agent Profile labeling exists. Remaining work includes agent write/elevation guardrails, compact activity ledger, maintenance/session markers, and active-response dry-run. |
+| `v0.7.0` | Not started | Planned | Collector/rule interface cleanup, privacy hardening, and AI provider abstraction remain planned. |
+| `v1.0.0` | Not ready | Planned | Requires completed docs, tuned alert volume, tested install/upgrade/release flow, dry-run/manual response safety, and stable privacy/operations posture. |
+
+Current milestone focus: finish `v0.5.0` polish, then move into `v0.6.0`
+agentic workstation guardrails without broadening beyond the local safety-layer
+scope.
+
 ## `v1.0.0` Scope Boundary
 
 `v1.0.0` should be a stable local safety layer, not an enterprise EDR clone.
