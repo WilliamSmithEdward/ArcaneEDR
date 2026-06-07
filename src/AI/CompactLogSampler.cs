@@ -289,6 +289,7 @@ namespace ArcaneEDR
                 }
 
                 return "timestamp_utc=" + Read(parsed, "timestamp_utc") +
+                    " system_local_time=" + SanitizeToken(Read(parsed, "system_local_time")) +
                     " rule_id=" + SanitizeToken(ruleId) +
                     " category=" + SanitizeToken(Read(parsed, "category")) +
                     " maintenance_context=" + SanitizeToken(Read(parsed, "maintenance_context")) +

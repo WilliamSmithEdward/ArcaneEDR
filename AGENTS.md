@@ -212,16 +212,26 @@ C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --alert-volume --last 10m
 C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --alert-volume --last 1h
 C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --alert-volume --last 24h
 Get-Content C:\Security\ArcaneAlerts.jsonl -Tail 40
+C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --agent-activity --last 24h
 ```
 
 Tune the ignored local config first:
 
 - known agent process names and child shells
+- agent workspace and publish roots, especially for `FILE-*` alerts involving
+  package-manager or agent-created executable/script files
 - maintenance-context term groups
 - per-rule or per-category external alert thresholds
 - trusted process/path/signer indicators where they match durable local reality
 - disabled rules only after the user accepts the visibility tradeoff
 - OpenAI compact-analysis thresholds and excluded rule IDs
+- agent activity ledger enablement and minimum score
+
+For `FILE-*` alerts, remember that Arcane is using narrow Sysmon FileCreate
+telemetry, not broad file auditing. Prefer tuning `AgentWorkspaceRoots`,
+`AgentPublishRoots`, `HighRiskFilePathIndicators`, `HighRiskFileExtensions`,
+and `SensitiveFileNameIndicators` to match the user's machine. Do not disable
+the entire `File` category unless the operator accepts losing those guardrails.
 
 For every tuning change, be able to explain:
 
@@ -235,15 +245,80 @@ Do not edit source code for a local false positive. If the rule itself appears
 wrong in a general product sense, explain the evidence and ask whether the user
 wants product-development help.
 
+## Actionability And Report Language
+
+Arcane reports should help the operator answer one question quickly: "Is this
+machine likely compromised, or does this need review?" Tune language and
+notification behavior so the product is neither scary by default nor timid when
+evidence is strong.
+
+Use a confidence ladder when interpreting alerts, daily reports, or OpenAI
+analysis:
+
+- Confirmed or highly likely compromise: use direct language only when there is
+  strong corroboration, such as known malicious indicators, blocked hashes,
+  unauthorized persistence plus suspicious execution, suspicious remote access
+  plus privilege/persistence changes, or clear egress/C2 behavior tied to an
+  unexpected process.
+- Needs review: use this for high-signal but incomplete evidence, especially
+  when source-event details, process lineage, destination identity, or operator
+  context is missing.
+- Watch or baseline: use this for repeated lower-confidence signals, expected
+  agent/backend activity, maintenance windows, standalone special-privilege
+  events, ambiguous session broker events, and volume-only patterns.
+- Expected local context: use this only when recent operator action, local
+  config, signer/path/process identity, and repeated baseline evidence make the
+  benign explanation durable.
+
+Avoid scary language unless the evidence earns it. Prefer phrases such as:
+
+- "No confirmed compromise from available evidence."
+- "Needs review because the evidence is high-signal but incomplete."
+- "Worth watching during baseline tuning."
+- "Expected if this matches the operator's recent activity."
+- "Escalate if this was not initiated by the operator."
+
+Also avoid under-reporting. If a signal is potentially dangerous but
+incomplete, name both sides: what is concerning, what context could make it
+benign, and what evidence would change the assessment. Do not dismiss a pattern
+solely because it involves a known agent process, a trusted path, or high alert
+volume.
+
+For daily reports:
+
+- Put the high-level determination near the top.
+- Keep critical callouts concise, but include process/source context when
+  available.
+- Treat volume as context, not proof.
+- Explicitly mention false-positive factors such as baseline learning,
+  maintenance context, agent context, telemetry gaps, and stale investigation
+  activity.
+- Make the recommended next step concrete and bounded, for example review a
+  process lineage, confirm an RDP session, inspect a persistence item, or tune a
+  local allowlist.
+
+For local tuning decisions:
+
+- Reduce external alerting only after a repeated benign pattern is understood.
+- Keep local evidence logged even when emails are dampened.
+- Prefer narrow config keys over broad category suppression.
+- Revisit a tuning decision when new evidence appears over the next few days.
+- Document whether the change is host-specific local context or a general
+  product improvement candidate.
+
 Examples of local evidence that may inform config or docs, not source-level
 hard-coding:
 
 - Hyper-V host-to-guest login can appear as Windows logon type `10` with source
-  `0.0.0.0`.
+  `0.0.0.0`; treat this as ambiguous local/session-broker context unless other
+  remote-access evidence is present.
 - Expected agent backend traffic can resemble low-jitter HTTPS beaconing.
 - Windows `4672` special-privilege events are common around services, desktop
   sessions, and admin activity, and become meaningful mostly when paired with
   other suspicious context.
+- `AUTH-REMOTE-SPECIAL-PRIVILEGES` is more meaningful than a standalone
+  `AUTH-SPECIAL-PRIVILEGES` because it correlates privilege assignment with
+  recent remote logon activity for the same account.
 
 ## OpenAI Analysis
 

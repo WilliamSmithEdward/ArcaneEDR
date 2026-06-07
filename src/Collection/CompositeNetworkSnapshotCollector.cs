@@ -24,7 +24,7 @@ namespace ArcaneEDR
             List<NetworkEndpoint> endpoints = new List<NetworkEndpoint>(networkSnapshot.Endpoints);
             endpoints.AddRange(sysmon.NetworkConnections);
 
-            return new NetworkSnapshot(endpoints, sysmon.DnsQueries, sysmon.ProcessEvents, hostTelemetry);
+            return new NetworkSnapshot(endpoints, sysmon.DnsQueries, sysmon.ProcessEvents, sysmon.FileEvents, hostTelemetry);
         }
     }
 }

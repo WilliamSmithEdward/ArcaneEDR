@@ -37,6 +37,7 @@ namespace ArcaneEDR
             Write("ALERT", "[" + alert.Score.ToString(CultureInfo.InvariantCulture) + "] " +
                 alert.RuleId + " category=" + AlertRulePolicy.AlertCategory(alert) + " " +
                 "maintenance_context=" + alert.MaintenanceContext + " " +
+                "system_local_time=\"" + alert.SystemLocalTime + "\" " +
                 alert.Title + " | " + WhyText(alert) + alert.Body.Replace(Environment.NewLine, " | "));
             try
             {

@@ -22,6 +22,21 @@ namespace ArcaneEDR
         public int ResponseProcessId;
         public IPAddress ResponseRemoteAddress;
 
+        public string SystemLocalTime
+        {
+            get { return FormatSystemLocalTime(TimestampUtc); }
+        }
+
+        public string SystemTimeZoneId
+        {
+            get { return LocalTimeZone().Id; }
+        }
+
+        public string SystemUtcOffset
+        {
+            get { return FormatSystemUtcOffset(TimestampUtc); }
+        }
+
         public static Alert Create(string ruleId, string title, int score, string body, string recommendation, string cooldownKey)
         {
             return new Alert
@@ -90,6 +105,24 @@ namespace ArcaneEDR
                 CooldownKey = ruleId + "|" + process.RecordId.ToString(CultureInfo.InvariantCulture) + "|" + process.ProcessId.ToString(CultureInfo.InvariantCulture),
                 TimestampUtc = DateTime.UtcNow,
                 ResponseProcessId = process.ProcessId,
+                ResponseRemoteAddress = null
+            };
+        }
+
+        public static Alert FromFileEvent(string ruleId, string title, int score, string body, string recommendation, SysmonFileEvent ev)
+        {
+            return new Alert
+            {
+                RuleId = ruleId,
+                Title = title,
+                Score = score,
+                Severity = SeverityFromScore(score),
+                Body = body + Environment.NewLine + "FileEvent: " + ev.EntitySummary,
+                Recommendation = recommendation,
+                EntitySummary = ev.EntitySummary,
+                CooldownKey = ruleId + "|" + ev.CooldownKey,
+                TimestampUtc = DateTime.UtcNow,
+                ResponseProcessId = ev.ProcessId,
                 ResponseRemoteAddress = null
             };
         }
@@ -175,6 +208,9 @@ namespace ArcaneEDR
         {
             return "{" +
                 "\"timestamp_utc\":\"" + JsonEscape(TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)) + "\"," +
+                "\"system_local_time\":\"" + JsonEscape(SystemLocalTime) + "\"," +
+                "\"system_time_zone\":\"" + JsonEscape(SystemTimeZoneId) + "\"," +
+                "\"system_utc_offset\":\"" + JsonEscape(SystemUtcOffset) + "\"," +
                 "\"rule_id\":\"" + JsonEscape(RuleId) + "\"," +
                 "\"category\":\"" + JsonEscape(Category) + "\"," +
                 "\"maintenance_context\":" + (MaintenanceContext ? "true" : "false") + "," +
@@ -223,6 +259,45 @@ namespace ArcaneEDR
             }
 
             return "[" + String.Join(",", encoded.ToArray()) + "]";
+        }
+
+        private static string FormatSystemLocalTime(DateTime timestampUtc)
+        {
+            DateTime utc = NormalizeUtc(timestampUtc);
+            TimeZoneInfo zone = LocalTimeZone();
+            DateTime local = TimeZoneInfo.ConvertTimeFromUtc(utc, zone);
+            TimeSpan offset = zone.GetUtcOffset(utc);
+            DateTimeOffset localWithOffset = new DateTimeOffset(local, offset);
+            return localWithOffset.ToString("yyyy-MM-ddTHH:mm:ss zzz", CultureInfo.InvariantCulture) +
+                " (" + zone.Id + ")";
+        }
+
+        private static string FormatSystemUtcOffset(DateTime timestampUtc)
+        {
+            DateTime utc = NormalizeUtc(timestampUtc);
+            TimeZoneInfo zone = LocalTimeZone();
+            DateTime local = TimeZoneInfo.ConvertTimeFromUtc(utc, zone);
+            TimeSpan offset = zone.GetUtcOffset(utc);
+            DateTimeOffset localWithOffset = new DateTimeOffset(local, offset);
+            return localWithOffset.ToString("zzz", CultureInfo.InvariantCulture);
+        }
+
+        private static DateTime NormalizeUtc(DateTime timestampUtc)
+        {
+            if (timestampUtc.Kind == DateTimeKind.Utc) return timestampUtc;
+            return timestampUtc.ToUniversalTime();
+        }
+
+        private static TimeZoneInfo LocalTimeZone()
+        {
+            try
+            {
+                return TimeZoneInfo.Local;
+            }
+            catch
+            {
+                return TimeZoneInfo.Utc;
+            }
         }
 
         private static string JsonEscape(string value)

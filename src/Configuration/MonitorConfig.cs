@@ -51,6 +51,7 @@ namespace ArcaneEDR
         public string DailySummaryLocalTime = "08:00";
         public string DailySummaryTimeZoneId = "";
         public int DailySummaryScore = 60;
+        public bool EnableDailySummaryOpenAiAnalysis = true;
         public int HealthHeartbeatSeconds = 60;
         public bool EnableOpenAiLogAnalysis = true;
         public int OpenAIAnalysisIntervalMinutes = 60;
@@ -112,8 +113,14 @@ namespace ArcaneEDR
         public string WindowsSystemEventLogName = "System";
         public int WindowsEventLookbackMinutes = 10;
         public int WindowsEventMaxEventsPerPoll = 200;
+        public int AuthSpecialPrivilegeRepeatDampeningMinutes = 60;
+        public int AuthSpecialPrivilegeRemoteCorrelationMinutes = 15;
         public bool EnablePersistenceInventory = true;
         public int PersistenceInventoryIntervalMinutes = 60;
+        public bool EnableHighSignalFileDetection = true;
+        public HashSet<string> HighRiskFilePathIndicators = DefaultHighRiskFilePathIndicators();
+        public HashSet<string> HighRiskFileExtensions = DefaultHighRiskFileExtensions();
+        public HashSet<string> SensitiveFileNameIndicators = DefaultSensitiveFileNameIndicators();
         public bool EnableReputationCache = true;
         public string ReputationCacheFile = "ArcaneReputation.tsv";
         public bool EnableCustomRules = true;
@@ -132,6 +139,7 @@ namespace ArcaneEDR
         public long MaxLogFileBytes = 10485760;
         public PortRuleSet AllowedListeningPorts = new PortRuleSet();
         public PortRuleSet AllowedOutboundPorts = new PortRuleSet();
+        public Dictionary<string, PortRuleSet> ProcessAllowedOutboundPorts = new Dictionary<string, PortRuleSet>(StringComparer.OrdinalIgnoreCase);
         public PortRuleSet HighRiskRemotePorts = new PortRuleSet();
         public PortRuleSet LateralMovementPorts = new PortRuleSet();
         public HashSet<string> TrustedProcesses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -154,6 +162,9 @@ namespace ArcaneEDR
         public HashSet<string> AgentPackageManagerProcesses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> AgentApprovedAdminTaskNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> AgentSecretIndicatorTerms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public bool EnableAgentActivityLedger = true;
+        public string AgentActivityLedgerFile = "ArcaneAgentActivity.jsonl";
+        public int AgentActivityLedgerMinimumScore = 60;
         public HashSet<IPAddress> AllowedDnsResolvers = new HashSet<IPAddress>();
         public bool EnforceAuthorizedDnsResolvers;
         public int ConnectionBurstThreshold = 25;
@@ -231,6 +242,7 @@ namespace ArcaneEDR
             config.DailySummaryLocalTime = ReadString(values, "DailySummaryLocalTime", config.DailySummaryLocalTime);
             config.DailySummaryTimeZoneId = ReadString(values, "DailySummaryTimeZoneId", config.DailySummaryTimeZoneId);
             config.DailySummaryScore = ReadInt(values, "DailySummaryScore", config.DailySummaryScore);
+            config.EnableDailySummaryOpenAiAnalysis = ReadBool(values, "EnableDailySummaryOpenAiAnalysis", config.EnableDailySummaryOpenAiAnalysis);
             config.HealthHeartbeatSeconds = ReadInt(values, "HealthHeartbeatSeconds", config.HealthHeartbeatSeconds);
             config.EnableOpenAiLogAnalysis = ReadBool(values, "EnableOpenAiLogAnalysis", config.EnableOpenAiLogAnalysis);
             config.OpenAIAnalysisIntervalMinutes = ReadInt(values, "OpenAIAnalysisIntervalMinutes", config.OpenAIAnalysisIntervalMinutes);
@@ -292,8 +304,20 @@ namespace ArcaneEDR
             config.WindowsSystemEventLogName = ReadString(values, "WindowsSystemEventLogName", config.WindowsSystemEventLogName);
             config.WindowsEventLookbackMinutes = ReadInt(values, "WindowsEventLookbackMinutes", config.WindowsEventLookbackMinutes);
             config.WindowsEventMaxEventsPerPoll = ReadInt(values, "WindowsEventMaxEventsPerPoll", config.WindowsEventMaxEventsPerPoll);
+            config.AuthSpecialPrivilegeRepeatDampeningMinutes = ReadInt(values, "AuthSpecialPrivilegeRepeatDampeningMinutes", config.AuthSpecialPrivilegeRepeatDampeningMinutes);
+            config.AuthSpecialPrivilegeRemoteCorrelationMinutes = ReadInt(values, "AuthSpecialPrivilegeRemoteCorrelationMinutes", config.AuthSpecialPrivilegeRemoteCorrelationMinutes);
             config.EnablePersistenceInventory = ReadBool(values, "EnablePersistenceInventory", config.EnablePersistenceInventory);
             config.PersistenceInventoryIntervalMinutes = ReadInt(values, "PersistenceInventoryIntervalMinutes", config.PersistenceInventoryIntervalMinutes);
+            config.EnableHighSignalFileDetection = ReadBool(values, "EnableHighSignalFileDetection", config.EnableHighSignalFileDetection);
+            config.HighRiskFilePathIndicators = values.ContainsKey("HighRiskFilePathIndicators")
+                ? ReadStringSet(values, "HighRiskFilePathIndicators")
+                : DefaultHighRiskFilePathIndicators();
+            config.HighRiskFileExtensions = values.ContainsKey("HighRiskFileExtensions")
+                ? NormalizeExtensions(ReadStringSet(values, "HighRiskFileExtensions"))
+                : DefaultHighRiskFileExtensions();
+            config.SensitiveFileNameIndicators = values.ContainsKey("SensitiveFileNameIndicators")
+                ? ReadStringSet(values, "SensitiveFileNameIndicators")
+                : DefaultSensitiveFileNameIndicators();
             config.EnableReputationCache = ReadBool(values, "EnableReputationCache", config.EnableReputationCache);
             config.ReputationCacheFile = ResolvePath(config.LogDirectory, ReadString(values, "ReputationCacheFile", config.ReputationCacheFile));
             config.EnableCustomRules = ReadBool(values, "EnableCustomRules", config.EnableCustomRules);
@@ -312,6 +336,7 @@ namespace ArcaneEDR
             config.MaxLogFileBytes = ReadLong(values, "MaxLogFileBytes", config.MaxLogFileBytes);
             config.AllowedListeningPorts = ReadPortSet(values, "AllowedListeningPorts");
             config.AllowedOutboundPorts = ReadPortSet(values, "AllowedOutboundPorts");
+            config.ProcessAllowedOutboundPorts = ReadProcessPortMap(values, "ProcessAllowedOutboundPorts");
             config.HighRiskRemotePorts = ReadPortSet(values, "HighRiskRemotePorts");
             config.LateralMovementPorts = ReadPortSet(values, "LateralMovementPorts");
             config.TrustedProcesses = ReadStringSet(values, "TrustedProcesses");
@@ -336,6 +361,9 @@ namespace ArcaneEDR
             config.AgentPackageManagerProcesses = ReadStringSet(values, "AgentPackageManagerProcesses");
             config.AgentApprovedAdminTaskNames = ReadStringSet(values, "AgentApprovedAdminTaskNames");
             config.AgentSecretIndicatorTerms = ReadStringSet(values, "AgentSecretIndicatorTerms");
+            config.EnableAgentActivityLedger = ReadBool(values, "EnableAgentActivityLedger", config.EnableAgentActivityLedger);
+            config.AgentActivityLedgerFile = ResolvePath(config.LogDirectory, ReadString(values, "AgentActivityLedgerFile", config.AgentActivityLedgerFile));
+            config.AgentActivityLedgerMinimumScore = ReadInt(values, "AgentActivityLedgerMinimumScore", config.AgentActivityLedgerMinimumScore);
             config.EnforceAuthorizedDnsResolvers = ReadBool(values, "EnforceAuthorizedDnsResolvers", false);
             config.AllowedDnsResolvers = ReadIpSet(values, "AllowedDnsResolvers");
             config.ConnectionBurstThreshold = ReadInt(values, "ConnectionBurstThreshold", config.ConnectionBurstThreshold);
@@ -520,6 +548,36 @@ namespace ArcaneEDR
             return result;
         }
 
+        private static Dictionary<string, PortRuleSet> ReadProcessPortMap(Dictionary<string, string> values, string key)
+        {
+            Dictionary<string, PortRuleSet> result = new Dictionary<string, PortRuleSet>(StringComparer.OrdinalIgnoreCase);
+            string value;
+            if (!values.TryGetValue(key, out value)) return result;
+
+            foreach (string entry in value.Split(';'))
+            {
+                string trimmed = entry.Trim();
+                if (trimmed.Length == 0) continue;
+
+                int equals = trimmed.IndexOf('=');
+                if (equals <= 0 || equals >= trimmed.Length - 1) continue;
+
+                string processName = trimmed.Substring(0, equals).Trim();
+                string portText = trimmed.Substring(equals + 1).Trim();
+                if (processName.Length == 0 || portText.Length == 0) continue;
+
+                PortRuleSet ports = new PortRuleSet();
+                foreach (string part in portText.Split(','))
+                {
+                    ports.Add(part.Trim());
+                }
+
+                result[processName] = ports;
+            }
+
+            return result;
+        }
+
         private static HashSet<string> ReadStringSet(Dictionary<string, string> values, string key)
         {
             HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -551,6 +609,60 @@ namespace ArcaneEDR
             result.Add("Microsoft Windows");
             result.Add("Microsoft Corporation");
             result.Add("Microsoft Windows Publisher");
+            return result;
+        }
+
+        private static HashSet<string> DefaultHighRiskFilePathIndicators()
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            result.Add("\\appdata\\roaming\\microsoft\\windows\\start menu\\programs\\startup\\");
+            result.Add("\\programdata\\microsoft\\windows\\start menu\\programs\\startup\\");
+            result.Add("\\windows\\system32\\tasks\\");
+            result.Add("\\appdata\\local\\google\\chrome\\user data\\default\\extensions\\");
+            result.Add("\\appdata\\local\\microsoft\\edge\\user data\\default\\extensions\\");
+            return result;
+        }
+
+        private static HashSet<string> DefaultHighRiskFileExtensions()
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            result.Add(".exe");
+            result.Add(".dll");
+            result.Add(".scr");
+            result.Add(".com");
+            result.Add(".msi");
+            result.Add(".msp");
+            result.Add(".ps1");
+            result.Add(".psm1");
+            result.Add(".vbs");
+            result.Add(".vbe");
+            result.Add(".js");
+            result.Add(".jse");
+            result.Add(".hta");
+            result.Add(".bat");
+            result.Add(".cmd");
+            result.Add(".lnk");
+            result.Add(".url");
+            result.Add(".jar");
+            return result;
+        }
+
+        private static HashSet<string> DefaultSensitiveFileNameIndicators()
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            result.Add("apikey");
+            result.Add("api_key");
+            result.Add("access_token");
+            result.Add("refresh_token");
+            result.Add("client_secret");
+            result.Add("private_key");
+            result.Add("id_rsa");
+            result.Add("id_ed25519");
+            result.Add(".pem");
+            result.Add(".pfx");
+            result.Add(".env");
+            result.Add("credentials");
+            result.Add("token.json");
             return result;
         }
 
@@ -601,6 +713,20 @@ namespace ArcaneEDR
                 }
 
                 result.Add(trimmed.TrimEnd('\\') + "\\");
+            }
+
+            return result;
+        }
+
+        private static HashSet<string> NormalizeExtensions(HashSet<string> values)
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string value in values)
+            {
+                string trimmed = value.Trim();
+                if (trimmed.Length == 0) continue;
+                if (!trimmed.StartsWith(".", StringComparison.Ordinal)) trimmed = "." + trimmed;
+                result.Add(trimmed);
             }
 
             return result;

@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("List", "EncodedPowerShell", "UnexpectedListener", "ScheduledTaskPersistence", "All", "Cleanup")]
+    [ValidateSet("List", "EncodedPowerShell", "UnexpectedListener", "ScheduledTaskPersistence", "StartupFileDrop", "All", "Cleanup")]
     [string]$Scenario = "List",
 
     [int]$DurationSeconds = 90,
@@ -10,6 +10,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $TaskName = "\ArcaneEDRSimulation\ArcaneEdrSimulationTask"
+$StartupSimulationFile = Join-Path ([Environment]::GetFolderPath("Startup")) "ArcaneEdrSimulation.cmd"
 
 function Show-Scenarios {
     Write-Host "Arcane EDR safe detection simulations"
@@ -18,13 +19,15 @@ function Show-Scenarios {
     Write-Host "  EncodedPowerShell        Runs a harmless encoded PowerShell command."
     Write-Host "  UnexpectedListener       Opens a localhost TCP listener for the selected duration."
     Write-Host "  ScheduledTaskPersistence Creates a harmless current-user scheduled task."
-    Write-Host "  All                      Runs the three scenarios above."
-    Write-Host "  Cleanup                  Removes the scheduled-task simulation artifact."
+    Write-Host "  StartupFileDrop          Creates a harmless current-user Startup .cmd file."
+    Write-Host "  All                      Runs the listed detection scenarios."
+    Write-Host "  Cleanup                  Removes scheduled-task and Startup-file simulation artifacts."
     Write-Host ""
     Write-Host "Examples:"
     Write-Host "  .\scripts\simulate-detection.cmd -Scenario EncodedPowerShell"
     Write-Host "  .\scripts\simulate-detection.cmd -Scenario UnexpectedListener -DurationSeconds 120 -ListenerPort 49291"
     Write-Host "  .\scripts\simulate-detection.cmd -Scenario ScheduledTaskPersistence"
+    Write-Host "  .\scripts\simulate-detection.cmd -Scenario StartupFileDrop"
     Write-Host "  .\scripts\simulate-detection.cmd -Scenario Cleanup"
     Write-Host ""
     Write-Host "These simulations can generate real Arcane EDR alerts and external notifications if the service is running."
@@ -73,11 +76,38 @@ function Invoke-ScheduledTaskPersistenceSimulation {
     Write-Host "  .\scripts\simulate-detection.cmd -Scenario Cleanup"
 }
 
+function Invoke-StartupFileDropSimulation {
+    $startupFolder = Split-Path -Parent $StartupSimulationFile
+    if (!(Test-Path $startupFolder)) {
+        throw "Startup folder does not exist: $startupFolder"
+    }
+
+    Write-Host "Creating harmless Startup simulation file $StartupSimulationFile."
+    Set-Content -Path $StartupSimulationFile -Encoding ASCII -Value @(
+        "@echo off",
+        "rem Arcane EDR Startup file-drop simulation",
+        "exit /b 0"
+    )
+
+    Write-Host "Startup file created. Run cleanup after Arcane EDR has had time to observe it:"
+    Write-Host "  .\scripts\simulate-detection.cmd -Scenario Cleanup"
+}
+
 function Remove-ScheduledTaskSimulation {
     Write-Host "Removing scheduled task $TaskName if it exists."
     & schtasks.exe /Delete /TN $TaskName /F | Write-Host
     if ($LASTEXITCODE -ne 0) {
         Write-Host "No scheduled-task simulation artifact was removed, or schtasks returned exit code $LASTEXITCODE."
+    }
+}
+
+function Remove-StartupFileDropSimulation {
+    if (Test-Path $StartupSimulationFile) {
+        Write-Host "Removing Startup simulation file $StartupSimulationFile."
+        Remove-Item -LiteralPath $StartupSimulationFile -Force
+    }
+    else {
+        Write-Host "Startup simulation file was not present."
     }
 }
 
@@ -88,6 +118,7 @@ if ($Scenario -eq "List") {
 
 if ($Scenario -eq "Cleanup") {
     Remove-ScheduledTaskSimulation
+    Remove-StartupFileDropSimulation
     exit 0
 }
 
@@ -97,6 +128,10 @@ if ($Scenario -eq "EncodedPowerShell" -or $Scenario -eq "All") {
 
 if ($Scenario -eq "ScheduledTaskPersistence" -or $Scenario -eq "All") {
     Invoke-ScheduledTaskPersistenceSimulation
+}
+
+if ($Scenario -eq "StartupFileDrop" -or $Scenario -eq "All") {
+    Invoke-StartupFileDropSimulation
 }
 
 if ($Scenario -eq "UnexpectedListener" -or $Scenario -eq "All") {

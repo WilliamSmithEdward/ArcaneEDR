@@ -29,6 +29,12 @@ namespace ArcaneEDR
                 return;
             }
 
+            if (args.Length > 0 && args[0].Equals("--test-daily-report", StringComparison.OrdinalIgnoreCase))
+            {
+                AlertTestHarness.SendDailyReportTest(AppDomain.CurrentDomain.BaseDirectory);
+                return;
+            }
+
             if (args.Length > 0 && args[0].Equals("--test-openai-analysis", StringComparison.OrdinalIgnoreCase))
             {
                 AlertTestHarness.SendOpenAiAnalysisTest(AppDomain.CurrentDomain.BaseDirectory);
@@ -58,6 +64,12 @@ namespace ArcaneEDR
             if (args.Length > 0 && args[0].Equals("--alert-volume", StringComparison.OrdinalIgnoreCase))
             {
                 Environment.ExitCode = AlertVolumeConsole.PrintSummary(AppDomain.CurrentDomain.BaseDirectory, args);
+                return;
+            }
+
+            if (args.Length > 0 && args[0].Equals("--agent-activity", StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.ExitCode = AgentActivityConsole.PrintSummary(AppDomain.CurrentDomain.BaseDirectory, args);
                 return;
             }
 

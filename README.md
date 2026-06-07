@@ -31,10 +31,11 @@ If you are using an LLM or coding agent to operate the repo, see
 - Connection bursts by process.
 - Low-jitter repeated outbound connections that resemble beaconing.
 - Process path, command line, parent process, user, signer, and SHA256 context.
-- Sysmon process, network, and DNS events when Sysmon is installed.
+- Sysmon process, network, DNS, and narrow high-risk file-create events when Sysmon is installed.
 - PowerShell operational log events, including script block, module, and lifecycle records.
 - Windows Security/System events for failed logons, RDP/network logons, privileged logons, service installs, scheduled task changes, and process-creation audit events when enabled.
 - Registry Run keys, Startup folders, automatic services, and scheduled-task inventory.
+- Executable/script drops into persistence-adjacent locations, suspicious sensitive-file writes, and high-risk file drop-then-execute patterns.
 - LOLBin and script-runtime external network activity.
 - Encoded or base64-obfuscated PowerShell/CLI commands.
 - Suspicious parent/child process chains.
@@ -65,7 +66,7 @@ false positives, and safe tests.
 - PowerShell.
 - Administrator rights for service install, service removal, Sysmon install,
   and some event-log validation checks.
-- Optional: Sysmon for richer process, network, and DNS telemetry.
+- Optional: Sysmon for richer process, network, DNS, and narrow file-create telemetry.
 - Optional: Brevo transactional email for external alert delivery.
 - Optional: OpenAI API key for compact secondary log analysis.
 
@@ -268,8 +269,10 @@ Microsoft Sysinternals, place the executable named by `SysmonExecutableName` in
 ```
 
 The included `config\arcaneedr-sysmon.xml` enables process creation, network
-connection, DNS query, and SHA256 hash telemetry. If Sysmon is not installed,
-Arcane EDR falls back to netstat-based collection and logs a warning once.
+connection, DNS query, SHA256 hash telemetry, and narrow FileCreate coverage for
+Startup folders, scheduled-task storage, browser extension paths, and
+sensitive-looking filenames. If Sysmon is not installed, Arcane EDR falls back
+to netstat-based collection and logs a warning once.
 
 ## Test Commands
 
@@ -289,6 +292,12 @@ Force compact OpenAI log analysis:
 
 ```powershell
 .\bin\ArcaneEDR.exe --test-openai-analysis
+```
+
+Generate and send a daily report on demand:
+
+```powershell
+.\bin\ArcaneEDR.exe --test-daily-report
 ```
 
 Preview the exact redacted payload that would be sent to OpenAI without making
@@ -329,6 +338,7 @@ Run one representative simulation:
 .\scripts\simulate-detection.cmd -Scenario EncodedPowerShell
 .\scripts\simulate-detection.cmd -Scenario UnexpectedListener -DurationSeconds 120
 .\scripts\simulate-detection.cmd -Scenario ScheduledTaskPersistence
+.\scripts\simulate-detection.cmd -Scenario StartupFileDrop
 ```
 
 Clean up the scheduled-task simulation artifact:
@@ -352,13 +362,18 @@ All alerts are always written locally under `LogDirectory`:
 ```
 
 Every alert carries structured `why` metadata that explains the rule-family
-conditions that caused it to fire. Email, SMTP, Windows Event Log, local text
-logs, local JSONL, webhook, and generic HTTP/API sinks all receive the same
-explained alert object.
+conditions that caused it to fire. Alert records include UTC time plus the
+machine's system-local time, Windows time zone, and UTC offset. Email, SMTP,
+Windows Event Log, local text logs, local JSONL, webhook, and generic HTTP/API
+sinks all receive the same explained, time-zone-aware alert object.
+
+System-local time is derived from the Windows time zone configured on the host.
+This avoids hard-coding a project timezone while keeping alerts and reports
+readable for the operator.
 
 Alerts also carry a rule `category`, derived from the rule ID. Current
 categories include `Network`, `DNS`, `PowerShell`, `Persistence`, `Auth`,
-`Process`, `RAT`, `AI`, `Health`, `Integrity`, `Baseline`, `Reputation`,
+`File`, `Process`, `RAT`, `AI`, `Health`, `Integrity`, `Baseline`, `Reputation`,
 `Custom`, `Test`, and `General`.
 
 Rule policy tuning is controlled by config:
@@ -375,6 +390,16 @@ local alert logging, incident grouping, response handling, and external
 delivery. `RuleMinimumEmailScores` and `CategoryMinimumEmailScores` affect
 external delivery only; local logging and incident grouping still use the
 normal alert path.
+
+Network port tuning supports both global and process-specific outbound
+allowlists. Use `AllowedOutboundPorts` for ports that are normal for any
+process, and `ProcessAllowedOutboundPorts` for ports that are normal only for a
+specific process:
+
+```ini
+AllowedOutboundPorts=53,80,123,443,587,993,995
+ProcessAllowedOutboundPorts=Codex.exe=5228;browser.exe=5228-5230
+```
 
 Maintenance context tuning labels expected admin/build/publish activity without
 making it disappear:
@@ -407,6 +432,20 @@ key. Local alert logs, incident grouping, response handling, and high-score
 alerts are not affected. Leave `LowValueRepeatDampeningCategories` populated;
 an explicitly blank category list disables repeat dampening matches.
 
+Authentication special-privilege tuning keeps Windows `4672` events
+correlation-first:
+
+```ini
+AuthSpecialPrivilegeRepeatDampeningMinutes=60
+AuthSpecialPrivilegeRemoteCorrelationMinutes=15
+```
+
+Standalone `4672` events are low-severity local context and repeat-dampened per
+principal. If special privileges occur near recent remote logon activity for the
+same account, Arcane raises stronger `AUTH-REMOTE-SPECIAL-PRIVILEGES` context.
+Remote-style logons with an unspecified source such as `0.0.0.0` are recorded
+as low-risk session context rather than ordinary remote source evidence.
+
 Persistence trust handling reduces noise from expected Windows/vendor service
 and scheduled-task activity without trusting names by themselves. A service or
 task change is classified as trusted-location only when configured trusted
@@ -420,6 +459,20 @@ TrustedPersistenceNamePrefixes=\Microsoft\Windows\,MDCoreSvc,WinDefend
 TrustedPersistencePathIndicators=\windows\system32\,\program files\,\programdata\microsoft\windows defender\
 TrustedPersistenceSignerSubjects=Microsoft Windows,Microsoft Corporation,Microsoft Windows Publisher
 ```
+
+High-signal file-create detection is Sysmon-backed and intentionally narrow:
+
+```ini
+EnableHighSignalFileDetection=true
+HighRiskFilePathIndicators=\appdata\roaming\microsoft\windows\start menu\programs\startup\,\programdata\microsoft\windows\start menu\programs\startup\,\windows\system32\tasks\,\appdata\local\google\chrome\user data\default\extensions\,\appdata\local\microsoft\edge\user data\default\extensions\
+HighRiskFileExtensions=.exe,.dll,.scr,.com,.msi,.msp,.ps1,.psm1,.vbs,.vbe,.js,.jse,.hta,.bat,.cmd,.lnk,.url,.jar
+SensitiveFileNameIndicators=apikey,api_key,access_token,refresh_token,client_secret,private_key,id_rsa,id_ed25519,.pem,.pfx,.env,credentials,token.json
+```
+
+These rules do not audit every file write. They depend on Sysmon FileCreate
+events for high-risk targets, then alert on executable/script drops,
+suspicious writers, agent writes outside approved roots, sensitive-looking
+filenames, or recent high-risk drops followed by execution.
 
 Arcane can also group alert records into local investigation incidents. This is
 local-only JSONL state, intended to make recent related alerts easier to scan:
@@ -447,6 +500,12 @@ Summarize recent local alert volume for tuning:
 
 ```powershell
 .\bin\ArcaneEDR.exe --alert-volume --last 24h
+```
+
+Summarize the compact agent activity ledger:
+
+```powershell
+.\bin\ArcaneEDR.exe --agent-activity --last 24h
 ```
 
 The summary groups local alert records by severity, category, rule, and process,
@@ -551,11 +610,24 @@ EnableDailySummary=true
 DailySummaryIntervalHours=24
 DailySummaryLocalTime=08:00
 DailySummaryTimeZoneId=<configured Windows time zone ID>
+DailySummaryScore=60
+EnableDailySummaryOpenAiAnalysis=true
 HealthHeartbeatSeconds=60
 ```
 
-The daily summary includes uptime, poll count, alert count, poll failures,
-baseline learning mode, and last clean stop time.
+The daily report uses a report-specific email layout, not the generic alert
+template. It starts with a compact metadata header containing the high-level
+determination, compromise assessment, confidence, analyzed system-time window,
+generated system time, basis, and recommended next step, then uses compact
+tables for critical callouts, health, signal summary, false-positive context,
+high-signal details, automation activity, tuning notes, and optional OpenAI
+daily analysis. Critical and high-signal tables include process/source context
+when the source telemetry provides it. The OpenAI daily prompt is tuned for
+customer-facing 24-hour review and explicitly treats alert volume, baseline
+learning, maintenance context, automation context, and telemetry gaps as
+false-positive context rather than proof of compromise. Future reporting work
+should move these sections toward a configurable reporting engine with
+selectable sections, formats, and destinations.
 
 ## OpenAI Log Analysis
 
@@ -576,6 +648,7 @@ OpenAIApiKeyEnvironmentVariable=<configured env var>
 OpenAIAnalysisMaxLogLines=80
 OpenAIAnalysisMaxAlertLines=80
 OpenAIAnalysisMaxChars=12000
+EnableDailySummaryOpenAiAnalysis=true
 ```
 
 The payload is intentionally compact and redacted. It includes health counters,
@@ -595,6 +668,9 @@ Results are written to:
 ```text
 <LogDirectory>\ArcaneOpenAIAnalysis.jsonl
 ```
+
+Hourly compact analysis records use `analysis_type=compact_log`; daily report
+analysis records use `analysis_type=daily_report`.
 
 If OpenAI returns `alertable=true` with a score at or above
 `OpenAIAnalysisScoreThreshold`, Arcane EDR sends a Brevo email with the model's
@@ -634,6 +710,9 @@ AgentPublishRoots=C:\Applications\
 AgentPackageManagerProcesses=git.exe,git-remote-https.exe,node.exe,npm.exe,npm.cmd,python.exe,pip.exe,curl.exe
 AgentApprovedAdminTaskNames=\ArcaneEDR\PublishRestart,\ArcaneEDR\InstallService,\ArcaneEDR\ValidateAdmin
 AgentSecretIndicatorTerms=apikey,api_key,access_token,refresh_token,client_secret,private_key,id_rsa,.pem,.pfx,.env
+EnableAgentActivityLedger=true
+AgentActivityLedgerFile=ArcaneAgentActivity.jsonl
+AgentActivityLedgerMinimumScore=60
 ```
 
 When an alert matches the profile, Arcane appends an `AgentContext` line, an
@@ -641,6 +720,12 @@ When an alert matches the profile, Arcane appends an `AgentContext` line, an
 not raise the score, bypass cooldowns, trigger response actions, or send email
 by itself. It is correlation context for the local log, external alert sinks,
 and later review.
+
+When `EnableAgentActivityLedger=true`, Arcane also writes compact records for
+agent-involved alerts at or above `AgentActivityLedgerMinimumScore`. The ledger
+stores rule, score, process family, agent reason labels, command category,
+endpoint category, and file category; it does not store raw command lines,
+paths, IPs, users, URLs, or alert bodies.
 
 ## Custom Rules
 

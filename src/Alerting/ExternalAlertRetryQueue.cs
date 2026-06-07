@@ -211,7 +211,10 @@ namespace ArcaneEDR
                 Encode(item.LastFailureReason),
                 Encode(WhyText(alert)),
                 Encode(AlertRulePolicy.AlertCategory(alert)),
-                alert.MaintenanceContext ? "true" : "false"
+                alert.MaintenanceContext ? "true" : "false",
+                Encode(alert.SystemLocalTime),
+                Encode(alert.SystemTimeZoneId),
+                Encode(alert.SystemUtcOffset)
             };
 
             return String.Join("\t", fields);

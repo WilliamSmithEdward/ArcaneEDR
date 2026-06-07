@@ -37,6 +37,26 @@ namespace ArcaneEDR
             ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | (SecurityProtocolType)3072;
 
             string requestJson = BuildRequestJson(compactLogPayload);
+            return SendRequestAndParse(requestJson, "compact_log");
+        }
+
+        public OpenAiAnalysisResult AnalyzeDailyReport(string dailyReportPayload)
+        {
+            string apiKey = GetApiKey();
+            if (String.IsNullOrWhiteSpace(apiKey))
+            {
+                throw new InvalidOperationException("OpenAI API key is missing.");
+            }
+
+            ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | (SecurityProtocolType)3072;
+
+            string requestJson = BuildDailyReportRequestJson(dailyReportPayload);
+            return SendRequestAndParse(requestJson, "daily_report");
+        }
+
+        private OpenAiAnalysisResult SendRequestAndParse(string requestJson, string analysisType)
+        {
+            string apiKey = GetApiKey();
             byte[] body = Encoding.UTF8.GetBytes(requestJson);
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(config.OpenAIAnalysisApiUrl);
             request.Method = "POST";
@@ -68,7 +88,7 @@ namespace ArcaneEDR
             string text = ExtractOutputText(responseBody);
             OpenAiAnalysisResult result = ParseAnalysisJson(text);
             result.RawText = text;
-            WriteAnalysisRecord(result);
+            WriteAnalysisRecord(result, analysisType);
             return result;
         }
 
@@ -92,6 +112,30 @@ namespace ArcaneEDR
                 "\"model\":\"" + JsonEscape(config.OpenAIAnalysisModel) + "\"," +
                 "\"input\":\"" + JsonEscape(prompt) + "\"," +
                 "\"max_output_tokens\":500," +
+                "\"reasoning\":{\"effort\":\"low\"}," +
+                "\"store\":false" +
+                "}";
+        }
+
+        private string BuildDailyReportRequestJson(string dailyReportPayload)
+        {
+            string prompt =
+                "You are a cautious security analyst writing the OpenAI section of a daily Arcane EDR host-security report. " +
+                "The recipient's main question is: is compromise confirmed, is review recommended, or are there no immediate findings from the available evidence? " +
+                "Review the redacted aggregate 24-hour report payload and make a high-level, human-readable judgment. " +
+                "Do not invent source-event fields such as paths, IPs, users, domains, or command lines because the payload intentionally omits them. " +
+                "Do not assume compromise from alert volume alone. Volume can reflect baseline learning, repeated low-score rules, agent activity, maintenance, or limited aggregate context. " +
+                "Explicitly account for false-positive potential, baseline_learning_mode, maintenance_context, automation or agent context, collector gaps, and whether full source-event context is absent. " +
+                "Use phrases like 'no confirmed compromise' or 'needs review' when evidence is suggestive but not conclusive. " +
+                "Return only compact JSON with keys: alertable boolean, score integer 0-100, title string, summary string, recommended_action string. " +
+                "Use alertable=true only when high-confidence signals justify priority review after considering plausible false positives; do not set alertable=true for routine baseline noise. " +
+                "Keep the title plain and verdict-like. Keep summary under 120 words and recommended_action under 60 words.\n\n" +
+                dailyReportPayload;
+
+            return "{" +
+                "\"model\":\"" + JsonEscape(config.OpenAIAnalysisModel) + "\"," +
+                "\"input\":\"" + JsonEscape(prompt) + "\"," +
+                "\"max_output_tokens\":700," +
                 "\"reasoning\":{\"effort\":\"low\"}," +
                 "\"store\":false" +
                 "}";
@@ -154,19 +198,20 @@ namespace ArcaneEDR
                 result.Score = 0;
                 result.Title = "OpenAI analysis parse failure";
                 result.Summary = text;
-                result.RecommendedAction = "Review raw OpenAI analysis output.";
+                result.RecommendedAction = "Review the OpenAI analysis output.";
             }
 
             return result;
         }
 
-        private void WriteAnalysisRecord(OpenAiAnalysisResult result)
+        private void WriteAnalysisRecord(OpenAiAnalysisResult result, string analysisType)
         {
             try
             {
                 string path = Path.Combine(config.LogDirectory, "ArcaneOpenAIAnalysis.jsonl");
                 string line = "{" +
                     "\"timestamp_utc\":\"" + DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture) + "\"," +
+                    "\"analysis_type\":\"" + JsonEscape(analysisType) + "\"," +
                     "\"alertable\":" + (result.Alertable ? "true" : "false") + "," +
                     "\"score\":" + result.Score.ToString(CultureInfo.InvariantCulture) + "," +
                     "\"title\":\"" + JsonEscape(result.Title) + "\"," +

@@ -64,11 +64,14 @@ namespace ArcaneEDR
             if (config.MinimumEmailScore < 0 || config.MinimumEmailScore > 100) Warn(warnings, "MinimumEmailScore is outside the usual 0-100 range.");
             ValidateRulePolicy(config, warnings);
             if (config.OpenAIAnalysisMaxChars > 20000) Warn(warnings, "OpenAIAnalysisMaxChars is above 20000; compact analysis may use more tokens than intended.");
+            ValidateHighSignalFileDetection(config, warnings);
             if (config.SmtpPort < 1 || config.SmtpPort > 65535) Fail(errors, "SmtpPort must be between 1 and 65535.");
             if (config.SmtpTimeoutSeconds <= 0) Fail(errors, "SmtpTimeoutSeconds must be greater than zero.");
             if (config.WebhookTimeoutSeconds <= 0) Fail(errors, "WebhookTimeoutSeconds must be greater than zero.");
             if (config.GenericHttpApiTimeoutSeconds <= 0) Fail(errors, "GenericHttpApiTimeoutSeconds must be greater than zero.");
             if (config.WindowsEventLogAlertEventId < 1 || config.WindowsEventLogAlertEventId > 65535) Fail(errors, "WindowsEventLogAlertEventId must be between 1 and 65535.");
+            if (config.AuthSpecialPrivilegeRepeatDampeningMinutes <= 0) Fail(errors, "AuthSpecialPrivilegeRepeatDampeningMinutes must be greater than zero.");
+            if (config.AuthSpecialPrivilegeRemoteCorrelationMinutes <= 0) Fail(errors, "AuthSpecialPrivilegeRemoteCorrelationMinutes must be greater than zero.");
             if (config.EnableIncidentGrouping)
             {
                 if (String.IsNullOrWhiteSpace(config.IncidentStoreFile)) Fail(errors, "IncidentStoreFile must be configured when incident grouping is enabled.");
@@ -76,6 +79,7 @@ namespace ArcaneEDR
                 if (config.IncidentMinimumScore < 0 || config.IncidentMinimumScore > 100) Warn(warnings, "IncidentMinimumScore is outside the usual 0-100 range.");
             }
             ValidateAgentProfile(config, warnings);
+            ValidateAgentActivityLedger(config, errors, warnings);
             if (!IsResponseMode(config.ResponseMode)) Fail(errors, "ResponseMode must be AlertOnly, BlockRemoteIp, TerminateProcess, or BlockAndTerminate.");
             if (config.ResponseMinimumScore < 90 && !config.ResponseMode.Equals("AlertOnly", StringComparison.OrdinalIgnoreCase))
             {
@@ -274,6 +278,31 @@ namespace ArcaneEDR
             }
         }
 
+        private static void ValidateHighSignalFileDetection(MonitorConfig config, List<string> warnings)
+        {
+            if (!config.EnableHighSignalFileDetection) return;
+
+            if (!config.EnableSysmonIngestion)
+            {
+                Warn(warnings, "EnableHighSignalFileDetection is true but EnableSysmonIngestion is false; file-create detections will not run.");
+            }
+
+            if (config.HighRiskFilePathIndicators.Count == 0)
+            {
+                Warn(warnings, "HighRiskFilePathIndicators is empty; persistence-adjacent file-create detections will be limited.");
+            }
+
+            if (config.HighRiskFileExtensions.Count == 0)
+            {
+                Warn(warnings, "HighRiskFileExtensions is empty; executable/script file-drop detections will be limited.");
+            }
+
+            if (config.SensitiveFileNameIndicators.Count == 0 && config.AgentSecretIndicatorTerms.Count == 0)
+            {
+                Warn(warnings, "SensitiveFileNameIndicators and AgentSecretIndicatorTerms are empty; sensitive-file create detections will be limited.");
+            }
+        }
+
         private static void ValidateAgentProfile(MonitorConfig config, List<string> warnings)
         {
             if (!config.EnableAgentProfile) return;
@@ -286,6 +315,26 @@ namespace ArcaneEDR
             if (config.AgentChildProcessNames.Count == 0)
             {
                 Warn(warnings, "EnableAgentProfile is true but AgentChildProcessNames is empty; child shell/package-tool correlation will be limited.");
+            }
+        }
+
+        private static void ValidateAgentActivityLedger(MonitorConfig config, List<string> errors, List<string> warnings)
+        {
+            if (!config.EnableAgentActivityLedger) return;
+
+            if (!config.EnableAgentProfile)
+            {
+                Warn(warnings, "EnableAgentActivityLedger is true but EnableAgentProfile is false; no agent-involved alerts will be recorded.");
+            }
+
+            if (String.IsNullOrWhiteSpace(config.AgentActivityLedgerFile))
+            {
+                Fail(errors, "AgentActivityLedgerFile must be configured when agent activity ledger is enabled.");
+            }
+
+            if (config.AgentActivityLedgerMinimumScore < 0 || config.AgentActivityLedgerMinimumScore > 100)
+            {
+                Warn(warnings, "AgentActivityLedgerMinimumScore is outside the usual 0-100 range.");
             }
         }
 

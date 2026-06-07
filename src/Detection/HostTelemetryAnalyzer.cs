@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 
 namespace ArcaneEDR
 {
@@ -11,6 +12,9 @@ namespace ArcaneEDR
         private readonly ReputationCache reputationCache;
         private readonly CustomRuleEngine customRuleEngine;
         private readonly Dictionary<string, List<DateTime>> failedLogonsByRemote = new Dictionary<string, List<DateTime>>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, List<RemoteLogonObservation>> recentRemoteLogonsByUser = new Dictionary<string, List<RemoteLogonObservation>>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, DateTime> lastSpecialPrivilegeAlertByPrincipal = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, DateTime> recentExecutableFileDropsByPath = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
 
         public HostTelemetryAnalyzer(
             MonitorConfig config,
@@ -31,6 +35,8 @@ namespace ArcaneEDR
             AnalyzePowerShell(snapshot.HostTelemetry.PowerShellEvents, alerts);
             AnalyzeWindowsEvents(snapshot.HostTelemetry.WindowsEvents, timestampUtc, alerts);
             AnalyzePersistence(snapshot.HostTelemetry.PersistenceItems, alerts);
+            PruneRecentExecutableFileDrops(timestampUtc);
+            AnalyzeFileEvents(snapshot.FileEvents, alerts);
             AnalyzeProcessReputation(snapshot.ProcessEvents, alerts);
             AnalyzeCustomNetworkRules(snapshot.Endpoints, alerts);
 
@@ -131,17 +137,11 @@ namespace ArcaneEDR
                 }
                 else if (ev.EventId == 4624)
                 {
-                    AnalyzeSuccessfulLogon(ev, alerts);
+                    AnalyzeSuccessfulLogon(ev, timestampUtc, alerts);
                 }
                 else if (ev.EventId == 4672)
                 {
-                    alerts.Add(Alert.FromWindowsEvent(
-                        "AUTH-SPECIAL-PRIVILEGES",
-                        "Privileged logon observed",
-                        50,
-                        "Windows reported special privileges assigned to a logon session.",
-                        "Correlate with user, source, and time of day. This is low severity unless paired with remote logon or process staging.",
-                        ev));
+                    AnalyzeSpecialPrivileges(ev, timestampUtc, alerts);
                 }
                 else if (ev.EventId == 4697 || ev.EventId == 7045)
                 {
@@ -189,10 +189,27 @@ namespace ArcaneEDR
             }
         }
 
-        private void AnalyzeSuccessfulLogon(WindowsAuditEvent ev, List<Alert> alerts)
+        private void AnalyzeSuccessfulLogon(WindowsAuditEvent ev, DateTime timestampUtc, List<Alert> alerts)
         {
+            if (IsUnspecifiedRemoteAddress(ev.IpAddress))
+            {
+                if (ev.LogonType == "10" || ev.LogonType == "3")
+                {
+                    alerts.Add(Alert.FromWindowsEvent(
+                        "AUTH-LOGON-UNSPECIFIED-SOURCE",
+                        "Logon observed with unspecified source",
+                        40,
+                        "Windows reported a remote-style logon type with an unspecified source address such as 0.0.0.0.",
+                        "Treat as local context unless it is unexpected for this machine. Hyper-V, local session brokering, and some Windows workflows can report unspecified source addresses.",
+                        ev));
+                }
+
+                return;
+            }
+
             if (!IsRemoteAddress(ev.IpAddress)) return;
 
+            RecordRemoteLogon(ev, timestampUtc);
             if (ev.LogonType == "10")
             {
                 alerts.Add(Alert.FromWindowsEvent(
@@ -213,6 +230,36 @@ namespace ArcaneEDR
                     "Correlate with SMB/admin activity and the target account. Tune only after confirming normal management workflows.",
                     ev));
             }
+        }
+
+        private void AnalyzeSpecialPrivileges(WindowsAuditEvent ev, DateTime timestampUtc, List<Alert> alerts)
+        {
+            string principal = PrincipalFor(ev);
+            RemoteLogonObservation remote = FindRecentRemoteLogon(principal, timestampUtc);
+            if (remote != null)
+            {
+                alerts.Add(Alert.FromWindowsEvent(
+                    "AUTH-REMOTE-SPECIAL-PRIVILEGES",
+                    "Privileged logon near remote access",
+                    72,
+                    "Windows reported special privileges assigned to a logon session shortly after remote logon activity for the same account.",
+                    "Confirm the account, source, and session were expected. Remote access plus special privileges is stronger hands-on-access context than a standalone 4672 event.",
+                    ev));
+                return;
+            }
+
+            if (!ShouldEmitStandaloneSpecialPrivilege(principal, timestampUtc))
+            {
+                return;
+            }
+
+            alerts.Add(Alert.FromWindowsEvent(
+                "AUTH-SPECIAL-PRIVILEGES",
+                "Privileged logon observed",
+                35,
+                "Windows reported special privileges assigned to a logon session without recent remote-logon correlation.",
+                "Low severity by itself. Correlate with time of day, maintenance activity, process staging, persistence, or remote access before escalating.",
+                ev));
         }
 
         private void AnalyzeServiceInstall(WindowsAuditEvent ev, List<Alert> alerts)
@@ -365,7 +412,78 @@ namespace ArcaneEDR
                         process));
                 }
 
+                if (config.EnableHighSignalFileDetection && IsRecentExecutableFileDrop(process.Image, process.TimestampUtc))
+                {
+                    alerts.Add(Alert.FromProcessEvent(
+                        "FILE-DROP-THEN-EXECUTION",
+                        "Recently dropped high-risk file was executed",
+                        88,
+                        "A process executed from a path that Sysmon recently observed as an executable or script drop in a high-risk file location.",
+                        "Inspect the file, parent process, writer process, and any persistence or network activity. Treat as suspicious unless this was an intentional simulation or installer.",
+                        process));
+                }
+
                 alerts.AddRange(customRuleEngine.AnalyzeProcess(process));
+            }
+        }
+
+        private void AnalyzeFileEvents(List<SysmonFileEvent> events, List<Alert> alerts)
+        {
+            if (!config.EnableHighSignalFileDetection) return;
+
+            foreach (SysmonFileEvent ev in events)
+            {
+                if (!state.MarkEventSeen("sysmon-file|" + ev.RecordId.ToString(CultureInfo.InvariantCulture))) continue;
+
+                string target = ev.TargetFilename ?? "";
+                bool highRiskPath = ContainsConfiguredIndicator(target, config.HighRiskFilePathIndicators);
+                bool executableOrScript = IsHighRiskFileExtension(target);
+                bool sensitiveName = IsSensitiveFilename(target);
+                bool suspiciousWriter = IsSuspiciousFileWriter(ev);
+                bool expectedSignedWriter = IsExpectedSignedFileWriter(ev);
+                bool agentWriter = IsAgentFileWriter(ev);
+                bool outsideAgentRoots = IsAgentOutsideApprovedRoots(agentWriter, target);
+                bool skipExpectedBrowserExtension = IsBrowserExtensionPath(target) &&
+                    expectedSignedWriter &&
+                    !suspiciousWriter &&
+                    !outsideAgentRoots;
+
+                if (highRiskPath && executableOrScript && !skipExpectedBrowserExtension)
+                {
+                    bool elevated = suspiciousWriter || outsideAgentRoots;
+                    RecordRecentExecutableFileDrop(ev);
+                    alerts.Add(Alert.FromFileEvent(
+                        elevated ? "FILE-HIGH-RISK-DROP-SUSPICIOUS-WRITER" : "FILE-HIGH-RISK-EXECUTABLE-DROP",
+                        elevated ? "Suspicious writer created high-risk executable file" : "Executable file created in high-risk location",
+                        elevated ? 82 : 65,
+                        elevated
+                            ? "Sysmon observed an executable or script file created in a persistence-adjacent or extension location by a suspicious writer, remote-management tool, LOLBin, unsigned user-writable process, or configured agent process outside approved roots."
+                            : "Sysmon observed an executable or script file created in a persistence-adjacent or extension location.",
+                        "Confirm the writer process and target path. Remove the file if unexpected, and correlate with process execution, persistence, PowerShell, and network alerts.",
+                        ev));
+                }
+                else if (executableOrScript && outsideAgentRoots)
+                {
+                    RecordRecentExecutableFileDrop(ev);
+                    alerts.Add(Alert.FromFileEvent(
+                        "FILE-AGENT-EXECUTABLE-DROP-OUTSIDE-ROOT",
+                        "Agent-adjacent executable drop outside approved roots",
+                        72,
+                        "A configured agent process or child/package tool created an executable or script outside configured agent workspace and publish roots.",
+                        "Confirm whether the path is an approved working or publish location. If expected, tune AgentWorkspaceRoots or AgentPublishRoots locally.",
+                        ev));
+                }
+
+                if (sensitiveName && (suspiciousWriter || outsideAgentRoots))
+                {
+                    alerts.Add(Alert.FromFileEvent(
+                        "FILE-SENSITIVE-MATERIAL-TOUCHED",
+                        "Sensitive-looking file touched by suspicious context",
+                        outsideAgentRoots ? 82 : 78,
+                        "Sysmon observed a file-create event for a sensitive-looking filename such as a token, credential, SSH key, certificate, or .env file, and the writer had suspicious or out-of-profile context.",
+                        "Review the writer process and target path. Avoid copying secrets into unexpected locations; rotate exposed secrets if the write was unauthorized.",
+                        ev));
+                }
             }
         }
 
@@ -406,6 +524,68 @@ namespace ArcaneEDR
             return values.Count;
         }
 
+        private void RecordRemoteLogon(WindowsAuditEvent ev, DateTime timestampUtc)
+        {
+            string principal = PrincipalFor(ev);
+            List<RemoteLogonObservation> values;
+            if (!recentRemoteLogonsByUser.TryGetValue(principal, out values))
+            {
+                values = new List<RemoteLogonObservation>();
+                recentRemoteLogonsByUser[principal] = values;
+            }
+
+            RemoteLogonObservation observation = new RemoteLogonObservation();
+            observation.TimestampUtc = timestampUtc;
+            observation.IpAddress = ev.IpAddress ?? "";
+            observation.LogonType = ev.LogonType ?? "";
+            values.Add(observation);
+            PruneRemoteLogons(values, timestampUtc);
+        }
+
+        private RemoteLogonObservation FindRecentRemoteLogon(string principal, DateTime timestampUtc)
+        {
+            List<RemoteLogonObservation> values;
+            if (!recentRemoteLogonsByUser.TryGetValue(principal, out values)) return null;
+
+            PruneRemoteLogons(values, timestampUtc);
+            if (values.Count == 0) return null;
+            return values[values.Count - 1];
+        }
+
+        private void PruneRemoteLogons(List<RemoteLogonObservation> values, DateTime timestampUtc)
+        {
+            double window = Math.Max(1, config.AuthSpecialPrivilegeRemoteCorrelationMinutes);
+            for (int i = values.Count - 1; i >= 0; i--)
+            {
+                if ((timestampUtc - values[i].TimestampUtc).TotalMinutes > window)
+                {
+                    values.RemoveAt(i);
+                }
+            }
+        }
+
+        private bool ShouldEmitStandaloneSpecialPrivilege(string principal, DateTime timestampUtc)
+        {
+            string key = String.IsNullOrWhiteSpace(principal) ? "unknown" : principal;
+            DateTime last;
+            if (lastSpecialPrivilegeAlertByPrincipal.TryGetValue(key, out last) &&
+                (timestampUtc - last).TotalMinutes < Math.Max(1, config.AuthSpecialPrivilegeRepeatDampeningMinutes))
+            {
+                return false;
+            }
+
+            lastSpecialPrivilegeAlertByPrincipal[key] = timestampUtc;
+            return true;
+        }
+
+        private static string PrincipalFor(WindowsAuditEvent ev)
+        {
+            if (ev == null) return "unknown";
+            if (!String.IsNullOrWhiteSpace(ev.TargetUser)) return ev.TargetUser;
+            if (!String.IsNullOrWhiteSpace(ev.SubjectUser)) return ev.SubjectUser;
+            return "unknown";
+        }
+
         private bool IsSuspiciousCommandText(string text)
         {
             if (FileSystemRules.ContainsAny(text, config.SuspiciousCommandLineTerms)) return true;
@@ -441,6 +621,202 @@ namespace ArcaneEDR
                 "-ep bypass",
                 "javascript:",
                 "vbscript:");
+        }
+
+        private bool IsHighRiskFileExtension(string path)
+        {
+            string extension = SafeExtension(path);
+            return extension.Length > 0 && config.HighRiskFileExtensions.Contains(extension);
+        }
+
+        private bool IsSensitiveFilename(string path)
+        {
+            string fileName = SafeFileName(path);
+            return ContainsConfiguredIndicator(fileName, config.SensitiveFileNameIndicators) ||
+                ContainsConfiguredIndicator(fileName, config.AgentSecretIndicatorTerms);
+        }
+
+        private bool IsSuspiciousFileWriter(SysmonFileEvent ev)
+        {
+            string processName = ev == null ? "" : (ev.ProcessName ?? "");
+            ProcessInfo process = ev == null ? null : ev.Process;
+            string commandLine = process == null ? "" : (process.CommandLine ?? "");
+            string parentName = process == null ? "" : (process.ParentProcessName ?? "");
+            string executablePath = process == null ? (ev == null ? "" : ev.Image) : process.ExecutablePath;
+
+            if (config.KnownRmmProcesses.Contains(processName)) return true;
+            if (config.LolbinProcesses.Contains(processName)) return true;
+            if (FileSystemRules.ContainsAny(commandLine, config.SuspiciousCommandLineTerms)) return true;
+            if (CommandLineRules.FindEncodedCommand(commandLine, config).Detected) return true;
+            if (config.SuspiciousParentProcesses.Contains(parentName)) return true;
+
+            bool userWritable = FileSystemRules.IsUserWritablePath(executablePath, config);
+            bool unsignedProcess = process != null && process.HasExecutablePath && !process.HasSigner;
+            return userWritable && unsignedProcess;
+        }
+
+        private bool IsExpectedSignedFileWriter(SysmonFileEvent ev)
+        {
+            if (ev == null || ev.Process == null) return false;
+            ProcessInfo process = ev.Process;
+            if (!config.TrustedProcesses.Contains(ev.ProcessName)) return false;
+            if (!process.HasSigner || !process.HasExecutablePath) return false;
+            if (FileSystemRules.IsUserWritablePath(process.ExecutablePath, config)) return false;
+            if (FileSystemRules.ContainsAny(process.CommandLine, config.SuspiciousCommandLineTerms)) return false;
+            if (CommandLineRules.FindEncodedCommand(process.CommandLine, config).Detected) return false;
+            if (config.SuspiciousParentProcesses.Contains(process.ParentProcessName)) return false;
+            return true;
+        }
+
+        private bool IsAgentFileWriter(SysmonFileEvent ev)
+        {
+            if (ev == null || !config.EnableAgentProfile) return false;
+
+            string processName = ev.ProcessName ?? "";
+            string parentName = ev.Process == null ? "" : (ev.Process.ParentProcessName ?? "");
+
+            return config.AgentProcessNames.Contains(processName) ||
+                config.AgentProcessNames.Contains(parentName) ||
+                config.AgentChildProcessNames.Contains(processName) ||
+                config.AgentPackageManagerProcesses.Contains(processName);
+        }
+
+        private bool IsAgentOutsideApprovedRoots(bool agentWriter, string target)
+        {
+            if (!agentWriter) return false;
+            if (config.AgentWorkspaceRoots.Count == 0 && config.AgentPublishRoots.Count == 0) return false;
+
+            return !IsUnderConfiguredRoot(target, config.AgentWorkspaceRoots) &&
+                !IsUnderConfiguredRoot(target, config.AgentPublishRoots);
+        }
+
+        private static bool IsUnderConfiguredRoot(string path, HashSet<string> roots)
+        {
+            if (String.IsNullOrWhiteSpace(path) || roots == null || roots.Count == 0) return false;
+
+            string normalized = NormalizePathForRootCompare(path);
+            foreach (string root in roots)
+            {
+                if (!String.IsNullOrWhiteSpace(root) &&
+                    normalized.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsBrowserExtensionPath(string path)
+        {
+            string normalized = NormalizePathText(path);
+            return (normalized.IndexOf("\\google\\chrome\\", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    normalized.IndexOf("\\microsoft\\edge\\", StringComparison.OrdinalIgnoreCase) >= 0) &&
+                normalized.IndexOf("\\extensions\\", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private bool IsRecentExecutableFileDrop(string imagePath, DateTime timestampUtc)
+        {
+            string key = NormalizePathKey(imagePath);
+            if (key.Length == 0) return false;
+
+            DateTime createdUtc;
+            if (!recentExecutableFileDropsByPath.TryGetValue(key, out createdUtc)) return false;
+
+            double minutes = Math.Abs((timestampUtc - createdUtc).TotalMinutes);
+            return minutes <= 30;
+        }
+
+        private void RecordRecentExecutableFileDrop(SysmonFileEvent ev)
+        {
+            string key = NormalizePathKey(ev == null ? "" : ev.TargetFilename);
+            if (key.Length == 0) return;
+
+            recentExecutableFileDropsByPath[key] = ev.TimestampUtc == DateTime.MinValue ? DateTime.UtcNow : ev.TimestampUtc;
+        }
+
+        private void PruneRecentExecutableFileDrops(DateTime nowUtc)
+        {
+            List<string> expired = new List<string>();
+            foreach (KeyValuePair<string, DateTime> item in recentExecutableFileDropsByPath)
+            {
+                if ((nowUtc - item.Value).TotalMinutes > 30)
+                {
+                    expired.Add(item.Key);
+                }
+            }
+
+            foreach (string key in expired)
+            {
+                recentExecutableFileDropsByPath.Remove(key);
+            }
+        }
+
+        private static bool ContainsConfiguredIndicator(string text, HashSet<string> indicators)
+        {
+            if (String.IsNullOrWhiteSpace(text) || indicators == null || indicators.Count == 0) return false;
+
+            string normalized = NormalizePathText(text);
+            foreach (string indicator in indicators)
+            {
+                if (!String.IsNullOrWhiteSpace(indicator) &&
+                    normalized.IndexOf(NormalizePathText(indicator), StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static string SafeExtension(string path)
+        {
+            if (String.IsNullOrWhiteSpace(path)) return "";
+            try
+            {
+                return Path.GetExtension(path);
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        private static string SafeFileName(string path)
+        {
+            if (String.IsNullOrWhiteSpace(path)) return "";
+            try
+            {
+                return Path.GetFileName(path);
+            }
+            catch
+            {
+                return path;
+            }
+        }
+
+        private static string NormalizePathKey(string path)
+        {
+            if (String.IsNullOrWhiteSpace(path)) return "";
+            try
+            {
+                return Path.GetFullPath(path).TrimEnd('\\').ToLowerInvariant();
+            }
+            catch
+            {
+                return NormalizePathText(path).TrimEnd('\\').ToLowerInvariant();
+            }
+        }
+
+        private static string NormalizePathForRootCompare(string path)
+        {
+            string normalized = NormalizePathKey(path);
+            return normalized.Length == 0 ? "" : normalized.TrimEnd('\\') + "\\";
+        }
+
+        private static string NormalizePathText(string path)
+        {
+            return path == null ? "" : path.Replace('/', '\\');
         }
 
         private static bool IsPowerShellCmdletizationScaffolding(string text)
@@ -589,9 +965,19 @@ namespace ArcaneEDR
             if (String.IsNullOrWhiteSpace(value)) return false;
             string trimmed = value.Trim();
             return !trimmed.Equals("-", StringComparison.Ordinal) &&
+                !trimmed.Equals("0.0.0.0", StringComparison.OrdinalIgnoreCase) &&
+                !trimmed.Equals("::", StringComparison.OrdinalIgnoreCase) &&
                 !trimmed.Equals("::1", StringComparison.OrdinalIgnoreCase) &&
                 !trimmed.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) &&
                 !trimmed.Equals("localhost", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsUnspecifiedRemoteAddress(string value)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return false;
+            string trimmed = value.Trim();
+            return trimmed.Equals("0.0.0.0", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("::", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string ExtractSha256(string hashes)
@@ -620,5 +1006,12 @@ namespace ArcaneEDR
             return "A " + changeDescription + " matched configured trusted persistence name plus " +
                 context + " indicators and did not include suspicious command, untrusted user-writable path, or RMM traits.";
         }
+    }
+
+    internal sealed class RemoteLogonObservation
+    {
+        public DateTime TimestampUtc;
+        public string IpAddress;
+        public string LogonType;
     }
 }

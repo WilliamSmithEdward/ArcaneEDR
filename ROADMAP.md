@@ -169,6 +169,20 @@ Exit criteria:
   validation commands without hiding local evidence.
 - Reduce repeated low-value alerts from the same stable process and behavior.
 - Improve localhost-only listener classification.
+- Make weak standalone signals correlation-first: timing-only beaconing,
+  direct-IP HTTPS, and special-privilege auth events should generally stay
+  local/low unless paired with suspicious process lineage, unsigned or
+  user-writable binaries, persistence, PowerShell staging, risky ports, blocked
+  intelligence, failed-logon bursts, or unknown remote access.
+- Add explicit LAN ingress/egress classification for high-signal lateral
+  movement awareness:
+  - distinguish private-network outbound sessions from internet egress
+  - classify private-network inbound sessions to local listeners where direction
+    can be inferred
+  - keep normal LAN chatter low/no alert, but escalate untrusted access to
+    admin, file-sharing, remote-management, or lateral-movement ports
+  - include process, parent, signer, local/remote endpoint, and listener context
+    in alert entities
 - Keep high and critical alerts rare and actionable.
 
 Progress:
@@ -176,6 +190,10 @@ Progress:
 - Added central rule categories derived from rule IDs and included category in
   alert JSON, email/plain-text formatting, Windows Event Log alerts, local
   logs, retry queue state, incident records, and support-bundle summaries.
+- Added machine-local system time, Windows time-zone ID, and UTC offset to alert
+  JSON, email/plain-text formatting, Windows Event Log alerts, local logs,
+  retry queue state, compact OpenAI alert context, agent activity summaries, and
+  support-bundle summaries.
 - Added config-driven rule policy:
   - `DisabledRuleIds`
   - `DisabledRuleCategories`
@@ -237,6 +255,44 @@ Progress:
   - Repeated Windows `4672` special-privileges events around expected service,
     desktop, and Hyper-V session activity are low-value unless paired with
     unexplained remote logon, process staging, or persistence changes.
+- Product-level tuning candidates from local baseline:
+  - Beacon rules should not treat timing regularity alone as critical when the
+    process is signed, expected, using normal HTTPS, and lacks paired risk.
+  - Agent-context should support external-alert dampening for known signed agent
+    traffic while preserving local evidence.
+  - Direct-IP HTTPS should use signer, path, parent, and repetition context so
+    trusted updaters and OS task hosts do not repeatedly look like compromise.
+  - `4672` special-privilege auth events should remain correlation-first rather
+    than becoming noisy standalone escalations.
+- Implemented correlation-first network tuning for weak standalone signals:
+  low-risk signed direct-IP web egress is recorded as
+  `NET-DIRECT-IP-WEB-EGRESS-SIGNED`, and timing-only beacon-like behavior from
+  expected signed normal-web processes is recorded as
+  `NET-BEACON-TIMING-LOW-RISK` unless paired high-risk context is present.
+- Reduced duplicate network context by suppressing the generic
+  `NET-EGRESS-NEW-UNTRUSTED` alert when a more specific endpoint finding has
+  already explained the same connection.
+- Added process-specific outbound port tuning via `ProcessAllowedOutboundPorts`
+  so nonstandard ports can be treated as normal for a named process without
+  globally allowlisting the port for every process.
+- Added explicit high-signal LAN lateral movement classification:
+  `NET-LAN-INBOUND-LATERAL-PORT` for inferred private-network inbound sessions
+  to local lateral/admin listeners, and `NET-LAN-EGRESS-LATERAL-PORT` for
+  untrusted outbound connections to lateral/admin ports on private-network
+  hosts.
+- Tuned authentication noise around Windows special-privilege events:
+  standalone `4672` events are lower-severity local context and repeat-dampened
+  per principal, while `AUTH-REMOTE-SPECIAL-PRIVILEGES` preserves stronger
+  context when special privileges occur near recent remote logon activity.
+  Remote-style logons with unspecified sources such as `0.0.0.0` are classified
+  as low-risk session context instead of ordinary remote source evidence.
+- Reworked the daily summary into a customer-facing daily report that supports
+  the v0.3 tuning loop: quick compromise assessment, report verdict,
+  confidence, recommended next step, compact tables for critical callouts,
+  health, signal summary, false-positive context, high-signal review,
+  automation activity, tuning notes, and optional OpenAI daily analysis using a
+  false-positive-aware report prompt instead of the hourly alertability prompt
+  or generic alert email template.
 
 Exit criteria:
 
@@ -393,6 +449,21 @@ Progress:
 - Added dispatch-time alert annotation with `AgentContext` details and
   `agent_context=` entity metadata. This labels existing alerts without
   changing score, cooldown, delivery thresholds, or response behavior.
+- Added narrow Sysmon-backed high-signal file-create guardrails:
+  `FILE-HIGH-RISK-EXECUTABLE-DROP`,
+  `FILE-HIGH-RISK-DROP-SUSPICIOUS-WRITER`,
+  `FILE-AGENT-EXECUTABLE-DROP-OUTSIDE-ROOT`,
+  `FILE-SENSITIVE-MATERIAL-TOUCHED`, and `FILE-DROP-THEN-EXECUTION`. The
+  bundled Sysmon policy emits only selected FileCreate targets such as Startup
+  folders, scheduled-task storage, browser extension paths, and
+  sensitive-looking filenames; Arcane then requires executable/script,
+  suspicious-writer, agent-root, sensitive-name, or execution correlation.
+- Added a compact agent activity ledger for agent-involved alerts above a
+  configured score. It writes sanitized JSONL records with rule, score, process
+  family, agent reason labels, command category, endpoint category, and file
+  category, plus `ArcaneEDR.exe --agent-activity --last <duration>` for local
+  review. Raw command lines, file paths, users, IPs, URLs, and alert bodies are
+  not stored in the ledger.
 
 ## Phase 4: Modular Notification And Reporting
 
@@ -437,6 +508,8 @@ Reporting should be separate from alerting where useful:
 - Markdown or JSON report sink.
 - Webhook report sink.
 - Local report archive.
+- Configurable reporting engine with selectable sections, output formats,
+  destinations, schedules, and audience-specific tone/detail levels.
 
 Exit criteria:
 

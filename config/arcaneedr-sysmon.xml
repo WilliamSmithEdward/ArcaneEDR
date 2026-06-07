@@ -4,5 +4,25 @@
     <ProcessCreate onmatch="include" />
     <NetworkConnect onmatch="include" />
     <DnsQuery onmatch="include" />
+    <FileCreate onmatch="include">
+      <TargetFilename condition="contains">\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\</TargetFilename>
+      <TargetFilename condition="contains">\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup\</TargetFilename>
+      <TargetFilename condition="contains">\Windows\System32\Tasks\</TargetFilename>
+      <TargetFilename condition="contains">\AppData\Local\Google\Chrome\User Data\Default\Extensions\</TargetFilename>
+      <TargetFilename condition="contains">\AppData\Local\Microsoft\Edge\User Data\Default\Extensions\</TargetFilename>
+      <TargetFilename condition="contains">apikey</TargetFilename>
+      <TargetFilename condition="contains">api_key</TargetFilename>
+      <TargetFilename condition="contains">access_token</TargetFilename>
+      <TargetFilename condition="contains">refresh_token</TargetFilename>
+      <TargetFilename condition="contains">client_secret</TargetFilename>
+      <TargetFilename condition="contains">private_key</TargetFilename>
+      <TargetFilename condition="contains">id_rsa</TargetFilename>
+      <TargetFilename condition="contains">id_ed25519</TargetFilename>
+      <TargetFilename condition="contains">.pem</TargetFilename>
+      <TargetFilename condition="contains">.pfx</TargetFilename>
+      <TargetFilename condition="contains">.env</TargetFilename>
+      <TargetFilename condition="contains">credentials</TargetFilename>
+      <TargetFilename condition="contains">token.json</TargetFilename>
+    </FileCreate>
   </EventFiltering>
 </Sysmon>

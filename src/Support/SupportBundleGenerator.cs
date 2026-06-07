@@ -36,6 +36,7 @@ namespace ArcaneEDR
             WriteRecentAlerts(bundleDirectory);
             WriteRecentErrors(bundleDirectory);
             WriteRecentIncidents(bundleDirectory);
+            WriteRecentAgentActivity(bundleDirectory);
 
             return bundleDirectory;
         }
@@ -59,6 +60,7 @@ namespace ArcaneEDR
             lines.Add("BaselineLearningMode=" + config.BaselineLearningMode);
             lines.Add("OpenAiLogAnalysisEnabled=" + config.EnableOpenAiLogAnalysis);
             lines.Add("IncidentGroupingEnabled=" + config.EnableIncidentGrouping);
+            lines.Add("AgentActivityLedgerEnabled=" + config.EnableAgentActivityLedger);
             WriteLines(Path.Combine(bundleDirectory, "manifest.txt"), lines);
         }
 
@@ -218,6 +220,29 @@ namespace ArcaneEDR
             WriteLines(Path.Combine(bundleDirectory, "incidents-summary.txt"), lines);
         }
 
+        private void WriteRecentAgentActivity(string bundleDirectory)
+        {
+            if (!config.EnableAgentActivityLedger)
+            {
+                WriteLines(Path.Combine(bundleDirectory, "agent-activity-summary.jsonl"), new[] { "{\"enabled\":false}" });
+                return;
+            }
+
+            List<string> output = new List<string>();
+            foreach (string line in Tail(config.AgentActivityLedgerFile, MaxRecentAlertLines))
+            {
+                string summary = SummarizeAgentActivityJson(line);
+                if (!String.IsNullOrWhiteSpace(summary)) output.Add(summary);
+            }
+
+            if (output.Count == 0)
+            {
+                output.Add("{\"enabled\":true,\"records\":0}");
+            }
+
+            WriteLines(Path.Combine(bundleDirectory, "agent-activity-summary.jsonl"), output);
+        }
+
         private static string SummarizeAlertJson(string line)
         {
             try
@@ -228,6 +253,9 @@ namespace ArcaneEDR
 
                 Dictionary<string, object> summary = new Dictionary<string, object>();
                 Copy(parsed, summary, "timestamp_utc");
+                Copy(parsed, summary, "system_local_time");
+                Copy(parsed, summary, "system_time_zone");
+                Copy(parsed, summary, "system_utc_offset");
                 Copy(parsed, summary, "rule_id");
                 Copy(parsed, summary, "category");
                 Copy(parsed, summary, "maintenance_context");
@@ -235,6 +263,38 @@ namespace ArcaneEDR
                 Copy(parsed, summary, "score");
                 Copy(parsed, summary, "title");
                 Copy(parsed, summary, "why");
+                return serializer.Serialize(summary);
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        private static string SummarizeAgentActivityJson(string line)
+        {
+            try
+            {
+                JavaScriptSerializer serializer = new JavaScriptSerializer();
+                Dictionary<string, object> parsed = serializer.Deserialize<Dictionary<string, object>>(line);
+                if (parsed == null) return "";
+
+                Dictionary<string, object> summary = new Dictionary<string, object>();
+                Copy(parsed, summary, "timestamp_utc");
+                Copy(parsed, summary, "system_local_time");
+                Copy(parsed, summary, "system_time_zone");
+                Copy(parsed, summary, "system_utc_offset");
+                Copy(parsed, summary, "rule_id");
+                Copy(parsed, summary, "category");
+                Copy(parsed, summary, "severity");
+                Copy(parsed, summary, "score");
+                Copy(parsed, summary, "maintenance_context");
+                Copy(parsed, summary, "process_family");
+                Copy(parsed, summary, "parent_family");
+                Copy(parsed, summary, "agent_reason_labels");
+                Copy(parsed, summary, "command_category");
+                Copy(parsed, summary, "endpoint_category");
+                Copy(parsed, summary, "file_category");
                 return serializer.Serialize(summary);
             }
             catch

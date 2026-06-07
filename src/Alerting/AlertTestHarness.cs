@@ -42,6 +42,50 @@ namespace ArcaneEDR
                 "service=" + config.ServiceName));
         }
 
+        public static void SendDailyReportTest(string baseDirectory)
+        {
+            MonitorConfig config = MonitorConfig.Load(baseDirectory);
+            FileLogger logger = new FileLogger(config.LogDirectory, config.MaxLogFileBytes);
+            IAlertSink alertSink = AlertSinkFactory.Create(config, logger);
+            ResponseManager responseManager = new ResponseManager(config, logger);
+            AlertDispatcher dispatcher = new AlertDispatcher(config, logger, alertSink, responseManager);
+            ISecretProvider secretProvider = new EnvironmentSecretProvider();
+            OpenAiSecurityAnalyzer openAiAnalyzer = new OpenAiSecurityAnalyzer(config, logger, secretProvider);
+
+            HealthState state = HealthState.Load(Path.Combine(config.LogDirectory, "ArcaneServiceHealth.state"));
+            DateTime now = DateTime.UtcNow;
+            DailyReportBuilder reportBuilder = new DailyReportBuilder(
+                config,
+                state,
+                "daily-report-test",
+                now,
+                0,
+                0,
+                0);
+            DailyReportSnapshot snapshot = reportBuilder.BuildSnapshot(now);
+            OpenAiAnalysisResult dailyAiResult = null;
+            string dailyAiStatus = "disabled";
+
+            if (config.EnableOpenAiLogAnalysis && config.EnableDailySummaryOpenAiAnalysis)
+            {
+                dailyAiStatus = "not_configured";
+                if (openAiAnalyzer.IsConfigured)
+                {
+                    string payload = reportBuilder.BuildOpenAiPayload(snapshot);
+                    dailyAiResult = openAiAnalyzer.AnalyzeDailyReport(payload);
+                    dailyAiStatus = "completed";
+                }
+            }
+
+            dispatcher.SendExternal(Alert.SystemAlert(
+                "SERVICE-DAILY-SUMMARY",
+                "Daily Arcane EDR report test",
+                config.DailySummaryScore,
+                reportBuilder.BuildReport(snapshot, dailyAiResult, dailyAiStatus),
+                "No action required if you intentionally ran the daily report test.",
+                "service=" + config.ServiceName));
+        }
+
         public static void SendOpenAiAnalysisTest(string baseDirectory)
         {
             MonitorConfig config = MonitorConfig.Load(baseDirectory);

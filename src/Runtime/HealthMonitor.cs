@@ -137,27 +137,49 @@ namespace ArcaneEDR
             state.LastDailySummaryUtc = now;
             Save();
 
-            string body =
-                "Daily summary for " + config.ProductName + Environment.NewLine +
-                "UTC: " + Format(now) + Environment.NewLine +
-                "ScheduledLocalTime: " + DailySummarySchedule.Describe(config) + Environment.NewLine +
-                "RunId: " + runId + Environment.NewLine +
-                "CurrentRunUptimeHours: " + (now - startedUtc).TotalHours.ToString("0.00", CultureInfo.InvariantCulture) + Environment.NewLine +
-                "CurrentRunPolls: " + currentRunPolls.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +
-                "CurrentRunAlerts: " + currentRunAlerts.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +
-                "CurrentRunPollFailures: " + currentRunPollFailures.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +
-                "TotalPolls: " + state.PollCount.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +
-                "TotalAlerts: " + state.AlertCount.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +
-                "TotalPollFailures: " + state.PollFailures.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +
-                "LastCleanStopUtc: " + Format(state.LastCleanStopUtc) + Environment.NewLine +
-                "BaselineLearningMode: " + config.BaselineLearningMode;
+            DailyReportBuilder reportBuilder = new DailyReportBuilder(
+                config,
+                state,
+                runId,
+                startedUtc,
+                currentRunPolls,
+                currentRunAlerts,
+                currentRunPollFailures);
+            DailyReportSnapshot snapshot = reportBuilder.BuildSnapshot(now);
+            OpenAiAnalysisResult dailyAiResult = null;
+            string dailyAiStatus = "disabled";
+
+            if (config.EnableOpenAiLogAnalysis && config.EnableDailySummaryOpenAiAnalysis)
+            {
+                dailyAiStatus = "not_configured";
+                if (openAiAnalyzer.IsConfigured)
+                {
+                    try
+                    {
+                        string payload = reportBuilder.BuildOpenAiPayload(snapshot);
+                        dailyAiResult = openAiAnalyzer.AnalyzeDailyReport(payload);
+                        dailyAiStatus = "completed";
+                        logger.Info("OpenAI daily report analysis completed alertable=" +
+                            dailyAiResult.Alertable +
+                            " score=" + dailyAiResult.Score.ToString(CultureInfo.InvariantCulture) +
+                            " title=" + dailyAiResult.Title);
+                    }
+                    catch (Exception ex)
+                    {
+                        dailyAiStatus = "failed: " + ex.Message;
+                        logger.Error("OpenAI daily report analysis failed: " + ex.Message);
+                    }
+                }
+            }
+
+            string body = reportBuilder.BuildReport(snapshot, dailyAiResult, dailyAiStatus);
 
             dispatcher.SendExternal(Alert.SystemAlert(
                 "SERVICE-DAILY-SUMMARY",
-                "Daily Arcane EDR monitor summary",
+                "Daily Arcane EDR report",
                 config.DailySummaryScore,
                 body,
-                "Review alert volume, failures, and whether baseline learning should remain enabled.",
+                "Review the daily report sections for high-signal activity, collector health, agent activity, and tuning notes.",
                 ServiceEntity()));
         }
 

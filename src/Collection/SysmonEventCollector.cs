@@ -78,7 +78,7 @@ namespace ArcaneEDR
         private string BuildQuery()
         {
             int milliseconds = Math.Max(1, config.SysmonLookbackMinutes) * 60 * 1000;
-            return "*[System[(EventID=1 or EventID=3 or EventID=22) and TimeCreated[timediff(@SystemTime) <= " +
+            return "*[System[(EventID=1 or EventID=3 or EventID=11 or EventID=22) and TimeCreated[timediff(@SystemTime) <= " +
                 milliseconds.ToString(CultureInfo.InvariantCulture) + "]]]";
         }
 
@@ -94,6 +94,11 @@ namespace ArcaneEDR
             {
                 NetworkEndpoint endpoint = ParseNetworkEvent(record, data, processes);
                 if (endpoint != null) telemetry.NetworkConnections.Add(endpoint);
+            }
+            else if (record.Id == 11)
+            {
+                SysmonFileEvent ev = ParseFileEvent(record, data, processes);
+                if (ev != null) telemetry.FileEvents.Add(ev);
             }
             else if (record.Id == 22)
             {
@@ -119,6 +124,34 @@ namespace ArcaneEDR
             ev.ParentImage = Get(data, "ParentImage");
             ev.ParentProcessName = FileName(ev.ParentImage);
             ev.ParentCommandLine = Get(data, "ParentCommandLine");
+            return ev;
+        }
+
+        private static SysmonFileEvent ParseFileEvent(EventRecord record, Dictionary<string, string> data, Dictionary<int, ProcessInfo> processes)
+        {
+            string target = Get(data, "TargetFilename");
+            if (String.IsNullOrWhiteSpace(target)) return null;
+
+            int processId = ReadInt(Get(data, "ProcessId"));
+            SysmonFileEvent ev = new SysmonFileEvent();
+            ev.RecordId = record.RecordId.HasValue ? record.RecordId.Value : 0;
+            ev.TimestampUtc = record.TimeCreated.HasValue ? record.TimeCreated.Value.ToUniversalTime() : DateTime.UtcNow;
+            ev.ProcessGuid = Get(data, "ProcessGuid");
+            ev.ProcessId = processId;
+            ev.Image = Get(data, "Image");
+            ev.ProcessName = FileName(ev.Image);
+            ev.TargetFilename = target;
+            ev.User = Get(data, "User");
+
+            ProcessInfo processInfo;
+            if (processes.TryGetValue(processId, out processInfo))
+            {
+                ev.Process = processInfo;
+                if (!String.IsNullOrWhiteSpace(processInfo.ProcessName)) ev.ProcessName = processInfo.ProcessName;
+                if (!String.IsNullOrWhiteSpace(processInfo.ExecutablePath)) ev.Image = processInfo.ExecutablePath;
+                if (!String.IsNullOrWhiteSpace(processInfo.User)) ev.User = processInfo.User;
+            }
+
             return ev;
         }
 

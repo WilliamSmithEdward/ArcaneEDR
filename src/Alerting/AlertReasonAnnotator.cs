@@ -56,6 +56,21 @@ namespace ArcaneEDR
                 alert.AddWhy("Windows authentication telemetry matched a monitored remote logon, failed logon, or privileged logon pattern.");
             }
 
+            if (EqualsRule(ruleId, "AUTH-LOGON-UNSPECIFIED-SOURCE"))
+            {
+                alert.AddWhy("Windows reported a remote-style logon type with an unspecified source address, which is ambiguous and often lower-confidence than a concrete remote source.");
+            }
+
+            if (EqualsRule(ruleId, "AUTH-REMOTE-SPECIAL-PRIVILEGES"))
+            {
+                alert.AddWhy("Special privileges were assigned near recent remote logon activity for the same account.");
+            }
+
+            if (StartsWith(ruleId, "FILE-"))
+            {
+                alert.AddWhy("Sysmon file-create telemetry matched a high-risk path, sensitive filename, agent-root boundary, or drop-then-execute pattern.");
+            }
+
             if (StartsWith(ruleId, "DNS-") || StartsWith(ruleId, "NET-DNS-"))
             {
                 alert.AddWhy("DNS telemetry matched a suspicious domain, high-entropy query, DoH, resolver, or configured indicator pattern.");
@@ -91,17 +106,29 @@ namespace ArcaneEDR
                 alert.AddWhy("An external host connected to a local listener, which can expose an unexpected service.");
             }
 
+            if (StartsWith(ruleId, "NET-LAN-INBOUND-"))
+            {
+                alert.AddWhy("A private-network host connected to a local listener on a monitored administration, file-sharing, remote-management, or lateral-movement port.");
+            }
+
+            if (StartsWith(ruleId, "NET-LAN-EGRESS-"))
+            {
+                alert.AddWhy("A process connected to a private-network administration, file-sharing, remote-management, or lateral-movement port.");
+            }
+
             if (StartsWith(ruleId, "NET-EGRESS-"))
             {
                 alert.AddWhy("Outbound network activity matched an unusual, high-risk, new, or burst egress pattern.");
             }
 
-            if (EqualsRule(ruleId, "NET-DIRECT-IP-WEB-EGRESS"))
+            if (EqualsRule(ruleId, "NET-DIRECT-IP-WEB-EGRESS") ||
+                EqualsRule(ruleId, "NET-DIRECT-IP-WEB-EGRESS-SIGNED"))
             {
                 alert.AddWhy("HTTP or HTTPS egress used a direct IP address without observed hostname context.");
             }
 
-            if (EqualsRule(ruleId, "NET-C2-BEACON-PATTERN"))
+            if (EqualsRule(ruleId, "NET-C2-BEACON-PATTERN") ||
+                EqualsRule(ruleId, "NET-BEACON-TIMING-LOW-RISK"))
             {
                 alert.AddWhy("Repeated connection timing resembled low-jitter beaconing.");
             }
@@ -111,7 +138,7 @@ namespace ArcaneEDR
                 alert.AddWhy("The remote port was outside the normal or trusted outbound profile.");
             }
 
-            if (StartsWith(ruleId, "NET-LATERAL-"))
+            if (StartsWith(ruleId, "NET-LATERAL-") || StartsWith(ruleId, "NET-LAN-EGRESS-"))
             {
                 alert.AddWhy("An untrusted process connected to an internal administration or lateral-movement port.");
             }

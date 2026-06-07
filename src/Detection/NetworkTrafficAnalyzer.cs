@@ -253,9 +253,9 @@ namespace ArcaneEDR
             bool remoteExternal = IpRules.IsExternal(endpoint.RemoteAddress) && !allowedRemote;
             bool remotePrivate = IpRules.IsPrivateNetwork(endpoint.RemoteAddress);
             bool trustedProcess = config.TrustedProcesses.Contains(endpoint.ProcessName);
-            bool ordinaryOutboundPort = config.AllowedOutboundPorts.Contains(endpoint.RemotePort);
+            bool ordinaryOutboundPort = IsAllowedOutboundPort(endpoint);
             bool riskyRemotePort = config.HighRiskRemotePorts.Contains(endpoint.RemotePort);
-            bool inboundToLocalListener = remoteExternal && tcpListeningPorts.Contains(endpoint.LocalPort);
+            bool inboundToLocalListener = tcpListeningPorts.Contains(endpoint.LocalPort);
 
             if (remoteExternal || blockedRemote)
             {
@@ -296,14 +296,40 @@ namespace ArcaneEDR
             {
                 AnalyzeExternalTcpConnection(endpoint, inboundToLocalListener, trustedProcess, ordinaryOutboundPort, riskyRemotePort, timestampUtc, alerts);
             }
-            else if (remotePrivate && config.LateralMovementPorts.Contains(endpoint.RemotePort) && !trustedProcess)
+            else if (remotePrivate)
+            {
+                AnalyzePrivateTcpConnection(endpoint, inboundToLocalListener, trustedProcess, alerts);
+            }
+        }
+
+        private void AnalyzePrivateTcpConnection(
+            NetworkEndpoint endpoint,
+            bool inboundToLocalListener,
+            bool trustedProcess,
+            List<Alert> alerts)
+        {
+            if (inboundToLocalListener && config.LateralMovementPorts.Contains(endpoint.LocalPort))
             {
                 alerts.Add(Alert.FromEndpoint(
-                    "NET-LATERAL-PORT",
-                    "Untrusted process connected to lateral movement port",
+                    "NET-LAN-INBOUND-LATERAL-PORT",
+                    "LAN host connected to local administration port",
+                    70,
+                    "A private-network host connected to a local listener on an administration, file-sharing, remote-management, or lateral-movement port.",
+                    "Confirm whether this LAN access is expected. Unauthorized inbound access to these ports can indicate hands-on activity or lateral movement.",
+                    endpoint));
+                return;
+            }
+
+            if (!inboundToLocalListener &&
+                config.LateralMovementPorts.Contains(endpoint.RemotePort) &&
+                !trustedProcess)
+            {
+                alerts.Add(Alert.FromEndpoint(
+                    "NET-LAN-EGRESS-LATERAL-PORT",
+                    "Untrusted process connected to LAN administration port",
                     65,
-                    "Untrusted process connected to an internal administration or file-sharing port.",
-                    "Confirm whether this process should talk to internal services. Check for scanning, credential theft, or lateral movement.",
+                    "Untrusted process connected to a private-network administration, file-sharing, remote-management, or lateral-movement port.",
+                    "Confirm whether this process should talk to internal services. Check for scanning, credential theft, remote access, or lateral movement.",
                     endpoint));
             }
         }
@@ -317,7 +343,9 @@ namespace ArcaneEDR
             DateTime timestampUtc,
             List<Alert> alerts)
         {
+            int endpointSpecificAlertStart = alerts.Count;
             AnalyzeRatOrientedExternalConnection(endpoint, trustedProcess, alerts);
+            bool endpointSpecificAlertEmitted = alerts.Count > endpointSpecificAlertStart;
 
             if (config.EnforceAuthorizedDnsResolvers &&
                 endpoint.RemotePort == 53 &&
@@ -372,7 +400,7 @@ namespace ArcaneEDR
                     "Review whether the destination port is expected for this process. Tune the allowlist only after confirming business need.",
                     endpoint));
             }
-            else if (!trustedProcess)
+            else if (!trustedProcess && !endpointSpecificAlertEmitted)
             {
                 alerts.Add(Alert.FromEndpoint(
                     "NET-EGRESS-NEW-UNTRUSTED",
@@ -478,14 +506,21 @@ namespace ArcaneEDR
                     endpoint));
             }
 
-            if (!trustedProcess && (endpoint.RemotePort == 80 || endpoint.RemotePort == 443) && String.IsNullOrWhiteSpace(endpoint.RemoteHost))
+            if (!trustedProcess && IsOrdinaryWebPort(endpoint) && String.IsNullOrWhiteSpace(endpoint.RemoteHost))
             {
+                bool lowRiskSignedProcess = IsSignedNonUserWritableProcess(endpoint) &&
+                    !HasStrongSuspiciousEndpointContext(endpoint, trustedProcess, false);
+
                 alerts.Add(Alert.FromEndpoint(
-                    "NET-DIRECT-IP-WEB-EGRESS",
-                    "Untrusted process made direct-IP web connection",
-                    60,
-                    "Untrusted process connected externally on HTTP/HTTPS without observed hostname context.",
-                    "Correlate with DNS telemetry. Direct IP HTTPS from unusual processes is common in RAT and loader traffic.",
+                    lowRiskSignedProcess ? "NET-DIRECT-IP-WEB-EGRESS-SIGNED" : "NET-DIRECT-IP-WEB-EGRESS",
+                    lowRiskSignedProcess ? "Signed process made direct-IP web connection" : "Untrusted process made direct-IP web connection",
+                    lowRiskSignedProcess ? 45 : 60,
+                    lowRiskSignedProcess
+                        ? "Signed process connected externally on HTTP/HTTPS without observed hostname context. No paired high-risk process, command-line, path, port, DNS, or indicator context was observed."
+                        : "Untrusted process connected externally on HTTP/HTTPS without observed hostname context.",
+                    lowRiskSignedProcess
+                        ? "Keep as local context unless it repeats with suspicious process lineage, persistence, PowerShell staging, risky ports, or threat intelligence."
+                        : "Correlate with DNS telemetry. Direct IP HTTPS from unusual processes is common in RAT and loader traffic.",
                     endpoint));
             }
         }
@@ -525,12 +560,21 @@ namespace ArcaneEDR
                 ", average_interval_seconds=" + result.AverageIntervalSeconds.ToString("0.0", CultureInfo.InvariantCulture) +
                 ", jitter_ratio=" + result.JitterRatio.ToString("0.000", CultureInfo.InvariantCulture) + ".";
 
+            bool trustedProcess = config.TrustedProcesses.Contains(endpoint.ProcessName);
+            bool riskyRemotePort = config.HighRiskRemotePorts.Contains(endpoint.RemotePort);
+            bool lowRiskTimingOnly = IsExpectedSignedNormalWebEndpoint(endpoint, trustedProcess) &&
+                !HasStrongSuspiciousEndpointContext(endpoint, trustedProcess, riskyRemotePort);
+
             alerts.Add(Alert.FromEndpoint(
-                "NET-C2-BEACON-PATTERN",
-                "Potential beaconing activity",
-                90,
-                details,
-                "Investigate for command-and-control behavior. Check the process path, parent process, persistence, and destination reputation.",
+                lowRiskTimingOnly ? "NET-BEACON-TIMING-LOW-RISK" : "NET-C2-BEACON-PATTERN",
+                lowRiskTimingOnly ? "Beacon-like timing from low-risk process" : "Potential beaconing activity",
+                lowRiskTimingOnly ? 55 : 90,
+                lowRiskTimingOnly
+                    ? details + " The process is signed, expected, using a normal web port, and no paired high-risk context was observed."
+                    : details,
+                lowRiskTimingOnly
+                    ? "Keep as local context. Escalate if paired with unsigned/user-writable execution, persistence, PowerShell staging, unusual ports, suspicious parentage, or threat intelligence."
+                    : "Investigate for command-and-control behavior. Check the process path, parent process, persistence, and destination reputation.",
                 endpoint));
         }
 
@@ -589,6 +633,83 @@ namespace ArcaneEDR
             }
 
             return false;
+        }
+
+        private bool HasStrongSuspiciousEndpointContext(NetworkEndpoint endpoint, bool trustedProcess, bool riskyRemotePort)
+        {
+            if (endpoint == null) return false;
+            if (config.IsBlockedRemote(endpoint.RemoteAddress)) return true;
+            if (riskyRemotePort) return true;
+            if (config.IsDynamicDnsDomain(endpoint.RemoteHost)) return true;
+            if (config.IsDohProvider(endpoint.RemoteAddress) && !trustedProcess) return true;
+
+            ProcessInfo process = endpoint.Process;
+            if (process == null) return !trustedProcess;
+
+            string commandLine = process.CommandLine ?? "";
+            string parentName = process.ParentProcessName ?? "";
+            string executablePath = process.ExecutablePath ?? "";
+
+            if (config.IsBlockedHash(process.Sha256)) return true;
+            if (config.KnownRmmProcesses.Contains(endpoint.ProcessName)) return true;
+            if (config.LolbinProcesses.Contains(endpoint.ProcessName)) return true;
+            if (FileSystemRules.ContainsAny(commandLine, config.SuspiciousCommandLineTerms)) return true;
+            if (CommandLineRules.FindEncodedCommand(commandLine, config).Detected) return true;
+            if (config.SuspiciousParentProcesses.Contains(parentName) && !trustedProcess) return true;
+            if (FileSystemRules.IsUserWritablePath(executablePath, config)) return true;
+
+            return false;
+        }
+
+        private bool IsExpectedSignedNormalWebEndpoint(NetworkEndpoint endpoint, bool trustedProcess)
+        {
+            return endpoint != null &&
+                IsOrdinaryWebPort(endpoint) &&
+                IsSignedNonUserWritableProcess(endpoint) &&
+                (trustedProcess || IsAgentProfileEndpoint(endpoint));
+        }
+
+        private bool IsAgentProfileEndpoint(NetworkEndpoint endpoint)
+        {
+            if (endpoint == null || !config.EnableAgentProfile) return false;
+
+            ProcessInfo process = endpoint.Process;
+            string processName = endpoint.ProcessName ?? "";
+            string parentName = process == null ? "" : (process.ParentProcessName ?? "");
+
+            return config.AgentProcessNames.Contains(processName) ||
+                config.AgentProcessNames.Contains(parentName) ||
+                config.AgentChildProcessNames.Contains(processName) ||
+                config.AgentPackageManagerProcesses.Contains(processName);
+        }
+
+        private bool IsAllowedOutboundPort(NetworkEndpoint endpoint)
+        {
+            if (endpoint == null) return false;
+            if (config.AllowedOutboundPorts.Contains(endpoint.RemotePort)) return true;
+
+            PortRuleSet processPorts;
+            if (!String.IsNullOrWhiteSpace(endpoint.ProcessName) &&
+                config.ProcessAllowedOutboundPorts.TryGetValue(endpoint.ProcessName, out processPorts) &&
+                processPorts.Contains(endpoint.RemotePort))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool IsSignedNonUserWritableProcess(NetworkEndpoint endpoint)
+        {
+            ProcessInfo process = endpoint == null ? null : endpoint.Process;
+            if (process == null || !process.HasSigner || !process.HasExecutablePath) return false;
+
+            return !FileSystemRules.IsUserWritablePath(process.ExecutablePath, config);
+        }
+
+        private static bool IsOrdinaryWebPort(NetworkEndpoint endpoint)
+        {
+            return endpoint != null && (endpoint.RemotePort == 80 || endpoint.RemotePort == 443);
         }
 
         private static string NormalizeDomain(string domain)

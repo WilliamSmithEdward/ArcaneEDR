@@ -22,6 +22,7 @@ namespace ArcaneEDR
             if (StartsWith(value, "PS-")) return "PowerShell";
             if (StartsWith(value, "PERSIST-")) return "Persistence";
             if (StartsWith(value, "AUTH-")) return "Auth";
+            if (StartsWith(value, "FILE-")) return "File";
             if (StartsWith(value, "PROC-")) return "Process";
             if (StartsWith(value, "AUDIT-PROC-")) return "Process";
             if (StartsWith(value, "RAT-")) return "RAT";
@@ -52,6 +53,7 @@ namespace ArcaneEDR
                 category.Equals("PowerShell", StringComparison.OrdinalIgnoreCase) ||
                 category.Equals("Persistence", StringComparison.OrdinalIgnoreCase) ||
                 category.Equals("Auth", StringComparison.OrdinalIgnoreCase) ||
+                category.Equals("File", StringComparison.OrdinalIgnoreCase) ||
                 category.Equals("Process", StringComparison.OrdinalIgnoreCase) ||
                 category.Equals("RAT", StringComparison.OrdinalIgnoreCase) ||
                 category.Equals("AI", StringComparison.OrdinalIgnoreCase) ||

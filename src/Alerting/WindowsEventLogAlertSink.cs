@@ -45,6 +45,7 @@ namespace ArcaneEDR
                 "Severity: " + alert.Severity + Environment.NewLine +
                 "Score: " + alert.Score.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +
                 "UTC: " + alert.TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture) + Environment.NewLine +
+                "SystemLocalTime: " + alert.SystemLocalTime + Environment.NewLine +
                 "Title: " + alert.Title + Environment.NewLine +
                 "Why: " + Compact(WhyText(alert), 2000) + Environment.NewLine +
                 "Details: " + Compact(alert.Body, 3000) + Environment.NewLine +

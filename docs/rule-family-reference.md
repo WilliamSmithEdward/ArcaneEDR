@@ -7,24 +7,45 @@ what telemetry is required, common false positives, and safe ways to test.
 ## Network Egress And Listeners
 
 Rule IDs include `NET-EGRESS-*`, `NET-LISTEN-*`, `NET-INBOUND-*`,
-`NET-C2-BEACON-PATTERN`, `NET-DIRECT-IP-WEB-EGRESS`, `NET-LATERAL-PORT`, and
-`NET-DNS-UNAUTHORIZED-RESOLVER`.
+`NET-C2-BEACON-PATTERN`, `NET-BEACON-TIMING-LOW-RISK`,
+`NET-DIRECT-IP-WEB-EGRESS`, `NET-DIRECT-IP-WEB-EGRESS-SIGNED`,
+`NET-LAN-INBOUND-LATERAL-PORT`, `NET-LAN-EGRESS-LATERAL-PORT`,
+`NET-LATERAL-PORT`, and `NET-DNS-UNAUTHORIZED-RESOLVER`.
 
 - Detects: unexpected listeners, localhost-only listener noise, unusual
   outbound ports, direct-IP web egress, high-risk ports, external inbound
-  connections, connection bursts, beacon-like timing, and unauthorized DNS
-  resolver use.
+  connections, high-signal LAN inbound/egress to lateral-movement ports,
+  connection bursts, beacon-like timing, and unauthorized DNS resolver use.
 - Required telemetry: netstat collection, with richer process context when WMI
   enrichment and Sysmon are available.
 - Why it matters: RATs and loaders commonly need listener exposure, C2 egress,
   direct-IP callbacks, unusual ports, or repeated beaconing.
 - Common false positives: development servers, browser extensions, update
   agents, VPNs, sync clients, package managers, and local test listeners.
+- Correlation-first tuning: timing-only beaconing and direct-IP HTTPS are
+  reduced when the process is signed, expected, on a normal web port, outside
+  user-writable paths, and lacks paired high-risk context such as suspicious
+  command lines, LOLBins, RMM tools, persistence, risky ports, dynamic DNS, DoH
+  bypass, blocked indicators, or suspicious parentage. The events remain logged
+  locally as `NET-BEACON-TIMING-LOW-RISK` or
+  `NET-DIRECT-IP-WEB-EGRESS-SIGNED`.
+- Duplicate reduction: the generic `NET-EGRESS-NEW-UNTRUSTED` context is not
+  emitted when a more specific endpoint finding already explains the same
+  connection, such as direct-IP web egress, DoH bypass, LOLBin/RMM egress,
+  suspicious parentage, encoded command egress, or unsigned user-path egress.
+- LAN classification: private-network sessions are not broadly alerted. Arcane
+  raises `NET-LAN-INBOUND-LATERAL-PORT` when a private-network host connects to
+  a local listener on configured lateral/admin ports, and
+  `NET-LAN-EGRESS-LATERAL-PORT` when an untrusted process connects outbound to
+  those ports on a private-network host.
 - Tuning knobs: `AllowedListeningPorts`, `AllowedOutboundPorts`,
-  `HighRiskRemotePorts`, `TrustedProcesses`, `AllowedRemoteCidrs`,
-  `AllowedDnsResolvers`, `ConnectionBurstThreshold`, `BeaconMinimumSamples`,
-  `BeaconMaxAverageIntervalSeconds`, `BeaconMaxJitterRatio`, and low-value
-  repeat dampening settings.
+  `ProcessAllowedOutboundPorts`, `HighRiskRemotePorts`, `TrustedProcesses`,
+  `AllowedRemoteCidrs`, `AllowedDnsResolvers`, `ConnectionBurstThreshold`,
+  `BeaconMinimumSamples`, `BeaconMaxAverageIntervalSeconds`,
+  `BeaconMaxJitterRatio`, and low-value repeat dampening settings.
+  `ProcessAllowedOutboundPorts` is useful when a specific trusted process has a
+  normal nonstandard destination port that should not make that port globally
+  normal for every process.
 - Safe test: `scripts\simulate-detection.cmd -Scenario UnexpectedListener`.
   This opens a localhost-only TCP listener and should produce
   `NET-LISTEN-TCP-LOCALHOST-UNEXPECTED`.
@@ -85,6 +106,39 @@ Rule IDs include `PERSIST-*`.
 - Expected alert shape: `why` explains persistence telemetry; entity describes
   the service, scheduled task, startup item, registry item, or inventory record.
 
+## File Create Guardrails
+
+Rule IDs include `FILE-HIGH-RISK-EXECUTABLE-DROP`,
+`FILE-HIGH-RISK-DROP-SUSPICIOUS-WRITER`,
+`FILE-AGENT-EXECUTABLE-DROP-OUTSIDE-ROOT`,
+`FILE-SENSITIVE-MATERIAL-TOUCHED`, and `FILE-DROP-THEN-EXECUTION`.
+
+- Detects: executable or script drops into persistence-adjacent or extension
+  locations, suspicious writers touching sensitive-looking filenames, configured
+  agent tools writing executable/script files outside approved roots, and recent
+  high-risk file drops followed by execution.
+- Required telemetry: Sysmon FileCreate event 11 using the bundled narrow
+  Sysmon config or an equivalent local Sysmon policy.
+- Why it matters: many loader and RAT chains create scripts, shortcuts,
+  binaries, browser-extension payloads, credentials, or startup artifacts before
+  execution or persistence becomes obvious.
+- Common false positives: installers, browser extension updates, admin scripts,
+  package-manager work outside configured roots, and intentional simulations.
+- Tuning knobs: `EnableHighSignalFileDetection`,
+  `HighRiskFilePathIndicators`, `HighRiskFileExtensions`,
+  `SensitiveFileNameIndicators`, `AgentWorkspaceRoots`, `AgentPublishRoots`,
+  `AgentProcessNames`, `AgentChildProcessNames`,
+  `AgentPackageManagerProcesses`, `TrustedProcesses`, and
+  `SuspiciousCommandLineTerms`.
+- Scope boundary: Arcane does not broadly audit file changes. It relies on
+  Sysmon emitting a narrow set of high-risk FileCreate events and then requires
+  path, extension, writer, agent-root, sensitive-name, or execution correlation.
+- Safe test: `scripts\simulate-detection.cmd -Scenario StartupFileDrop`
+  followed by `scripts\simulate-detection.cmd -Scenario Cleanup`.
+- Expected alert shape: `why` explains file-create telemetry; entity includes
+  writer process, parent process when available, signer/hash context, user, and
+  target filename.
+
 ## Process Reputation And LOLBins
 
 Rule IDs include `PROC-*`, `REPUTATION-*`, and `RAT-LOLBIN-*`.
@@ -130,14 +184,23 @@ Rule IDs include `DNS-*` and `DNS-DOH-*`.
 Rule IDs include `AUTH-*`.
 
 - Detects: remote failed logons, repeated failed remote logons, RDP logons,
-  network logons, and special-privilege logons.
+  network logons, unspecified-source remote-style logons, standalone
+  special-privilege logons, and special privileges that correlate with recent
+  remote access.
 - Required telemetry: Windows Security event log.
 - Why it matters: unauthorized remote logons and privilege-bearing sessions are
   direct signs of hands-on access, brute force, password spraying, or lateral
   movement.
-- Common false positives: expected RDP, mapped drives, local admin work,
+- Common false positives: expected RDP, Hyper-V enhanced sessions or local
+  session brokering that reports `0.0.0.0`, mapped drives, local admin work,
   service accounts, and remote management tools.
-- Tuning knobs: event log access, Windows auditing policy, and external alert
+- Correlation-first tuning: standalone `4672` special-privilege events are
+  low-severity local context and repeat-dampened per principal. If special
+  privileges arrive shortly after remote logon activity for the same account,
+  Arcane raises `AUTH-REMOTE-SPECIAL-PRIVILEGES` as stronger context.
+- Tuning knobs: event log access, Windows auditing policy,
+  `AuthSpecialPrivilegeRepeatDampeningMinutes`,
+  `AuthSpecialPrivilegeRemoteCorrelationMinutes`, and external alert
   suppression groups for known maintenance windows.
 - Safe test: no authentication simulation is included because it can affect
   account/security policy.
@@ -185,8 +248,9 @@ Rule IDs include `*-IOC-*`, `CUSTOM-*`, and configured custom rule IDs.
 
 Rule IDs include `SERVICE-*`, `APP-*`, and `OPENAI-*`.
 
-- Detects: service start/stop/recovery, daily summaries, config/executable
-  integrity changes, and optional compact AI log analysis verdicts.
+- Detects: service start/stop/recovery, daily reports, config/executable
+  integrity changes, optional compact AI log analysis verdicts, and optional
+  OpenAI daily report analysis.
 - Required telemetry: local health state, config integrity monitor, local logs,
   and optional AI analysis configuration.
 - Why it matters: service recovery, monitor tampering, and AI-flagged patterns
@@ -195,9 +259,13 @@ Rule IDs include `SERVICE-*`, `APP-*`, and `OPENAI-*`.
 - Common false positives: expected upgrades, publish/restart operations,
   validation tests, and manually requested OpenAI test analysis.
 - Tuning knobs: `NotifyOnServiceStart`, `NotifyOnServiceStop`,
-  `NotifyOnCrashRecovery`, `EnableDailySummary`, `EnableOpenAiLogAnalysis`,
+  `NotifyOnCrashRecovery`, `EnableDailySummary`,
+  `EnableDailySummaryOpenAiAnalysis`, `EnableOpenAiLogAnalysis`,
   `OpenAIAnalysisScoreThreshold`, and `OpenAIAnalysisExcludedRuleIds`.
-- Safe test: `ArcaneEDR.exe --test-health`, `ArcaneEDR.exe --test-alert`, and
-  `ArcaneEDR.exe --test-openai-analysis` if configured.
-- Expected alert shape: `why` explains service lifecycle, integrity, or compact
-  AI analysis context.
+- Safe test: `ArcaneEDR.exe --test-health`, `ArcaneEDR.exe --test-alert`,
+  `ArcaneEDR.exe --test-daily-report`, and `ArcaneEDR.exe
+  --test-openai-analysis` if configured.
+- Expected alert shape: `why` explains service lifecycle, integrity, compact AI
+  analysis context, or daily report generation. Daily reports use a dedicated
+  report layout with a near-top critical-threat callout rather than the generic
+  alert email template.
