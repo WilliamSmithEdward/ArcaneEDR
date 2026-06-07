@@ -208,6 +208,7 @@ namespace ArcaneEDR
                     " max=" + summary.MaxScore.ToString(CultureInfo.InvariantCulture) +
                     " severity=" + RedactSensitiveText(summary.Severity) +
                     " category=" + RedactSensitiveText(summary.Category) +
+                    " maintenance_context=" + summary.HasMaintenanceContext +
                     " user=<redacted>" +
                     " process=" + RedactSensitiveText(summary.Process));
                 lines.Add("  latest=" + RedactSensitiveText(summary.LatestTitle));
@@ -229,6 +230,7 @@ namespace ArcaneEDR
                 Copy(parsed, summary, "timestamp_utc");
                 Copy(parsed, summary, "rule_id");
                 Copy(parsed, summary, "category");
+                Copy(parsed, summary, "maintenance_context");
                 Copy(parsed, summary, "severity");
                 Copy(parsed, summary, "score");
                 Copy(parsed, summary, "title");

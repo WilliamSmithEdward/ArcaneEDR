@@ -7,17 +7,22 @@ namespace ArcaneEDR
     {
         public static bool MatchesAnyGroup(string text, HashSet<string> groups)
         {
+            return !String.IsNullOrWhiteSpace(FindFirstMatchingGroup(text, groups));
+        }
+
+        public static string FindFirstMatchingGroup(string text, HashSet<string> groups)
+        {
             if (String.IsNullOrWhiteSpace(text) || groups == null || groups.Count == 0)
             {
-                return false;
+                return "";
             }
 
             foreach (string group in groups)
             {
-                if (MatchesGroup(text, group)) return true;
+                if (MatchesGroup(text, group)) return group;
             }
 
-            return false;
+            return "";
         }
 
         private static bool MatchesGroup(string text, string group)

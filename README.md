@@ -365,6 +365,20 @@ delivery. `RuleMinimumEmailScores` and `CategoryMinimumEmailScores` affect
 external delivery only; local logging and incident grouping still use the
 normal alert path.
 
+Maintenance context tuning labels expected admin/build/publish activity without
+making it disappear:
+
+```ini
+EnableMaintenanceContext=true
+MaintenanceContextExternalAlertMinimumScore=95
+MaintenanceContextTermGroups=icacls|/inheritance:r,powershell|-executionpolicy bypass|publish.ps1,ArcaneEDR.exe|--validate-config
+```
+
+Each comma-separated group uses `|` for terms that must all appear in the alert
+text. Matching alerts get `maintenance_context=true`, retain their local log and
+incident records, and only suppress external delivery when the score is below
+`MaintenanceContextExternalAlertMinimumScore`.
+
 Arcane can also group alert records into local investigation incidents. This is
 local-only JSONL state, intended to make recent related alerts easier to scan:
 
@@ -452,9 +466,9 @@ GenericHttpApiSecretPrefix=Bearer
 ```
 
 The Brevo API key is read from Process, User, then Machine environment scope.
-`ExternalAlertSuppressionTermGroups` suppresses external delivery only, not
-local logging. Each comma-separated group uses `|` for terms that must all
-appear.
+`ExternalAlertSuppressionTermGroups` is a stronger external-only suppression
+escape hatch, not the preferred way to classify routine maintenance. It
+suppresses external delivery only; local logging and incident grouping remain.
 
 ## Health Notifications
 
@@ -509,9 +523,9 @@ OpenAIAnalysisMaxChars=12000
 
 The payload is intentionally compact and redacted. It includes health counters,
 recent event summaries, and alert metadata only: timestamp, rule ID, severity,
-category, score, and title. It does not send alert bodies, entities, command
-lines, script blocks, decoded payload previews, usernames, file paths, IPs,
-URLs, emails, or configured secret values.
+category, maintenance-context flag, score, and title. It does not send alert
+bodies, entities, command lines, script blocks, decoded payload previews,
+usernames, file paths, IPs, URLs, emails, or configured secret values.
 
 Results are written to:
 

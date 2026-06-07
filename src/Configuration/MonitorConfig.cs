@@ -25,6 +25,9 @@ namespace ArcaneEDR
         public int ExternalAlertMaxPerDispatch = 3;
         public int ExternalAlertMaxPerHour = 12;
         public HashSet<string> ExternalAlertSuppressionTermGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public bool EnableMaintenanceContext = true;
+        public HashSet<string> MaintenanceContextTermGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public int MaintenanceContextExternalAlertMinimumScore = 95;
         public bool ExternalAlertRetryEnabled = true;
         public int ExternalAlertRetryIntervalSeconds = 300;
         public int ExternalAlertRetryMaxIntervalSeconds = 3600;
@@ -195,6 +198,9 @@ namespace ArcaneEDR
             config.ExternalAlertMaxPerDispatch = ReadInt(values, "ExternalAlertMaxPerDispatch", config.ExternalAlertMaxPerDispatch);
             config.ExternalAlertMaxPerHour = ReadInt(values, "ExternalAlertMaxPerHour", config.ExternalAlertMaxPerHour);
             config.ExternalAlertSuppressionTermGroups = ReadStringSet(values, "ExternalAlertSuppressionTermGroups");
+            config.EnableMaintenanceContext = ReadBool(values, "EnableMaintenanceContext", config.EnableMaintenanceContext);
+            config.MaintenanceContextTermGroups = ReadStringSet(values, "MaintenanceContextTermGroups");
+            config.MaintenanceContextExternalAlertMinimumScore = ReadInt(values, "MaintenanceContextExternalAlertMinimumScore", config.MaintenanceContextExternalAlertMinimumScore);
             config.RequireExternalAlerting = ReadBool(values, "RequireExternalAlerting", ReadBool(values, "RequireEmailConfig", false));
             config.LogDirectory = ResolvePath(baseDirectory, ReadString(values, "LogDirectory", "logs"));
             config.ExternalAlertRetryEnabled = ReadBool(values, "ExternalAlertRetryEnabled", config.ExternalAlertRetryEnabled);

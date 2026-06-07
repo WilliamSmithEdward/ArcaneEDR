@@ -52,7 +52,9 @@ namespace ArcaneEDR
             if (config.ExternalAlertRetryMaxQueued < 0) Fail(errors, "ExternalAlertRetryMaxQueued must not be negative.");
             if (config.ExternalAlertRetryMaxPerPoll < 0) Fail(errors, "ExternalAlertRetryMaxPerPoll must not be negative.");
             ValidateExternalAlertProviders(config, errors, warnings);
-            ValidateSuppressionGroups(config, warnings);
+            ValidateTermGroups(config.ExternalAlertSuppressionTermGroups, "ExternalAlertSuppressionTermGroups", warnings);
+            ValidateTermGroups(config.MaintenanceContextTermGroups, "MaintenanceContextTermGroups", warnings);
+            if (config.MaintenanceContextExternalAlertMinimumScore < 0 || config.MaintenanceContextExternalAlertMinimumScore > 100) Warn(warnings, "MaintenanceContextExternalAlertMinimumScore is outside the usual 0-100 range.");
             if (config.BaselineLearningEmailMinimumScore < 0 || config.BaselineLearningEmailMinimumScore > 100) Warn(warnings, "BaselineLearningEmailMinimumScore is outside the usual 0-100 range.");
             if (config.OpenAIAnalysisBaselineEmailMinimumScore < 0 || config.OpenAIAnalysisBaselineEmailMinimumScore > 100) Warn(warnings, "OpenAIAnalysisBaselineEmailMinimumScore is outside the usual 0-100 range.");
             if (config.OpenAIAnalysisMinimumIncludedAlertScore < 0 || config.OpenAIAnalysisMinimumIncludedAlertScore > 100) Warn(warnings, "OpenAIAnalysisMinimumIncludedAlertScore is outside the usual 0-100 range.");
@@ -147,9 +149,9 @@ namespace ArcaneEDR
             }
         }
 
-        private static void ValidateSuppressionGroups(MonitorConfig config, List<string> warnings)
+        private static void ValidateTermGroups(HashSet<string> groups, string configKey, List<string> warnings)
         {
-            foreach (string group in config.ExternalAlertSuppressionTermGroups)
+            foreach (string group in groups)
             {
                 if (String.IsNullOrWhiteSpace(group)) continue;
                 string[] terms = group.Split('|');
@@ -161,7 +163,7 @@ namespace ArcaneEDR
 
                 if (populated < 2)
                 {
-                    Warn(warnings, "ExternalAlertSuppressionTermGroups entry has fewer than two terms: " + group);
+                    Warn(warnings, configKey + " entry has fewer than two terms: " + group);
                 }
             }
         }

@@ -150,6 +150,7 @@ namespace ArcaneEDR
                 group_key = groupKey,
                 host = Environment.MachineName,
                 category = category,
+                maintenance_context = alert.MaintenanceContext,
                 user = user,
                 process = process,
                 rule_id = alert.RuleId,

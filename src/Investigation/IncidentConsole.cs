@@ -29,6 +29,7 @@ namespace ArcaneEDR
                     " max=" + summary.MaxScore.ToString(CultureInfo.InvariantCulture) +
                     " severity=" + NullToUnknown(summary.Severity) +
                     " category=" + NullToUnknown(summary.Category) +
+                    " maintenance_context=" + summary.HasMaintenanceContext +
                     " user=" + NullToUnknown(summary.User) +
                     " process=" + NullToUnknown(summary.Process));
 
@@ -68,6 +69,7 @@ namespace ArcaneEDR
                     " score=" + record.score.ToString(CultureInfo.InvariantCulture) +
                     " severity=" + NullToUnknown(record.severity) +
                     " rule=" + NullToUnknown(record.rule_id) +
+                    " maintenance_context=" + record.maintenance_context +
                     " title=" + NullToUnknown(record.title));
 
                 if (!String.IsNullOrWhiteSpace(record.why))

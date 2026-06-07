@@ -92,7 +92,8 @@ namespace ArcaneEDR
         {
             AlertRuleCatalog.Annotate(alert);
             Alert reasonedAlert = AlertReasonAnnotator.Annotate(alert);
-            return AgentAlertAnnotator.Annotate(config, reasonedAlert);
+            Alert agentAlert = AgentAlertAnnotator.Annotate(config, reasonedAlert);
+            return MaintenanceAlertAnnotator.Annotate(config, agentAlert);
         }
 
         private bool IsCoolingDown(Alert alert)
@@ -154,6 +155,13 @@ namespace ArcaneEDR
         {
             int minimumExternalScore = AlertRulePolicy.MinimumExternalScore(config, alert);
             if (alert.Score < minimumExternalScore) return false;
+
+            if (alert.MaintenanceContext &&
+                alert.Score < config.MaintenanceContextExternalAlertMinimumScore)
+            {
+                WarnThrottled("maintenance context below external alert threshold");
+                return false;
+            }
 
             if (config.BaselineLearningMode && alert.Score < config.BaselineLearningEmailMinimumScore)
             {

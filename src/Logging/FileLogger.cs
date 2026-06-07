@@ -36,6 +36,7 @@ namespace ArcaneEDR
         {
             Write("ALERT", "[" + alert.Score.ToString(CultureInfo.InvariantCulture) + "] " +
                 alert.RuleId + " category=" + AlertRulePolicy.AlertCategory(alert) + " " +
+                "maintenance_context=" + alert.MaintenanceContext + " " +
                 alert.Title + " | " + WhyText(alert) + alert.Body.Replace(Environment.NewLine, " | "));
             try
             {

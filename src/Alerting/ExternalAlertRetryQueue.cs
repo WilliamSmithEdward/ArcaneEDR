@@ -177,6 +177,7 @@ namespace ArcaneEDR
                 Score = source.Score,
                 Severity = source.Severity,
                 Category = source.Category,
+                MaintenanceContext = source.MaintenanceContext,
                 Body = source.Body,
                 Recommendation = source.Recommendation,
                 EntitySummary = source.EntitySummary,
@@ -209,7 +210,8 @@ namespace ArcaneEDR
                 Encode(remoteAddress),
                 Encode(item.LastFailureReason),
                 Encode(WhyText(alert)),
-                Encode(AlertRulePolicy.AlertCategory(alert))
+                Encode(AlertRulePolicy.AlertCategory(alert)),
+                alert.MaintenanceContext ? "true" : "false"
             };
 
             return String.Join("\t", fields);
@@ -250,6 +252,7 @@ namespace ArcaneEDR
                 Score = score,
                 Severity = Decode(fields[5]),
                 Category = fields.Length > 15 ? Decode(fields[15]) : AlertRuleCatalog.CategoryFor(Decode(fields[2])),
+                MaintenanceContext = fields.Length > 16 && fields[16].Equals("true", StringComparison.OrdinalIgnoreCase),
                 Body = Decode(fields[6]),
                 Recommendation = Decode(fields[7]),
                 EntitySummary = Decode(fields[8]),

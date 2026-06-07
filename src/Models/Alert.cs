@@ -12,6 +12,7 @@ namespace ArcaneEDR
         public int Score;
         public string Severity;
         public string Category;
+        public bool MaintenanceContext;
         public string Body;
         public string Recommendation;
         public string EntitySummary;
@@ -176,6 +177,7 @@ namespace ArcaneEDR
                 "\"timestamp_utc\":\"" + JsonEscape(TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)) + "\"," +
                 "\"rule_id\":\"" + JsonEscape(RuleId) + "\"," +
                 "\"category\":\"" + JsonEscape(Category) + "\"," +
+                "\"maintenance_context\":" + (MaintenanceContext ? "true" : "false") + "," +
                 "\"severity\":\"" + JsonEscape(Severity) + "\"," +
                 "\"score\":" + Score.ToString(CultureInfo.InvariantCulture) + "," +
                 "\"title\":\"" + JsonEscape(Title) + "\"," +

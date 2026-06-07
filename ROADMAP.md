@@ -57,7 +57,7 @@ phase sections below.
 | --- | --- | --- | --- |
 | `v0.1.x-preview` | Done | Complete | Functional preview: service, local logging, Brevo alerting, Sysmon ingestion, OpenAI compact analysis, baseline learning, and daily summaries. |
 | `v0.2.0-beta` | Done | Complete | Tagged beta with install, upgrade, validation, package-release script, config preservation, and scheduled-task admin bridge. |
-| `v0.3.0` | In progress | Partial | Rule categories and rule-policy tuning are in progress. Remaining detection quality work includes maintenance labeling, better trust handling, and alert-volume tuning. |
+| `v0.3.0` | In progress | Partial | Rule categories, rule-policy tuning, and maintenance-context labeling are in progress. Remaining detection quality work includes better trust handling and alert-volume tuning. |
 | `v0.4.0` | Mostly done | Substantial | Modular alert sinks are implemented for Brevo, SMTP, webhook, generic HTTP/API, Windows Event Log, and local JSONL. Reporting-specific sinks remain future work. |
 | `v0.5.0` | Mostly done | Substantial | `why` explanations, incident grouping, timeline command, support bundle, simulations, and rule-family docs are implemented. Remaining work is polishing expected alert shapes and demo flow. |
 | `v0.6.0` | Started | Partial | Agent Profile labeling exists. Remaining work includes agent write/elevation guardrails, compact activity ledger, maintenance/session markers, and active-response dry-run. |
@@ -165,8 +165,8 @@ Exit criteria:
 - Add rule categories such as `Network`, `PowerShell`, `Persistence`, `Auth`,
   `Sysmon`, `OpenAI`, and `Health`.
 - Improve Microsoft-signed scheduled-task and service trust handling.
-- Add explicit maintenance-mode suppression for expected build, publish,
-  install, and validation commands.
+- Add maintenance-context labeling for expected build, publish, install, and
+  validation commands without hiding local evidence.
 - Reduce repeated low-value alerts from the same stable process and behavior.
 - Improve localhost-only listener classification.
 - Keep high and critical alerts rare and actionable.
@@ -181,6 +181,13 @@ Progress:
   - `DisabledRuleCategories`
   - `RuleMinimumEmailScores`
   - `CategoryMinimumEmailScores`
+- Added maintenance-context tuning:
+  - `EnableMaintenanceContext`
+  - `MaintenanceContextTermGroups`
+  - `MaintenanceContextExternalAlertMinimumScore`
+- Maintenance-context matches are labeled in alerts, logs, incidents, support
+  bundles, and compact OpenAI metadata, while external delivery is dampened only
+  below the configured maintenance threshold.
 
 Exit criteria:
 

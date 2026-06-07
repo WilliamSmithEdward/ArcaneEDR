@@ -14,6 +14,7 @@ namespace ArcaneEDR
         public DateTime FirstSeenUtc = DateTime.MaxValue;
         public DateTime LastSeenUtc = DateTime.MinValue;
         public int AlertCount;
+        public bool HasMaintenanceContext;
         public int MaxScore;
         public string Severity;
         public string LatestTitle;
@@ -33,6 +34,7 @@ namespace ArcaneEDR
             }
 
             AlertCount++;
+            if (record.maintenance_context) HasMaintenanceContext = true;
             if (observedUtc < FirstSeenUtc) FirstSeenUtc = observedUtc;
             if (observedUtc >= LastSeenUtc)
             {

@@ -7,6 +7,7 @@ namespace ArcaneEDR
         public string group_key;
         public string host;
         public string category;
+        public bool maintenance_context;
         public string user;
         public string process;
         public string rule_id;
