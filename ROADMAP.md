@@ -57,15 +57,15 @@ phase sections below.
 | --- | --- | --- | --- |
 | `v0.1.x-preview` | Done | Complete | Functional preview: service, local logging, Brevo alerting, Sysmon ingestion, OpenAI compact analysis, baseline learning, and daily summaries. |
 | `v0.2.0-beta` | Done | Complete | Tagged beta with install, upgrade, validation, package-release script, config preservation, and scheduled-task admin bridge. |
-| `v0.3.0` | In progress | Substantial | Rule categories, rule-policy tuning, maintenance-context labeling, persistence trust handling, PowerShell noise reduction, and alert-volume dampening are implemented. Remaining detection quality work is mostly empirical volume tuning. |
+| `v0.3.0` | Release candidate | Locally complete | Detection-quality work is implemented, locally published, validated, and packaged. Remaining work is operator-approved push/tag plus any soak-window empirical tuning from fresh post-publish data. |
 | `v0.4.0` | Mostly done | Substantial | Modular alert sinks are implemented for Brevo, SMTP, webhook, generic HTTP/API, Windows Event Log, and local JSONL. Reporting-specific sinks remain future work. |
 | `v0.5.0` | Mostly done | Substantial | `why` explanations, incident grouping, timeline command, support bundle, simulations, and rule-family docs are implemented. Remaining work is polishing expected alert shapes and demo flow. |
 | `v0.6.0` | Started | Partial | Agent Profile labeling exists. Remaining work includes agent write/elevation guardrails, compact activity ledger, maintenance/session markers, and active-response dry-run. |
 | `v0.7.0` | Not started | Planned | Collector/rule interface cleanup, privacy hardening, and AI provider abstraction remain planned. |
 | `v1.0.0` | Not ready | Planned | Requires completed docs, tuned alert volume, tested install/upgrade/release flow, dry-run/manual response safety, and stable privacy/operations posture. |
 
-Current milestone focus: finish `v0.3.0` detection quality and alert-volume
-tuning, then move into `v0.4.0` modular notification/reporting polish.
+Current milestone focus: complete operator-approved `v0.3.0` push/tag steps,
+then move into `v0.4.0` modular notification/reporting polish.
 
 ## `v1.0.0` Scope Boundary
 
@@ -224,7 +224,16 @@ Progress:
 - Added `ArcaneEDR.exe --alert-volume --last <duration>` to summarize recent
   local alert volume by severity, category, rule, and process, including an
   external-delivery qualification estimate before provider, rate-limit, retry,
-  or repeat-dampening behavior.
+  or repeat-dampening behavior. It now also prints a baseline-off external
+  delivery projection so operators can check whether disabling baseline
+  learning would flood notifications before changing live config.
+- Added baseline-off projection driver summaries by rule and process, plus a
+  starter `RuleMinimumEmailScores` profile in the example config for weak
+  standalone discovery signals that should remain local-first by default.
+  `--alert-volume` now also prints compact current/baseline-off external
+  candidate examples with time, score, rule, process, maintenance context, and
+  title so operators can inspect likely notification drivers without exposing
+  raw alert entities or command lines.
 - Added `ArcaneEDR.exe --poll-once` to collect one monitor poll and exit
   without starting the service or writing service lifecycle health state, making
   short local alert-volume samples easier to collect.
@@ -246,6 +255,8 @@ Progress:
 - Added `PS-ENCODED-APP-INVENTORY` so encoded Start-app/process/UserAssist
   inventory is recorded as medium-severity context instead of being treated as a
   generic critical encoded-command alert.
+- Tightened encoded-command switch matching so ordinary `-Encoding` parameters
+  and `System.Text.Encoding` references do not trigger encoded-command alerts.
 - Empirical tuning observations from local baseline:
   - Hyper-V host-to-guest login can produce expected Windows logon type 10 /
     RDP-style alerts with source IP `0.0.0.0`.
@@ -269,6 +280,9 @@ Progress:
   `NET-DIRECT-IP-WEB-EGRESS-SIGNED`, and timing-only beacon-like behavior from
   expected signed normal-web processes is recorded as
   `NET-BEACON-TIMING-LOW-RISK` unless paired high-risk context is present.
+  Trusted signed processes using common alternate web/proxy ports such as
+  `8080` or `8443` are recorded as `NET-EGRESS-TRUSTED-ALT-WEB-PORT` instead
+  of high-priority port alerts.
 - Reduced duplicate network context by suppressing the generic
   `NET-EGRESS-NEW-UNTRUSTED` alert when a more specific endpoint finding has
   already explained the same connection.
@@ -292,7 +306,14 @@ Progress:
   health, signal summary, false-positive context, high-signal review,
   automation activity, tuning notes, and optional OpenAI daily analysis using a
   false-positive-aware report prompt instead of the hourly alertability prompt
-  or generic alert email template.
+  or generic alert email template. The top-level report determination and
+  critical callouts now remain deterministic local-telemetry sections, with
+  OpenAI confined to a labeled secondary review section.
+- Added persisted event-log watermarks for Windows, PowerShell, and Sysmon
+  ingestion so service restarts and publish/restart cycles do not recycle the
+  same recent event records into fresh alerts or daily-report counts. Watermark
+  handling keeps a reset/cleared-log escape path when newer events arrive with
+  lower record IDs.
 
 Exit criteria:
 

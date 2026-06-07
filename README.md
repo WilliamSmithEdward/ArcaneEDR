@@ -376,20 +376,37 @@ categories include `Network`, `DNS`, `PowerShell`, `Persistence`, `Auth`,
 `File`, `Process`, `RAT`, `AI`, `Health`, `Integrity`, `Baseline`, `Reputation`,
 `Custom`, `Test`, and `General`.
 
+Arcane persists Windows, PowerShell, and Sysmon event-log watermarks under
+`LogDirectory` by default:
+
+```ini
+PersistEventLogWatermarks=true
+EventLogWatermarkFile=ArcaneEventLogWatermarks.tsv
+```
+
+This prevents service restarts, publish cycles, and recovery restarts from
+reprocessing the same recent event records into new local alerts and daily
+report counts. If an event log appears to have reset or been cleared, Arcane
+allows newer low-record-ID events through instead of permanently trusting the
+older watermark.
+
 Rule policy tuning is controlled by config:
 
 ```ini
 DisabledRuleIds=
 DisabledRuleCategories=
-RuleMinimumEmailScores=NET-EGRESS-NEW-UNTRUSTED=80,BASELINE-NEW-PROCESS-DOMAIN=95
-CategoryMinimumEmailScores=Baseline=95,Health=60
+RuleMinimumEmailScores=NET-DIRECT-IP-WEB-EGRESS=90,NET-EGRESS-UNUSUAL-PORT=90,NET-EGRESS-NEW-UNTRUSTED=80,NET-BEACON-TIMING-LOW-RISK=90,PS-SUSPICIOUS-COMMAND=90,BASELINE-NEW-PROCESS-DOMAIN=95,BASELINE-NEW-PROCESS-DESTINATION=95
+CategoryMinimumEmailScores=
 ```
 
 `DisabledRuleIds` and `DisabledRuleCategories` suppress matching alerts before
 local alert logging, incident grouping, response handling, and external
 delivery. `RuleMinimumEmailScores` and `CategoryMinimumEmailScores` affect
 external delivery only; local logging and incident grouping still use the
-normal alert path.
+normal alert path. The example `RuleMinimumEmailScores` profile keeps weak
+standalone discovery signals mostly local by default; use `--alert-volume
+--last 24h` and its baseline-off projection drivers to tune these thresholds
+for the actual host.
 
 Network port tuning supports both global and process-specific outbound
 allowlists. Use `AllowedOutboundPorts` for ports that are normal for any
@@ -511,6 +528,17 @@ Summarize the compact agent activity ledger:
 The summary groups local alert records by severity, category, rule, and process,
 and estimates which records would qualify for external delivery before
 provider, rate-limit, retry, or repeat-dampening behavior.
+It also prints `BaselineOffExternalQualifiedBeforeRateLimits` and
+`baseline_off_external` bucket counts, plus baseline-off projection drivers by
+rule and process, so operators can estimate whether turning off
+`BaselineLearningMode` would create a notification flood before changing live
+config. When records would qualify for current or baseline-off external
+delivery, the command also prints compact candidate examples with time, score,
+rule, process, maintenance context, and title only. It intentionally avoids raw
+entities, paths, command lines, IPs, users, and alert bodies. Service health,
+daily report, and OpenAI control notifications are counted as current external
+candidates when they are present because those records use the direct
+notification path rather than the normal detection threshold path.
 Run `--poll-once` first when you want a fresh one-poll sample without leaving
 the monitor running.
 If the published app uses a protected `LogDirectory` such as `C:\Security`, run
@@ -622,12 +650,15 @@ generated system time, basis, and recommended next step, then uses compact
 tables for critical callouts, health, signal summary, false-positive context,
 high-signal details, automation activity, tuning notes, and optional OpenAI
 daily analysis. Critical and high-signal tables include process/source context
-when the source telemetry provides it. The OpenAI daily prompt is tuned for
-customer-facing 24-hour review and explicitly treats alert volume, baseline
-learning, maintenance context, automation context, and telemetry gaps as
-false-positive context rather than proof of compromise. Future reporting work
-should move these sections toward a configurable reporting engine with
-selectable sections, formats, and destinations.
+when the source telemetry provides it. The top-level determination,
+compromise assessment, recommended next step, and critical callouts are
+deterministic local-telemetry sections; optional OpenAI daily analysis is kept
+inside the labeled OpenAI review section as a secondary opinion. The OpenAI
+daily prompt is tuned for customer-facing 24-hour review and explicitly treats
+alert volume, baseline learning, maintenance context, automation context, and
+telemetry gaps as false-positive context rather than proof of compromise.
+Future reporting work should move these sections toward a configurable
+reporting engine with selectable sections, formats, and destinations.
 
 ## OpenAI Log Analysis
 

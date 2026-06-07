@@ -10,14 +10,24 @@ namespace ArcaneEDR
         private readonly MonitorConfig config;
         private readonly FileLogger logger;
         private readonly IProcessEnricher processEnricher;
+        private readonly EventLogWatermarkStore watermarks;
         private long lastRecordId;
+        private DateTime lastRecordTimestampUtc = DateTime.MinValue;
         private bool warnedUnavailable;
 
-        public PowerShellEventCollector(MonitorConfig config, FileLogger logger, IProcessEnricher processEnricher)
+        public PowerShellEventCollector(MonitorConfig config, FileLogger logger, IProcessEnricher processEnricher, EventLogWatermarkStore watermarks)
         {
             this.config = config;
             this.logger = logger;
             this.processEnricher = processEnricher;
+            this.watermarks = watermarks;
+
+            EventLogWatermark watermark = watermarks == null ? null : watermarks.Get(config.PowerShellEventLogName);
+            if (watermark != null)
+            {
+                lastRecordId = watermark.RecordId;
+                lastRecordTimestampUtc = watermark.TimestampUtc;
+            }
         }
 
         public HostTelemetry Capture()
@@ -35,14 +45,25 @@ namespace ArcaneEDR
                 using (EventLogReader reader = new EventLogReader(eventQuery))
                 {
                     int count = 0;
+                    bool advanced = false;
                     EventRecord record;
                     while ((record = reader.ReadEvent()) != null)
                     {
                         using (record)
                         {
-                            if (record.RecordId.HasValue && record.RecordId.Value <= lastRecordId)
+                            long recordId = record.RecordId.HasValue ? record.RecordId.Value : 0;
+                            DateTime recordTimestampUtc = record.TimeCreated.HasValue ? record.TimeCreated.Value.ToUniversalTime() : DateTime.MinValue;
+                            if (recordId > 0 && recordId <= lastRecordId)
                             {
-                                continue;
+                                if (IsLikelyLogReset(recordId, recordTimestampUtc))
+                                {
+                                    lastRecordId = 0;
+                                    lastRecordTimestampUtc = DateTime.MinValue;
+                                }
+                                else
+                                {
+                                    continue;
+                                }
                             }
 
                             if (processes == null)
@@ -53,9 +74,11 @@ namespace ArcaneEDR
                             }
 
                             telemetry.PowerShellEvents.Add(ParseRecord(record, processes));
-                            if (record.RecordId.HasValue && record.RecordId.Value > lastRecordId)
+                            if (recordId > lastRecordId)
                             {
-                                lastRecordId = record.RecordId.Value;
+                                lastRecordId = recordId;
+                                lastRecordTimestampUtc = recordTimestampUtc == DateTime.MinValue ? DateTime.UtcNow : recordTimestampUtc;
+                                advanced = true;
                             }
 
                             count++;
@@ -64,6 +87,11 @@ namespace ArcaneEDR
                                 break;
                             }
                         }
+                    }
+
+                    if (advanced && watermarks != null)
+                    {
+                        watermarks.Mark(config.PowerShellEventLogName, lastRecordId, lastRecordTimestampUtc);
                     }
                 }
             }
@@ -77,6 +105,16 @@ namespace ArcaneEDR
             }
 
             return telemetry;
+        }
+
+        private bool IsLikelyLogReset(long recordId, DateTime recordTimestampUtc)
+        {
+            return lastRecordId > 0 &&
+                recordId > 0 &&
+                recordId <= lastRecordId &&
+                lastRecordTimestampUtc != DateTime.MinValue &&
+                recordTimestampUtc != DateTime.MinValue &&
+                recordTimestampUtc > lastRecordTimestampUtc.AddMinutes(1.0);
         }
 
         private string BuildQuery()

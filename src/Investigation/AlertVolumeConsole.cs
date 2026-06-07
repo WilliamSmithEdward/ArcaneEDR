@@ -29,25 +29,47 @@ namespace ArcaneEDR
             }
 
             int externalQualified = 0;
+            int baselineOffExternalQualified = 0;
             int maintenanceContext = 0;
             int maxScore = 0;
             foreach (AlertVolumeRecord record in records)
             {
                 if (record.ExternalQualified) externalQualified++;
+                if (record.BaselineOffExternalQualified) baselineOffExternalQualified++;
                 if (record.MaintenanceContext) maintenanceContext++;
                 if (record.Score > maxScore) maxScore = record.Score;
             }
 
             Console.WriteLine("TotalAlerts=" + records.Count.ToString(CultureInfo.InvariantCulture) +
                 " ExternalQualifiedBeforeRateLimits=" + externalQualified.ToString(CultureInfo.InvariantCulture) +
+                " BaselineOffExternalQualifiedBeforeRateLimits=" + baselineOffExternalQualified.ToString(CultureInfo.InvariantCulture) +
                 " MaintenanceContext=" + maintenanceContext.ToString(CultureInfo.InvariantCulture) +
                 " HighestScore=" + maxScore.ToString(CultureInfo.InvariantCulture));
+            if (config.BaselineLearningMode)
+            {
+                Console.WriteLine("BaselineOffExternalQualifiedBeforeRateLimits is a dry-run projection; live config still has BaselineLearningMode=true.");
+            }
+
             Console.WriteLine("");
 
-            PrintBuckets("By Severity", BuildBuckets(records, "severity"));
-            PrintBuckets("By Category", BuildBuckets(records, "category"));
-            PrintBuckets("By Rule", BuildBuckets(records, "rule"));
-            PrintBuckets("By Process", BuildBuckets(records, "process"));
+            List<AlertVolumeBucket> severityBuckets = BuildBuckets(records, "severity");
+            List<AlertVolumeBucket> categoryBuckets = BuildBuckets(records, "category");
+            List<AlertVolumeBucket> ruleBuckets = BuildBuckets(records, "rule");
+            List<AlertVolumeBucket> processBuckets = BuildBuckets(records, "process");
+
+            if (baselineOffExternalQualified > externalQualified)
+            {
+                PrintBaselineOffDrivers("Baseline-Off Projection Drivers By Rule", ruleBuckets);
+                PrintBaselineOffDrivers("Baseline-Off Projection Drivers By Process", processBuckets);
+                PrintCandidateExamples("New Baseline-Off External Candidate Examples", records, true);
+            }
+
+            PrintCandidateExamples("Current External-Qualified Examples", records, false);
+
+            PrintBuckets("By Severity", severityBuckets);
+            PrintBuckets("By Category", categoryBuckets);
+            PrintBuckets("By Rule", ruleBuckets);
+            PrintBuckets("By Process", processBuckets);
 
             return 0;
         }
@@ -112,8 +134,10 @@ namespace ArcaneEDR
                 record.Title = NullToUnknown(alert.Title);
                 record.Process = ExtractToken(alert.EntitySummary, "process");
                 if (String.IsNullOrWhiteSpace(record.Process)) record.Process = "unknown";
+                record.SystemLocalTime = ReadString(parsed, "system_local_time");
                 record.MaintenanceContext = alert.MaintenanceContext;
-                record.ExternalQualified = WouldQualifyForExternal(config, alert);
+                record.ExternalQualified = WouldQualifyForExternal(config, alert, false);
+                record.BaselineOffExternalQualified = WouldQualifyForExternal(config, alert, true);
                 return record;
             }
             catch
@@ -122,13 +146,27 @@ namespace ArcaneEDR
             }
         }
 
-        private static bool WouldQualifyForExternal(MonitorConfig config, Alert alert)
+        private static bool WouldQualifyForExternal(MonitorConfig config, Alert alert, bool assumeBaselineLearningOff)
         {
+            if (UsesDirectExternalPath(alert)) return true;
             if (alert.Score < AlertRulePolicy.MinimumExternalScore(config, alert)) return false;
             if (alert.MaintenanceContext && alert.Score < config.MaintenanceContextExternalAlertMinimumScore) return false;
-            if (config.BaselineLearningMode && alert.Score < config.BaselineLearningEmailMinimumScore) return false;
+            if (!assumeBaselineLearningOff &&
+                config.BaselineLearningMode &&
+                alert.Score < config.BaselineLearningEmailMinimumScore)
+            {
+                return false;
+            }
+
             if (TermGroupRules.MatchesAnyGroup(AlertText(alert), config.ExternalAlertSuppressionTermGroups)) return false;
             return true;
+        }
+
+        private static bool UsesDirectExternalPath(Alert alert)
+        {
+            string ruleId = alert == null ? "" : alert.RuleId ?? "";
+            return ruleId.StartsWith("SERVICE-", StringComparison.OrdinalIgnoreCase) ||
+                ruleId.StartsWith("OPENAI-LOG-ANALYSIS-", StringComparison.OrdinalIgnoreCase);
         }
 
         private static List<AlertVolumeBucket> BuildBuckets(List<AlertVolumeRecord> records, string field)
@@ -148,6 +186,7 @@ namespace ArcaneEDR
                 bucket.Count++;
                 if (record.Score > bucket.MaxScore) bucket.MaxScore = record.Score;
                 if (record.ExternalQualified) bucket.ExternalQualified++;
+                if (record.BaselineOffExternalQualified) bucket.BaselineOffExternalQualified++;
                 if (record.MaintenanceContext) bucket.MaintenanceContext++;
             }
 
@@ -174,12 +213,102 @@ namespace ArcaneEDR
                     " count=" + bucket.Count.ToString(CultureInfo.InvariantCulture) +
                     " max=" + bucket.MaxScore.ToString(CultureInfo.InvariantCulture) +
                     " external_qualified=" + bucket.ExternalQualified.ToString(CultureInfo.InvariantCulture) +
+                    " baseline_off_external=" + bucket.BaselineOffExternalQualified.ToString(CultureInfo.InvariantCulture) +
                     " maintenance_context=" + bucket.MaintenanceContext.ToString(CultureInfo.InvariantCulture));
             }
 
             if (buckets.Count > limit)
             {
                 Console.WriteLine("  ... " + (buckets.Count - limit).ToString(CultureInfo.InvariantCulture) + " more");
+            }
+
+            Console.WriteLine("");
+        }
+
+        private static void PrintBaselineOffDrivers(string title, List<AlertVolumeBucket> buckets)
+        {
+            List<AlertVolumeBucket> drivers = new List<AlertVolumeBucket>();
+            foreach (AlertVolumeBucket bucket in buckets)
+            {
+                if (bucket.BaselineOffExternalQualified > bucket.ExternalQualified)
+                {
+                    drivers.Add(bucket);
+                }
+            }
+
+            if (drivers.Count == 0) return;
+
+            drivers.Sort(delegate(AlertVolumeBucket left, AlertVolumeBucket right)
+            {
+                int leftDelta = left.BaselineOffExternalQualified - left.ExternalQualified;
+                int rightDelta = right.BaselineOffExternalQualified - right.ExternalQualified;
+                int deltaComparison = rightDelta.CompareTo(leftDelta);
+                if (deltaComparison != 0) return deltaComparison;
+                int scoreComparison = right.MaxScore.CompareTo(left.MaxScore);
+                if (scoreComparison != 0) return scoreComparison;
+                return String.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase);
+            });
+
+            Console.WriteLine(title);
+            int limit = Math.Min(8, drivers.Count);
+            for (int index = 0; index < limit; index++)
+            {
+                AlertVolumeBucket bucket = drivers[index];
+                int newlyQualified = bucket.BaselineOffExternalQualified - bucket.ExternalQualified;
+                Console.WriteLine("  " + bucket.Name +
+                    " newly_qualified=" + newlyQualified.ToString(CultureInfo.InvariantCulture) +
+                    " baseline_off_external=" + bucket.BaselineOffExternalQualified.ToString(CultureInfo.InvariantCulture) +
+                    " current_external=" + bucket.ExternalQualified.ToString(CultureInfo.InvariantCulture) +
+                    " max=" + bucket.MaxScore.ToString(CultureInfo.InvariantCulture) +
+                    " count=" + bucket.Count.ToString(CultureInfo.InvariantCulture));
+            }
+
+            if (drivers.Count > limit)
+            {
+                Console.WriteLine("  ... " + (drivers.Count - limit).ToString(CultureInfo.InvariantCulture) + " more");
+            }
+
+            Console.WriteLine("");
+        }
+
+        private static void PrintCandidateExamples(string title, List<AlertVolumeRecord> records, bool newlyQualifiedOnly)
+        {
+            List<AlertVolumeRecord> candidates = new List<AlertVolumeRecord>();
+            foreach (AlertVolumeRecord record in records)
+            {
+                bool include = newlyQualifiedOnly
+                    ? record.BaselineOffExternalQualified && !record.ExternalQualified
+                    : record.ExternalQualified;
+                if (include) candidates.Add(record);
+            }
+
+            if (candidates.Count == 0) return;
+
+            candidates.Sort(delegate(AlertVolumeRecord left, AlertVolumeRecord right)
+            {
+                int timeComparison = right.TimestampUtc.CompareTo(left.TimestampUtc);
+                if (timeComparison != 0) return timeComparison;
+                int scoreComparison = right.Score.CompareTo(left.Score);
+                if (scoreComparison != 0) return scoreComparison;
+                return String.Compare(left.RuleId, right.RuleId, StringComparison.OrdinalIgnoreCase);
+            });
+
+            Console.WriteLine(title);
+            int limit = Math.Min(8, candidates.Count);
+            for (int index = 0; index < limit; index++)
+            {
+                AlertVolumeRecord record = candidates[index];
+                Console.WriteLine("  " + FormatRecordTime(record) +
+                    " score=" + record.Score.ToString(CultureInfo.InvariantCulture) +
+                    " rule=" + record.RuleId +
+                    " process=" + CompactForConsole(record.Process, 48) +
+                    " maintenance_context=" + (record.MaintenanceContext ? "true" : "false") +
+                    " title=" + CompactForConsole(record.Title, 96));
+            }
+
+            if (candidates.Count > limit)
+            {
+                Console.WriteLine("  ... " + (candidates.Count - limit).ToString(CultureInfo.InvariantCulture) + " more");
             }
 
             Console.WriteLine("");
@@ -327,6 +456,32 @@ namespace ArcaneEDR
         {
             return String.IsNullOrWhiteSpace(value) ? "unknown" : value;
         }
+
+        private static string FormatRecordTime(AlertVolumeRecord record)
+        {
+            if (record != null && !String.IsNullOrWhiteSpace(record.SystemLocalTime))
+            {
+                return CompactForConsole(record.SystemLocalTime, 64);
+            }
+
+            if (record == null) return "unknown-time";
+            return record.TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
+        }
+
+        private static string CompactForConsole(string value, int maxLength)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return "unknown";
+
+            string compact = value.Replace("\r", " ").Replace("\n", " ").Replace("\t", " ").Trim();
+            while (compact.IndexOf("  ", StringComparison.Ordinal) >= 0)
+            {
+                compact = compact.Replace("  ", " ");
+            }
+
+            if (compact.Length <= maxLength) return compact;
+            if (maxLength <= 3) return compact.Substring(0, maxLength);
+            return compact.Substring(0, maxLength - 3) + "...";
+        }
     }
 
     internal sealed class AlertVolumeRecord
@@ -338,8 +493,10 @@ namespace ArcaneEDR
         public int Score;
         public string Title;
         public string Process;
+        public string SystemLocalTime;
         public bool MaintenanceContext;
         public bool ExternalQualified;
+        public bool BaselineOffExternalQualified;
     }
 
     internal sealed class AlertVolumeBucket
@@ -348,6 +505,7 @@ namespace ArcaneEDR
         public int Count;
         public int MaxScore;
         public int ExternalQualified;
+        public int BaselineOffExternalQualified;
         public int MaintenanceContext;
     }
 }

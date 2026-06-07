@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 
 namespace ArcaneEDR
 {
@@ -30,10 +31,11 @@ namespace ArcaneEDR
                 return BuildDailyReportHtml(alert);
             }
 
-            return "<html><body>" +
+            return "<html><body style=\"margin:0;padding:16px;font-family:Arial,sans-serif;line-height:1.45;word-break:break-word;overflow-wrap:anywhere;\">" +
                 "<h2>" + HtmlEscape(alert.Title) + "</h2>" +
                 "<p><strong>Rule:</strong> " + HtmlEscape(alert.RuleId) + "</p>" +
                 "<p><strong>Category:</strong> " + HtmlEscape(AlertRulePolicy.AlertCategory(alert)) + "</p>" +
+                "<p><strong>Source:</strong> " + HtmlEscape(BuildSourceSummary(alert)) + "</p>" +
                 "<p><strong>Maintenance Context:</strong> " + (alert.MaintenanceContext ? "true" : "false") + "</p>" +
                 "<p><strong>Severity:</strong> " + HtmlEscape(alert.Severity) + "</p>" +
                 "<p><strong>Score:</strong> " + alert.Score.ToString(CultureInfo.InvariantCulture) + "</p>" +
@@ -41,9 +43,9 @@ namespace ArcaneEDR
                 "<p><strong>System Local Time:</strong> " + HtmlEscape(alert.SystemLocalTime) + "</p>" +
                 BuildScoreContextHtml() +
                 BuildWhyHtml(alert) +
-                "<h3>Details</h3><pre>" + HtmlEscape(alert.Body) + "</pre>" +
-                "<h3>Recommendation</h3><pre>" + HtmlEscape(alert.Recommendation) + "</pre>" +
-                "<h3>Entity</h3><pre>" + HtmlEscape(alert.EntitySummary) + "</pre>" +
+                "<h3>Details</h3>" + BuildWrappedPreHtml(alert.Body) +
+                "<h3>Recommendation</h3>" + BuildWrappedPreHtml(alert.Recommendation) +
+                "<h3>Entity</h3>" + BuildWrappedPreHtml(alert.EntitySummary) +
                 "</body></html>";
         }
 
@@ -58,6 +60,7 @@ namespace ArcaneEDR
                 alert.Title + Environment.NewLine + Environment.NewLine +
                 "Rule: " + alert.RuleId + Environment.NewLine +
                 "Category: " + AlertRulePolicy.AlertCategory(alert) + Environment.NewLine +
+                "Source: " + BuildSourceSummary(alert) + Environment.NewLine +
                 "MaintenanceContext: " + alert.MaintenanceContext + Environment.NewLine +
                 "Severity: " + alert.Severity + Environment.NewLine +
                 "Score: " + alert.Score.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +
@@ -111,6 +114,126 @@ namespace ArcaneEDR
         private static bool IsServiceLifecycleAlert(string ruleId)
         {
             return AlertRuleCatalog.IsServiceLifecycleAlert(ruleId);
+        }
+
+        private static string BuildWrappedPreHtml(string value)
+        {
+            return "<pre style=\"white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;max-width:100%;font-family:Consolas,Monaco,monospace;font-size:13px;line-height:1.4;border:1px solid #999;padding:8px;margin:6px 0 14px 0;\">" +
+                HtmlEscape(value) + "</pre>";
+        }
+
+        private static string BuildSourceSummary(Alert alert)
+        {
+            if (alert == null) return "n/a";
+
+            string entity = NullToEmpty(alert.EntitySummary);
+            List<string> parts = new List<string>();
+
+            string process = FirstNonEmpty(
+                ExtractEntityToken(entity, "process"),
+                FirstNonEmpty(
+                    FileNameOrValue(ExtractEntityToken(entity, "image")),
+                    FirstNonEmpty(
+                        FileNameOrValue(ExtractEntityToken(entity, "process_path")),
+                        FileNameOrValue(ExtractEntityToken(entity, "host_application")))));
+            AddSummaryPart(parts, "process", process);
+
+            string telemetry = FirstNonEmpty(
+                ExtractEntityToken(entity, "source"),
+                InferTelemetrySource(alert));
+            AddSummaryPart(parts, "telemetry", telemetry);
+
+            AddSummaryPart(parts, "parent", ExtractEntityToken(entity, "parent"));
+            AddSummaryPart(parts, "user", FirstNonEmpty(ExtractEntityToken(entity, "process_user"), ExtractEntityToken(entity, "user")));
+            AddSummaryPart(parts, "local", ExtractEntityToken(entity, "local"));
+            AddSummaryPart(parts, "remote", ExtractEntityToken(entity, "remote"));
+            AddSummaryPart(parts, "target", Compact(ExtractEntityToken(entity, "target"), 120));
+            AddSummaryPart(parts, "item", Compact(FirstNonEmpty(ExtractEntityToken(entity, "name"), ExtractEntityToken(entity, "path")), 120));
+            AddSummaryPart(parts, "service", ExtractEntityToken(entity, "service"));
+
+            return parts.Count == 0 ? "n/a" : String.Join("; ", parts.ToArray());
+        }
+
+        private static void AddSummaryPart(List<string> parts, string label, string value)
+        {
+            if (parts == null || String.IsNullOrWhiteSpace(label) || String.IsNullOrWhiteSpace(value)) return;
+
+            string clean = value.Trim();
+            if (clean.Equals("unknown", StringComparison.OrdinalIgnoreCase) ||
+                clean.Equals("n/a", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            parts.Add(label + "=" + clean);
+        }
+
+        private static string InferTelemetrySource(Alert alert)
+        {
+            string ruleId = alert == null ? "" : NullToEmpty(alert.RuleId);
+            string category = alert == null ? "" : AlertRulePolicy.AlertCategory(alert);
+            string body = alert == null ? "" : NullToEmpty(alert.Body);
+
+            if (StartsWith(ruleId, "NET-")) return "network";
+            if (StartsWith(ruleId, "DNS-")) return "dns";
+            if (StartsWith(ruleId, "PS-")) return "powershell";
+            if (StartsWith(ruleId, "AUTH-")) return "windows-event-log";
+            if (StartsWith(ruleId, "PERSIST-")) return "persistence";
+            if (StartsWith(ruleId, "FILE-")) return "sysmon-file";
+            if (StartsWith(ruleId, "PROC-")) return "process";
+            if (StartsWith(ruleId, "SERVICE-") || StartsWith(ruleId, "APP-")) return "arcane-service";
+            if (category.Equals("PowerShell", StringComparison.OrdinalIgnoreCase) || body.StartsWith("PowerShell:", StringComparison.OrdinalIgnoreCase)) return "powershell";
+            if (category.Equals("Network", StringComparison.OrdinalIgnoreCase)) return "network";
+            if (category.Equals("Auth", StringComparison.OrdinalIgnoreCase) || body.StartsWith("WindowsEvent:", StringComparison.OrdinalIgnoreCase)) return "windows-event-log";
+            if (category.Equals("Persistence", StringComparison.OrdinalIgnoreCase) || body.StartsWith("Persistence:", StringComparison.OrdinalIgnoreCase)) return "persistence";
+            if (category.Equals("File", StringComparison.OrdinalIgnoreCase) || body.StartsWith("FileEvent:", StringComparison.OrdinalIgnoreCase)) return "sysmon-file";
+
+            return "";
+        }
+
+        private static string ExtractEntityToken(string entity, string key)
+        {
+            if (String.IsNullOrWhiteSpace(entity) || String.IsNullOrWhiteSpace(key)) return "";
+
+            string prefix = key + "=";
+            int index = entity.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+            while (index > 0 && !Char.IsWhiteSpace(entity[index - 1]))
+            {
+                index = entity.IndexOf(prefix, index + prefix.Length, StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (index < 0) return "";
+
+            int start = index + prefix.Length;
+            int end = entity.IndexOf(' ', start);
+            if (end < 0) end = entity.Length;
+            return entity.Substring(start, end - start).Trim().Trim('"');
+        }
+
+        private static string FileNameOrValue(string value)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return "";
+
+            try
+            {
+                string fileName = Path.GetFileName(value);
+                if (!String.IsNullOrWhiteSpace(fileName)) return fileName;
+            }
+            catch
+            {
+            }
+
+            return value;
+        }
+
+        private static string FirstNonEmpty(string first, string second)
+        {
+            return !String.IsNullOrWhiteSpace(first) ? first : second;
+        }
+
+        private static bool StartsWith(string value, string prefix)
+        {
+            return value != null && value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsDailySummary(string ruleId)

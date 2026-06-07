@@ -7,6 +7,7 @@ namespace ArcaneEDR
     internal static class CommandLineRules
     {
         private static readonly Regex Base64Candidate = new Regex(@"[A-Za-z0-9+/]{80,}={0,2}", RegexOptions.Compiled);
+        private static readonly Regex EncodedCommandSwitch = new Regex(@"(^|[\s""'`;])(?:-|/)(?:encodedcommand|enc)(?=$|[\s:=])", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         public static EncodedCommandFinding FindEncodedCommand(string commandLine, MonitorConfig config)
         {
@@ -42,9 +43,7 @@ namespace ArcaneEDR
 
         private static bool ContainsEncodedSwitch(string commandLine)
         {
-            return commandLine.IndexOf("-enc", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                commandLine.IndexOf("-encodedcommand", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                commandLine.IndexOf("/encodedcommand", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            return EncodedCommandSwitch.IsMatch(commandLine) ||
                 commandLine.IndexOf("frombase64string", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 

@@ -9,6 +9,7 @@ what telemetry is required, common false positives, and safe ways to test.
 Rule IDs include `NET-EGRESS-*`, `NET-LISTEN-*`, `NET-INBOUND-*`,
 `NET-C2-BEACON-PATTERN`, `NET-BEACON-TIMING-LOW-RISK`,
 `NET-DIRECT-IP-WEB-EGRESS`, `NET-DIRECT-IP-WEB-EGRESS-SIGNED`,
+`NET-EGRESS-TRUSTED-ALT-WEB-PORT`,
 `NET-LAN-INBOUND-LATERAL-PORT`, `NET-LAN-EGRESS-LATERAL-PORT`,
 `NET-LATERAL-PORT`, and `NET-DNS-UNAUTHORIZED-RESOLVER`.
 
@@ -26,9 +27,11 @@ Rule IDs include `NET-EGRESS-*`, `NET-LISTEN-*`, `NET-INBOUND-*`,
   reduced when the process is signed, expected, on a normal web port, outside
   user-writable paths, and lacks paired high-risk context such as suspicious
   command lines, LOLBins, RMM tools, persistence, risky ports, dynamic DNS, DoH
-  bypass, blocked indicators, or suspicious parentage. The events remain logged
-  locally as `NET-BEACON-TIMING-LOW-RISK` or
-  `NET-DIRECT-IP-WEB-EGRESS-SIGNED`.
+  bypass, blocked indicators, or suspicious parentage. Trusted signed processes
+  using common alternate web/proxy ports such as `8080` or `8443` are also
+  reduced to local context. The events remain logged locally as
+  `NET-BEACON-TIMING-LOW-RISK`, `NET-DIRECT-IP-WEB-EGRESS-SIGNED`, or
+  `NET-EGRESS-TRUSTED-ALT-WEB-PORT`.
 - Duplicate reduction: the generic `NET-EGRESS-NEW-UNTRUSTED` context is not
   emitted when a more specific endpoint finding already explains the same
   connection, such as direct-IP web egress, DoH bypass, LOLBin/RMM egress,
@@ -73,6 +76,13 @@ Rule IDs include `PS-*`, `PROC-ENCODED-CLI`, `AUDIT-PROC-ENCODED-CLI`, and
 - App inventory carveout: `PS-ENCODED-APP-INVENTORY` records encoded
   Start-app/process/UserAssist inventory as medium severity instead of the
   critical generic encoded-command rule.
+- Encoded switch precision: ordinary PowerShell parameters such as
+  `-Encoding` and .NET `System.Text.Encoding` references are not treated as
+  encoded-command execution; the encoded-command switch matcher looks for
+  bounded `-enc`, `-EncodedCommand`, or `/EncodedCommand` forms.
+- Release packaging scaffolding: Arcane's own package-release compression
+  assembly loading is ignored as benign PowerShell scaffolding, while unrelated
+  download, encoded, persistence, or tamper patterns remain alertable.
 - Tuning knobs: `DetectEncodedCommandLines`, `EncodedCommandMinimumLength`, and
   `SuspiciousCommandLineTerms`.
 - Safe test: `scripts\simulate-detection.cmd -Scenario EncodedPowerShell`.
@@ -267,5 +277,5 @@ Rule IDs include `SERVICE-*`, `APP-*`, and `OPENAI-*`.
   --test-openai-analysis` if configured.
 - Expected alert shape: `why` explains service lifecycle, integrity, compact AI
   analysis context, or daily report generation. Daily reports use a dedicated
-  report layout with a near-top critical-threat callout rather than the generic
-  alert email template.
+  report layout with near-top critical-priority local signal callouts rather
+  than the generic alert email template.

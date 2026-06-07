@@ -372,12 +372,20 @@ namespace ArcaneEDR
             }
             else if (riskyRemotePort)
             {
+                bool trustedAlternateWebPort = trustedProcess &&
+                    IsCommonAlternateWebPort(endpoint.RemotePort) &&
+                    IsSignedNonUserWritableProcess(endpoint);
+
                 alerts.Add(Alert.FromEndpoint(
-                    "NET-EGRESS-HIGH-RISK-PORT",
-                    "Outbound connection to high-risk port",
-                    85,
-                    "Process connected to a remote port commonly associated with shells, proxies, tunnels, IRC, or C2 infrastructure.",
-                    "Investigate the process and destination. Consider blocking this egress path at the firewall.",
+                    trustedAlternateWebPort ? "NET-EGRESS-TRUSTED-ALT-WEB-PORT" : "NET-EGRESS-HIGH-RISK-PORT",
+                    trustedAlternateWebPort ? "Trusted process used alternate web/proxy port" : "Outbound connection to high-risk port",
+                    trustedAlternateWebPort ? 55 : 85,
+                    trustedAlternateWebPort
+                        ? "Trusted signed process connected externally on a common alternate web/proxy port that is also in the high-risk remote-port list."
+                        : "Process connected to a remote port commonly associated with shells, proxies, tunnels, IRC, or C2 infrastructure.",
+                    trustedAlternateWebPort
+                        ? "Keep as local context unless paired with suspicious process lineage, direct execution, persistence, PowerShell staging, or threat intelligence."
+                        : "Investigate the process and destination. Consider blocking this egress path at the firewall.",
                     endpoint));
             }
             else if (!trustedProcess && !ordinaryOutboundPort)
@@ -710,6 +718,11 @@ namespace ArcaneEDR
         private static bool IsOrdinaryWebPort(NetworkEndpoint endpoint)
         {
             return endpoint != null && (endpoint.RemotePort == 80 || endpoint.RemotePort == 443);
+        }
+
+        private static bool IsCommonAlternateWebPort(int port)
+        {
+            return port == 8080 || port == 8443;
         }
 
         private static string NormalizeDomain(string domain)

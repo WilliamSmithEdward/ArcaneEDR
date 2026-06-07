@@ -104,6 +104,8 @@ namespace ArcaneEDR
         public string SysmonEventLogName = "Microsoft-Windows-Sysmon/Operational";
         public int SysmonLookbackMinutes = 10;
         public int SysmonMaxEventsPerPoll = 200;
+        public bool PersistEventLogWatermarks = true;
+        public string EventLogWatermarkFile = "ArcaneEventLogWatermarks.tsv";
         public bool EnablePowerShellLogIngestion = true;
         public string PowerShellEventLogName = "Microsoft-Windows-PowerShell/Operational";
         public int PowerShellLookbackMinutes = 10;
@@ -227,6 +229,8 @@ namespace ArcaneEDR
             config.MaintenanceContextExternalAlertMinimumScore = ReadInt(values, "MaintenanceContextExternalAlertMinimumScore", config.MaintenanceContextExternalAlertMinimumScore);
             config.RequireExternalAlerting = ReadBool(values, "RequireExternalAlerting", ReadBool(values, "RequireEmailConfig", false));
             config.LogDirectory = ResolvePath(baseDirectory, ReadString(values, "LogDirectory", "logs"));
+            config.PersistEventLogWatermarks = ReadBool(values, "PersistEventLogWatermarks", config.PersistEventLogWatermarks);
+            config.EventLogWatermarkFile = ResolvePath(config.LogDirectory, ReadString(values, "EventLogWatermarkFile", config.EventLogWatermarkFile));
             config.ExternalAlertRetryEnabled = ReadBool(values, "ExternalAlertRetryEnabled", config.ExternalAlertRetryEnabled);
             config.ExternalAlertRetryIntervalSeconds = ReadInt(values, "ExternalAlertRetryIntervalSeconds", config.ExternalAlertRetryIntervalSeconds);
             config.ExternalAlertRetryMaxIntervalSeconds = ReadInt(values, "ExternalAlertRetryMaxIntervalSeconds", config.ExternalAlertRetryMaxIntervalSeconds);

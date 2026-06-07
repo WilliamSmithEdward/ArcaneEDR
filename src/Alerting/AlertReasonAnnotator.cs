@@ -138,6 +138,11 @@ namespace ArcaneEDR
                 alert.AddWhy("The remote port was outside the normal or trusted outbound profile.");
             }
 
+            if (EqualsRule(ruleId, "NET-EGRESS-TRUSTED-ALT-WEB-PORT"))
+            {
+                alert.AddWhy("A trusted signed process used a common alternate web/proxy port that is tracked as local context.");
+            }
+
             if (StartsWith(ruleId, "NET-LATERAL-") || StartsWith(ruleId, "NET-LAN-EGRESS-"))
             {
                 alert.AddWhy("An untrusted process connected to an internal administration or lateral-movement port.");

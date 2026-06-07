@@ -215,6 +215,16 @@ Get-Content C:\Security\ArcaneAlerts.jsonl -Tail 40
 C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --agent-activity --last 24h
 ```
 
+Use the `baseline_off_external` and
+`BaselineOffExternalQualifiedBeforeRateLimits` values from `--alert-volume` to
+estimate whether disabling `BaselineLearningMode` would create a notification
+flood before recommending that change. Also review the compact current and
+baseline-off external candidate examples; they show time, score, rule, process,
+maintenance context, and title without exposing raw entities, paths, command
+lines, IPs, users, or alert bodies. Service health, daily report, and OpenAI
+control notifications are direct notification-path records, so do not treat
+them as baseline-off detection flood.
+
 Tune the ignored local config first:
 
 - known agent process names and child shells
@@ -287,6 +297,9 @@ volume.
 For daily reports:
 
 - Put the high-level determination near the top.
+- Keep the high-level determination, compromise assessment, recommended next
+  step, and critical callouts deterministic from local telemetry. OpenAI output
+  belongs in a clearly labeled secondary review section.
 - Keep critical callouts concise, but include process/source context when
   available.
 - Treat volume as context, not proof.
@@ -305,6 +318,10 @@ For local tuning decisions:
 - Revisit a tuning decision when new evidence appears over the next few days.
 - Document whether the change is host-specific local context or a general
   product improvement candidate.
+- Check `PersistEventLogWatermarks` and `EventLogWatermarkFile` before treating
+  repeated post-restart PowerShell, Windows, or Sysmon alerts as new activity.
+  Restart replay should be fixed at the watermark/state layer; real new records
+  still need normal review.
 
 Examples of local evidence that may inform config or docs, not source-level
 hard-coding:

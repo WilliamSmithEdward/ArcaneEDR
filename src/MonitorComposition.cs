@@ -7,12 +7,13 @@ namespace ArcaneEDR
             MonitorConfig config = MonitorConfig.Load(baseDirectory);
             FileLogger logger = new FileLogger(config.LogDirectory, config.MaxLogFileBytes);
             IProcessEnricher processEnricher = new WmiProcessEnricher(logger);
+            EventLogWatermarkStore eventLogWatermarkStore = new EventLogWatermarkStore(config, logger);
             INetworkSnapshotCollector netstatCollector = new NetstatNetworkSnapshotCollector(logger, processEnricher);
-            ISysmonEventCollector sysmonCollector = new SysmonEventCollector(config, logger, processEnricher);
+            ISysmonEventCollector sysmonCollector = new SysmonEventCollector(config, logger, processEnricher, eventLogWatermarkStore);
             IHostTelemetryCollector hostTelemetryCollector = new CompositeHostTelemetryCollector(new IHostTelemetryCollector[]
             {
-                new PowerShellEventCollector(config, logger, processEnricher),
-                new WindowsEventCollector(config, logger),
+                new PowerShellEventCollector(config, logger, processEnricher, eventLogWatermarkStore),
+                new WindowsEventCollector(config, logger, eventLogWatermarkStore),
                 new PersistenceInventoryCollector(config, logger)
             });
             INetworkSnapshotCollector collector = new CompositeNetworkSnapshotCollector(netstatCollector, sysmonCollector, hostTelemetryCollector);

@@ -9,13 +9,16 @@ namespace ArcaneEDR
     {
         private readonly MonitorConfig config;
         private readonly FileLogger logger;
+        private readonly EventLogWatermarkStore watermarks;
         private readonly Dictionary<string, long> lastRecordIds = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, DateTime> lastRecordTimestampUtc = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> warnedLogs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        public WindowsEventCollector(MonitorConfig config, FileLogger logger)
+        public WindowsEventCollector(MonitorConfig config, FileLogger logger, EventLogWatermarkStore watermarks)
         {
             this.config = config;
             this.logger = logger;
+            this.watermarks = watermarks;
         }
 
         public HostTelemetry Capture()
@@ -39,21 +42,35 @@ namespace ArcaneEDR
                 using (EventLogReader reader = new EventLogReader(eventQuery))
                 {
                     int count = 0;
+                    bool advanced = false;
                     EventRecord record;
                     while ((record = reader.ReadEvent()) != null)
                     {
                         using (record)
                         {
                             long last = GetLastRecordId(logName);
-                            if (record.RecordId.HasValue && record.RecordId.Value <= last)
+                            long recordId = record.RecordId.HasValue ? record.RecordId.Value : 0;
+                            DateTime recordTimestampUtc = record.TimeCreated.HasValue ? record.TimeCreated.Value.ToUniversalTime() : DateTime.MinValue;
+                            if (recordId > 0 && recordId <= last)
                             {
-                                continue;
+                                if (IsLikelyLogReset(logName, recordId, recordTimestampUtc))
+                                {
+                                    lastRecordIds[logName] = 0;
+                                    lastRecordTimestampUtc[logName] = DateTime.MinValue;
+                                    last = 0;
+                                }
+                                else
+                                {
+                                    continue;
+                                }
                             }
 
                             telemetry.WindowsEvents.Add(ParseRecord(logName, record));
-                            if (record.RecordId.HasValue && record.RecordId.Value > last)
+                            if (recordId > last)
                             {
-                                lastRecordIds[logName] = record.RecordId.Value;
+                                lastRecordIds[logName] = recordId;
+                                lastRecordTimestampUtc[logName] = recordTimestampUtc == DateTime.MinValue ? DateTime.UtcNow : recordTimestampUtc;
+                                advanced = true;
                             }
 
                             count++;
@@ -62,6 +79,11 @@ namespace ArcaneEDR
                                 break;
                             }
                         }
+                    }
+
+                    if (advanced && watermarks != null)
+                    {
+                        watermarks.Mark(logName, GetLastRecordId(logName), GetLastRecordTimestampUtc(logName));
                     }
                 }
             }
@@ -91,8 +113,37 @@ namespace ArcaneEDR
 
         private long GetLastRecordId(string logName)
         {
+            EnsureWatermarkLoaded(logName);
             long value;
             return lastRecordIds.TryGetValue(logName, out value) ? value : 0;
+        }
+
+        private DateTime GetLastRecordTimestampUtc(string logName)
+        {
+            EnsureWatermarkLoaded(logName);
+            DateTime value;
+            return lastRecordTimestampUtc.TryGetValue(logName, out value) ? value : DateTime.MinValue;
+        }
+
+        private void EnsureWatermarkLoaded(string logName)
+        {
+            if (lastRecordIds.ContainsKey(logName)) return;
+
+            EventLogWatermark watermark = watermarks == null ? null : watermarks.Get(logName);
+            lastRecordIds[logName] = watermark == null ? 0 : watermark.RecordId;
+            lastRecordTimestampUtc[logName] = watermark == null ? DateTime.MinValue : watermark.TimestampUtc;
+        }
+
+        private bool IsLikelyLogReset(string logName, long recordId, DateTime recordTimestampUtc)
+        {
+            long last = GetLastRecordId(logName);
+            DateTime lastTimestampUtc = GetLastRecordTimestampUtc(logName);
+            return last > 0 &&
+                recordId > 0 &&
+                recordId <= last &&
+                lastTimestampUtc != DateTime.MinValue &&
+                recordTimestampUtc != DateTime.MinValue &&
+                recordTimestampUtc > lastTimestampUtc.AddMinutes(1.0);
         }
 
         private static WindowsAuditEvent ParseRecord(string logName, EventRecord record)

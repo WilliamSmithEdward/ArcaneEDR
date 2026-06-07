@@ -50,7 +50,8 @@ namespace ArcaneEDR
                 if (!state.MarkEventSeen("powershell|" + ev.CooldownKey)) continue;
 
                 string text = ev.SearchText;
-                if (IsPowerShellCmdletizationScaffolding(text))
+                if (IsPowerShellCmdletizationScaffolding(text) ||
+                    IsPowerShellReleasePackagingScaffolding(text))
                 {
                     continue;
                 }
@@ -835,6 +836,15 @@ namespace ArcaneEDR
                     "NewTriggerBy",
                     "GetScheduledTask",
                     "ScheduledTasks");
+        }
+
+        private static bool IsPowerShellReleasePackagingScaffolding(string text)
+        {
+            if (String.IsNullOrWhiteSpace(text)) return false;
+
+            return ContainsAny(text, "package-release.ps1") &&
+                ContainsAny(text, "CommandInvocation(Add-Type)", "ParameterBinding(Add-Type)") &&
+                ContainsAny(text, "System.IO.Compression", "System.IO.Compression.FileSystem");
         }
 
         private static bool IsPowerShellAppInventoryEnumeration(string text)

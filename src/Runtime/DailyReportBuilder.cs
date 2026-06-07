@@ -69,9 +69,9 @@ namespace ArcaneEDR
             builder.AppendLine("omitted_fields=alert_body,entity,command_line,script_block,user,path,ip,url,email,secrets");
             builder.AppendLine("analysis_guardrails=do_not_treat_alert_volume_alone_as_compromise;weigh_baseline_learning_maintenance_automation_context_and_telemetry_gaps;state_uncertainty_when_source_context_is_missing");
             builder.AppendLine("recipient_question=is_compromise_confirmed_or_review_required");
-            builder.AppendLine("report_verdict=" + SanitizeToken(BuildOperatorVerdict(snapshot, metrics, null, "")));
-            builder.AppendLine("compromise_assessment=" + SanitizeText(BuildCompromiseAssessment(snapshot, metrics, null, "")));
-            builder.AppendLine("confidence=" + SanitizeToken(BuildConfidence(snapshot, metrics, null, "")));
+            builder.AppendLine("report_verdict=" + SanitizeToken(BuildOperatorVerdict(snapshot, metrics)));
+            builder.AppendLine("compromise_assessment=" + SanitizeText(BuildCompromiseAssessment(snapshot, metrics)));
+            builder.AppendLine("confidence=" + SanitizeToken(BuildConfidence(snapshot)));
             builder.AppendLine("analyzed_window_system_time=" + SanitizeText(FormatSystemLocalTime(snapshot.WindowStartUtc) + " to " + FormatSystemLocalTime(snapshot.GeneratedUtc)));
             builder.AppendLine("generated_system_time=" + SanitizeText(FormatSystemLocalTime(snapshot.GeneratedUtc)));
             builder.AppendLine("analyzed_window_utc=" + Format(snapshot.WindowStartUtc) + " to " + Format(snapshot.GeneratedUtc));
@@ -83,11 +83,11 @@ namespace ArcaneEDR
         {
             StringBuilder builder = new StringBuilder();
             DailyReportMetrics metrics = CalculateMetrics(snapshot);
-            AppendQuickVerdict(builder, snapshot, aiResult, aiStatus, metrics);
+            AppendQuickVerdict(builder, snapshot, metrics);
             builder.AppendLine();
 
             builder.AppendLine("## Critical Callouts");
-            AppendCriticalCallouts(builder, snapshot, aiResult, aiStatus, metrics);
+            AppendCriticalCallouts(builder, snapshot, metrics);
             builder.AppendLine();
 
             AppendCoreReport(builder, snapshot, true, metrics);
@@ -96,6 +96,7 @@ namespace ArcaneEDR
             builder.AppendLine("| Field | Value |");
             builder.AppendLine("| --- | --- |");
             builder.AppendLine("| Status | " + TableCell(Safe(aiStatus)) + " |");
+            builder.AppendLine("| Scope | Secondary redacted aggregate review only; the report determination and critical callouts are deterministic local telemetry. |");
             if (aiResult != null)
             {
                 builder.AppendLine("| Flagged for review | " + (aiResult.Alertable ? "Yes" : "No") + " |");
@@ -115,43 +116,30 @@ namespace ArcaneEDR
             return builder.ToString();
         }
 
-        private void AppendQuickVerdict(StringBuilder builder, DailyReportSnapshot snapshot, OpenAiAnalysisResult aiResult, string aiStatus, DailyReportMetrics metrics)
+        private void AppendQuickVerdict(StringBuilder builder, DailyReportSnapshot snapshot, DailyReportMetrics metrics)
         {
             builder.AppendLine("| Field | Value |");
             builder.AppendLine("| --- | --- |");
-            builder.AppendLine("| Determination | " + TableCell(BuildOperatorVerdict(snapshot, metrics, aiResult, aiStatus)) + " |");
-            builder.AppendLine("| Compromise assessment | " + TableCell(BuildCompromiseAssessment(snapshot, metrics, aiResult, aiStatus)) + " |");
-            builder.AppendLine("| Confidence | " + TableCell(BuildConfidence(snapshot, metrics, aiResult, aiStatus)) + " |");
+            builder.AppendLine("| Determination | " + TableCell(BuildOperatorVerdict(snapshot, metrics)) + " |");
+            builder.AppendLine("| Compromise assessment | " + TableCell(BuildCompromiseAssessment(snapshot, metrics)) + " |");
+            builder.AppendLine("| Confidence | " + TableCell(BuildConfidence(snapshot)) + " |");
             builder.AppendLine("| Analyzed window (system time) | " + TableCell(FormatSystemLocalTime(snapshot.WindowStartUtc) + " to " + FormatSystemLocalTime(snapshot.GeneratedUtc)) + " |");
             builder.AppendLine("| Generated (system time) | " + TableCell(FormatSystemLocalTime(snapshot.GeneratedUtc)) + " |");
-            builder.AppendLine("| Basis | " + TableCell(BuildVerdictReason(snapshot, metrics, aiResult, aiStatus)) + " |");
-            builder.AppendLine("| Recommended next step | " + TableCell(BuildNextAction(metrics, aiResult)) + " |");
+            builder.AppendLine("| Basis | " + TableCell(BuildVerdictReason(snapshot, metrics)) + " |");
+            builder.AppendLine("| Recommended next step | " + TableCell(BuildNextAction(metrics)) + " |");
         }
 
-        private void AppendCriticalCallouts(StringBuilder builder, DailyReportSnapshot snapshot, OpenAiAnalysisResult aiResult, string aiStatus, DailyReportMetrics metrics)
+        private void AppendCriticalCallouts(StringBuilder builder, DailyReportSnapshot snapshot, DailyReportMetrics metrics)
         {
             List<DailySignalSummary> critical = BuildHighSignalSummaries(snapshot.Alerts, 90);
-            if (critical.Count == 0 && (aiResult == null || !aiResult.Alertable || aiResult.Score < 90))
+            if (critical.Count == 0)
             {
-                builder.AppendLine("No critical threats were identified in the last 24 hours.");
-                if (!String.IsNullOrWhiteSpace(aiStatus) && !aiStatus.Equals("completed", StringComparison.OrdinalIgnoreCase))
-                {
-                    builder.AppendLine("OpenAI daily analysis status: " + Safe(aiStatus));
-                }
-
+                builder.AppendLine("No critical-priority local signals were identified in the last 24 hours.");
                 return;
             }
 
             builder.AppendLine("| Source / latest local time | Signal | Process / source | Count | Score | Assessment |");
             builder.AppendLine("| --- | --- | --- | --- | --- | --- |");
-            if (aiResult != null && aiResult.Alertable && aiResult.Score >= 90)
-            {
-                builder.AppendLine("| OpenAI | " + TableCell(Safe(aiResult.Title)) + " | " +
-                    "n/a | " +
-                    "1 | " +
-                    aiResult.Score.ToString(CultureInfo.InvariantCulture) + " | " +
-                    TableCell(Safe(aiResult.RecommendedAction)) + " |");
-            }
 
             int limit = Math.Min(5, critical.Count);
             for (int index = 0; index < limit; index++)
@@ -169,7 +157,7 @@ namespace ArcaneEDR
             {
                 builder.AppendLine();
                 builder.AppendLine((critical.Count - limit).ToString(CultureInfo.InvariantCulture) +
-                    " additional critical alert(s) are summarized in the detail tables below.");
+                    " additional critical-priority signal group(s) are summarized in the detail tables below.");
             }
         }
 
@@ -184,7 +172,7 @@ namespace ArcaneEDR
                 builder.AppendLine("| Item | Value |");
                 builder.AppendLine("| --- | --- |");
                 builder.AppendLine("| 24h alerts | " + metrics.WindowAlerts.ToString(CultureInfo.InvariantCulture) + " |");
-                builder.AppendLine("| Critical / high | " + metrics.CriticalCount.ToString(CultureInfo.InvariantCulture) + " critical, " + metrics.HighCount.ToString(CultureInfo.InvariantCulture) + " high |");
+                builder.AppendLine("| Critical / high priority | " + metrics.CriticalCount.ToString(CultureInfo.InvariantCulture) + " critical-priority, " + metrics.HighCount.ToString(CultureInfo.InvariantCulture) + " high-priority |");
                 builder.AppendLine("| External-qualified before rate limits | " + metrics.ExternalQualified.ToString(CultureInfo.InvariantCulture) + " |");
                 builder.AppendLine("| Health | " + TableCell(BuildHealthRead(snapshot)) + " |");
                 builder.AppendLine("| Baseline learning | " + (snapshot.BaselineLearningMode ? "On" : "Off") + " |");
@@ -524,19 +512,19 @@ namespace ArcaneEDR
             builder.AppendLine("| File categories | " + TableCell(JoinBucketSummary(BuildAgentBuckets(agentActivities, "file"), 3)) + " |");
         }
 
-        private string BuildCompromiseAssessment(DailyReportSnapshot snapshot, DailyReportMetrics metrics, OpenAiAnalysisResult aiResult, string aiStatus)
+        private string BuildCompromiseAssessment(DailyReportSnapshot snapshot, DailyReportMetrics metrics)
         {
             if (snapshot.CurrentRunPollFailures > 0)
             {
                 return "Unknown from this report because current telemetry has gaps; no confirmed compromise from available data.";
             }
 
-            if (metrics.CriticalCount > 0 || (aiResult != null && aiResult.Alertable && aiResult.Score >= 90))
+            if (metrics.CriticalCount > 0)
             {
                 return "No confirmed compromise; high-signal alerts require review before closing the assessment.";
             }
 
-            if (metrics.HighCount > 0 || (aiResult != null && aiResult.Alertable))
+            if (metrics.HighCount > 0)
             {
                 return "No confirmed compromise; review recommended for selected high-signal activity.";
             }
@@ -544,16 +532,16 @@ namespace ArcaneEDR
             return "No confirmed compromise from the last 24 hours of Arcane telemetry.";
         }
 
-        private string BuildOperatorVerdict(DailyReportSnapshot snapshot, DailyReportMetrics metrics, OpenAiAnalysisResult aiResult, string aiStatus)
+        private string BuildOperatorVerdict(DailyReportSnapshot snapshot, DailyReportMetrics metrics)
         {
             if (snapshot.CurrentRunPollFailures > 0) return "Telemetry gap - review collector health";
-            if (metrics.CriticalCount > 0 || (aiResult != null && aiResult.Alertable && aiResult.Score >= 90)) return "Review required";
-            if (metrics.HighCount > 0 || (aiResult != null && aiResult.Alertable)) return "Review recommended";
+            if (metrics.CriticalCount > 0) return "Review required";
+            if (metrics.HighCount > 0) return "Review recommended";
             if (metrics.WindowAlerts == 0) return "Quiet";
             return "No immediate findings";
         }
 
-        private string BuildConfidence(DailyReportSnapshot snapshot, DailyReportMetrics metrics, OpenAiAnalysisResult aiResult, string aiStatus)
+        private string BuildConfidence(DailyReportSnapshot snapshot)
         {
             if (snapshot.CurrentRunPollFailures > 0 || snapshot.TotalPollFailures > 0)
             {
@@ -565,45 +553,24 @@ namespace ArcaneEDR
                 return "Moderate-low because baseline learning mode is enabled.";
             }
 
-            if (String.IsNullOrWhiteSpace(aiStatus) || !aiStatus.Equals("completed", StringComparison.OrdinalIgnoreCase))
-            {
-                return "Moderate because OpenAI daily review was not completed.";
-            }
-
-            if (metrics.CriticalCount == 0 && metrics.HighCount == 0)
-            {
-                return "Moderate-high for the available telemetry.";
-            }
-
-            return "Moderate because high-signal alerts require source-event review.";
+            return "Moderate-high for the available telemetry.";
         }
 
-        private string BuildVerdictReason(DailyReportSnapshot snapshot, DailyReportMetrics metrics, OpenAiAnalysisResult aiResult, string aiStatus)
+        private string BuildVerdictReason(DailyReportSnapshot snapshot, DailyReportMetrics metrics)
         {
-            string reason = metrics.CriticalCount.ToString(CultureInfo.InvariantCulture) + " critical, " +
-                metrics.HighCount.ToString(CultureInfo.InvariantCulture) + " high, " +
+            string reason = metrics.CriticalCount.ToString(CultureInfo.InvariantCulture) + " critical-priority, " +
+                metrics.HighCount.ToString(CultureInfo.InvariantCulture) + " high-priority, " +
                 metrics.ExternalQualified.ToString(CultureInfo.InvariantCulture) + " external-qualified alert(s).";
             if (snapshot.BaselineLearningMode)
             {
                 reason += " Baseline learning is enabled, so repeated volume is treated as context rather than evidence by itself.";
             }
 
-            if (aiResult != null)
-            {
-                reason += " OpenAI review: " + (aiResult.Alertable ? "flagged for review" : "not flagged") +
-                    " at score " + aiResult.Score.ToString(CultureInfo.InvariantCulture) + ".";
-            }
-
             return reason;
         }
 
-        private string BuildNextAction(DailyReportMetrics metrics, OpenAiAnalysisResult aiResult)
+        private string BuildNextAction(DailyReportMetrics metrics)
         {
-            if (aiResult != null && aiResult.Alertable && !String.IsNullOrWhiteSpace(aiResult.RecommendedAction))
-            {
-                return aiResult.RecommendedAction;
-            }
-
             if (metrics.CriticalCount > 0)
             {
                 return "Review the priority callouts first, especially process ancestry, command context, and network destination.";
@@ -646,7 +613,7 @@ namespace ArcaneEDR
             if (StartsWith(alert.RuleId, "NET-LAN-")) return "LAN lateral/admin-port pattern; verify peer host and process.";
             if (StartsWith(alert.RuleId, "FILE-")) return "High-risk file write or drop-execute pattern; verify writer and path.";
             if (StartsWith(alert.RuleId, "PERSIST-")) return "Persistence change; verify expected administrative or software activity.";
-            if (alert.Score >= 90) return "Critical local signal; inspect source-event context before declaring compromise.";
+            if (alert.Score >= 90) return "Critical-priority local signal; inspect source-event context before declaring compromise.";
             if (alert.Score >= 75) return "High signal; review source-event context.";
             return SanitizeText(alert.Title);
         }
