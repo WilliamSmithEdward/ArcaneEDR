@@ -329,7 +329,9 @@ Clean up the scheduled-task simulation artifact:
 ```
 
 These simulations are harmless, but they can generate real local alerts and
-external notifications when the service is running.
+external notifications when the service is running. The unexpected-listener
+simulation binds to localhost and should produce the lower-severity
+`NET-LISTEN-TCP-LOCALHOST-UNEXPECTED` shape in current builds.
 
 ## Alerting
 

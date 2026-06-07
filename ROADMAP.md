@@ -188,6 +188,9 @@ Progress:
 - Maintenance-context matches are labeled in alerts, logs, incidents, support
   bundles, and compact OpenAI metadata, while external delivery is dampened only
   below the configured maintenance threshold.
+- Split unexpected listener alerts into lower-severity localhost-only listener
+  rules and higher-severity reachable listener rules, and limited inbound
+  listener correlation to non-loopback TCP listeners.
 
 Exit criteria:
 

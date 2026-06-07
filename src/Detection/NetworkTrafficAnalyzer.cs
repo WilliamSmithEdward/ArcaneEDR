@@ -22,7 +22,7 @@ namespace ArcaneEDR
         {
             List<Alert> alerts = new List<Alert>();
             Dictionary<string, int> externalConnectionCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            HashSet<int> tcpListeningPorts = GetTcpListeningPorts(snapshot);
+            HashSet<int> externallyReachableTcpListeningPorts = GetExternallyReachableTcpListeningPorts(snapshot);
 
             AnalyzeProcessEvents(snapshot.ProcessEvents, alerts);
             AnalyzeDnsQueries(snapshot.DnsQueries, alerts);
@@ -46,7 +46,7 @@ namespace ArcaneEDR
                     continue;
                 }
 
-                AnalyzeTcpConnection(endpoint, tcpListeningPorts, externalConnectionCounts, timestampUtc, alerts);
+                AnalyzeTcpConnection(endpoint, externallyReachableTcpListeningPorts, externalConnectionCounts, timestampUtc, alerts);
             }
 
             AnalyzeConnectionBursts(externalConnectionCounts, alerts);
@@ -165,12 +165,12 @@ namespace ArcaneEDR
             }
         }
 
-        private static HashSet<int> GetTcpListeningPorts(NetworkSnapshot snapshot)
+        private static HashSet<int> GetExternallyReachableTcpListeningPorts(NetworkSnapshot snapshot)
         {
             HashSet<int> ports = new HashSet<int>();
             foreach (NetworkEndpoint endpoint in snapshot.Endpoints)
             {
-                if (endpoint.IsTcpListener)
+                if (endpoint.IsTcpListener && IsExternallyReachableListener(endpoint))
                 {
                     ports.Add(endpoint.LocalPort);
                 }
@@ -186,13 +186,26 @@ namespace ArcaneEDR
 
             if (!config.AllowedListeningPorts.Contains(endpoint.LocalPort))
             {
-                alerts.Add(Alert.FromEndpoint(
-                    "NET-LISTEN-TCP-UNEXPECTED",
-                    "Unexpected listening TCP port",
-                    70,
-                    "Process is listening on a TCP port that is not in the configured allowlist.",
-                    "Confirm whether this service is expected. If not, stop the process and preserve the log for investigation.",
-                    endpoint));
+                if (IsLoopbackOnlyListener(endpoint))
+                {
+                    alerts.Add(Alert.FromEndpoint(
+                        "NET-LISTEN-TCP-LOCALHOST-UNEXPECTED",
+                        "Unexpected localhost-only TCP listener",
+                        35,
+                        "Process is listening on a loopback-only TCP port that is not in the configured allowlist.",
+                        "Confirm whether this local-only listener is expected. It is less exposed than a wildcard or LAN-bound listener, but can still matter when paired with suspicious process activity.",
+                        endpoint));
+                }
+                else
+                {
+                    alerts.Add(Alert.FromEndpoint(
+                        "NET-LISTEN-TCP-UNEXPECTED",
+                        "Unexpected reachable TCP listener",
+                        70,
+                        "Process is listening on a TCP port that is not in the configured allowlist and is not loopback-only.",
+                        "Confirm whether this service is expected. If not, stop the process and preserve the log for investigation.",
+                        endpoint));
+                }
             }
         }
 
@@ -205,13 +218,26 @@ namespace ArcaneEDR
             bool dynamicTrustedSocket = trustedUdpProcess && endpoint.LocalPort >= 49152;
             if (!config.AllowedListeningPorts.Contains(endpoint.LocalPort) && !dynamicTrustedSocket)
             {
-                alerts.Add(Alert.FromEndpoint(
-                    "NET-LISTEN-UDP-UNEXPECTED",
-                    "Unexpected UDP socket",
-                    50,
-                    "Process has a UDP socket that is not in the configured allowlist.",
-                    "Validate whether this local UDP listener is required. Unexpected UDP sockets are common in discovery, tunneling, and local service abuse.",
-                    endpoint));
+                if (IsLoopbackOnlyListener(endpoint))
+                {
+                    alerts.Add(Alert.FromEndpoint(
+                        "NET-LISTEN-UDP-LOCALHOST-UNEXPECTED",
+                        "Unexpected localhost-only UDP socket",
+                        30,
+                        "Process has a loopback-only UDP socket that is not in the configured allowlist.",
+                        "Validate whether this local-only UDP socket is required. Treat it as higher priority if paired with suspicious process, DNS, or persistence alerts.",
+                        endpoint));
+                }
+                else
+                {
+                    alerts.Add(Alert.FromEndpoint(
+                        "NET-LISTEN-UDP-UNEXPECTED",
+                        "Unexpected UDP socket",
+                        50,
+                        "Process has a UDP socket that is not in the configured allowlist and is not loopback-only.",
+                        "Validate whether this local UDP listener is required. Unexpected UDP sockets are common in discovery, tunneling, and local service abuse.",
+                        endpoint));
+                }
             }
         }
 
@@ -530,6 +556,20 @@ namespace ArcaneEDR
             int value;
             counts.TryGetValue(key, out value);
             counts[key] = value + 1;
+        }
+
+        private static bool IsLoopbackOnlyListener(NetworkEndpoint endpoint)
+        {
+            return endpoint != null &&
+                endpoint.LocalAddress != null &&
+                IPAddress.IsLoopback(endpoint.LocalAddress);
+        }
+
+        private static bool IsExternallyReachableListener(NetworkEndpoint endpoint)
+        {
+            return endpoint != null &&
+                endpoint.IsTcpListener &&
+                !IsLoopbackOnlyListener(endpoint);
         }
 
         private bool ShouldAlertOnBaselineNovelty()

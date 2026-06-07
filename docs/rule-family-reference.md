@@ -10,9 +10,10 @@ Rule IDs include `NET-EGRESS-*`, `NET-LISTEN-*`, `NET-INBOUND-*`,
 `NET-C2-BEACON-PATTERN`, `NET-DIRECT-IP-WEB-EGRESS`, `NET-LATERAL-PORT`, and
 `NET-DNS-UNAUTHORIZED-RESOLVER`.
 
-- Detects: unexpected listeners, unusual outbound ports, direct-IP web egress,
-  high-risk ports, external inbound connections, connection bursts, beacon-like
-  timing, and unauthorized DNS resolver use.
+- Detects: unexpected listeners, localhost-only listener noise, unusual
+  outbound ports, direct-IP web egress, high-risk ports, external inbound
+  connections, connection bursts, beacon-like timing, and unauthorized DNS
+  resolver use.
 - Required telemetry: netstat collection, with richer process context when WMI
   enrichment and Sysmon are available.
 - Why it matters: RATs and loaders commonly need listener exposure, C2 egress,
@@ -24,8 +25,11 @@ Rule IDs include `NET-EGRESS-*`, `NET-LISTEN-*`, `NET-INBOUND-*`,
   `AllowedDnsResolvers`, `ConnectionBurstThreshold`, `BeaconMinimumSamples`,
   `BeaconMaxAverageIntervalSeconds`, and `BeaconMaxJitterRatio`.
 - Safe test: `scripts\simulate-detection.cmd -Scenario UnexpectedListener`.
-- Expected alert shape: `why` explains listener, egress, direct-IP, port, or
-  beacon conditions; entity includes process and endpoint context when known.
+  This opens a localhost-only TCP listener and should produce
+  `NET-LISTEN-TCP-LOCALHOST-UNEXPECTED`.
+- Expected alert shape: `why` explains listener, localhost-only listener,
+  egress, direct-IP, port, or beacon conditions; entity includes process and
+  endpoint context when known.
 
 ## PowerShell And Encoded Commands
 
