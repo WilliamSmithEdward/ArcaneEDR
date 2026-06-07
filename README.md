@@ -455,6 +455,30 @@ on new process/domain and process/destination pairs. During baseline learning,
 lower-confidence alerts are still logged locally but not emailed unless they
 meet `BaselineLearningEmailMinimumScore`.
 
+## Agent Profile
+
+Arcane EDR can label existing alerts that involve known unattended agent
+processes. This helps separate ordinary workstation activity from activity that
+was agent-launched or agent-adjacent.
+
+Example:
+
+```ini
+EnableAgentProfile=true
+AgentProcessNames=Codex.exe,codex.exe
+AgentChildProcessNames=powershell.exe,pwsh.exe,cmd.exe,git.exe,git-remote-https.exe,node.exe,npm.exe,npm.cmd,python.exe,pip.exe,curl.exe
+AgentWorkspaceRoots=C:\Development\
+AgentPublishRoots=C:\Applications\
+AgentPackageManagerProcesses=git.exe,git-remote-https.exe,node.exe,npm.exe,npm.cmd,python.exe,pip.exe,curl.exe
+AgentApprovedAdminTaskNames=\ArcaneEDR\PublishRestart,\ArcaneEDR\InstallService,\ArcaneEDR\ValidateAdmin
+AgentSecretIndicatorTerms=apikey,api_key,access_token,refresh_token,client_secret,private_key,id_rsa,.pem,.pfx,.env
+```
+
+When an alert matches the profile, Arcane appends an `AgentContext` line and an
+`agent_context=` entity field. This does not raise the score, bypass cooldowns,
+trigger response actions, or send email by itself. It is correlation context for
+the local log, external alert sinks, and later review.
+
 ## Custom Rules
 
 Custom rules are compact JSON objects with `source`, `score`, `contains_any`,

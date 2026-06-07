@@ -208,7 +208,7 @@ function Invoke-InstallService {
     $deploymentConfig = Get-DeploymentConfigPath -Root $PublishedRoot
     $serviceName = Get-ConfigValue -Path $runtimeConfig -Name "ServiceName" -Default "ArcaneEDR"
     $displayName = Get-ConfigValue -Path $runtimeConfig -Name "ServiceDisplayName" -Default $serviceName
-    $description = Get-ConfigValue -Path $runtimeConfig -Name "ServiceDescription" -Default "Monitors suspicious ingress and egress network activity and sends security alerts."
+    $description = Get-ConfigValue -Path $runtimeConfig -Name "ServiceDescription" -Default "Monitors host, process, persistence, PowerShell, Sysmon, and network activity for suspicious behavior on unattended agent workstations."
     $executableName = Get-ConfigValue -Path $deploymentConfig -Name "ExecutableName" -Default "ArcaneEDR.exe"
     $exe = Join-Path (Join-Path $PublishedRoot "bin") $executableName
 

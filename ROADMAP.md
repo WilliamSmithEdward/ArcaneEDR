@@ -19,8 +19,9 @@ deployment.
 - `v0.2.0`: install, upgrade, validation, and packaging hardening.
 - `v0.3.0`: detection quality, false-positive reduction, and per-rule tuning.
 - `v0.4.0`: modular notification and reporting framework.
-- `v0.5.0`: agentic workstation guardrails MVP and active-response dry-run.
-- `v0.6.0`: collector/rule interface cleanup and privacy hardening.
+- `v0.5.0`: investigation MVP, rule explanations, and safe simulations.
+- `v0.6.0`: agentic workstation guardrails MVP and active-response dry-run.
+- `v0.7.0`: collector/rule interface cleanup and privacy hardening.
 - `v1.0.0`: documented stable release with tested install, upgrade, alerting,
   privacy, recovery behavior, and a clear mission as an agent-workstation safety
   layer.
@@ -44,6 +45,8 @@ Required for `v1.0.0`:
 - Manageable alert volume after baseline tuning.
 - Modular alert sinks with Brevo, SMTP, webhook, and generic HTTP/API support.
 - Optional compact AI analysis with documented redaction and hard payload caps.
+- Explainable alerts, safe simulation scripts, and a local support bundle.
+- Local-only incident grouping and timeline commands for recent related alerts.
 - Agent-aware detection and labeling for known unattended agent processes.
 - Dry-run or manual-only active response. Automatic containment remains off by
   default.
@@ -134,6 +137,65 @@ Exit criteria:
 - Baseline learning can be disabled without causing a flood.
 - High-confidence detections remain visible after local tuning.
 
+## Phase 3.25: Investigation MVP
+
+`v1.0.0` should make alerts easier to trust, reproduce, and investigate without
+building a case-management system.
+
+Required for `v1.0.0`:
+
+- Add structured alert reason blocks, for example `why`, that explain the
+  conditions that caused an alert.
+- Add lightweight local incident grouping by host, user, root process or
+  process family, and a short time window such as 30 minutes.
+- Store incident state locally in a file-backed format such as JSONL.
+- Add commands for local investigation:
+  - `ArcaneEDR.exe --incidents --last 24h`
+  - `ArcaneEDR.exe --timeline <incident-id>`
+- Include first seen, last seen, related alerts, compact timeline, and
+  recommended manual actions for each incident.
+- Add a support bundle command:
+  - `ArcaneEDR.exe --support-bundle`
+- Support bundle output should include version, redacted config, service health,
+  recent alerts, recent errors, enabled collectors, enabled alert sinks, Sysmon
+  availability, and event-log access checks.
+- Keep support bundles privacy-first: no secrets, no raw prompt contents, no
+  raw command output dumps, and bounded log volume.
+- Add safe simulation scripts for representative detections:
+  - encoded PowerShell or encoded-command telemetry
+  - unexpected local listener
+  - scheduled task or service persistence
+  - agent activity outside configured workspace
+  - response dry-run
+- Add one simple benign/suspicious/cleanup demo path that proves the detection
+  loop end to end.
+- Add lightweight rule documentation for v1 rules or rule families with:
+  - rule ID
+  - what it detects
+  - required telemetry
+  - why it matters
+  - common false positives
+  - tuning knobs
+  - safe test command
+  - expected alert shape
+
+Deferred beyond `v1.0.0`:
+
+- Analyst comments.
+- Case ownership and workflow status.
+- Multi-host correlation.
+- Central dashboard.
+- Long-term searchable database.
+- Complex query language.
+
+Exit criteria:
+
+- A new user can run a safe simulation and see the expected local alert.
+- A real alert explains why it fired without requiring source-code inspection.
+- Related recent alerts can be viewed as a compact local timeline.
+- A support bundle can be generated and reviewed without leaking configured
+  secrets or private raw payloads.
+
 ## Phase 3.5: Agentic AI Workstation Guardrails MVP
 
 Keep this phase narrow for `v1.0.0`. Arcane should harden unattended agent
@@ -183,6 +245,15 @@ Exit criteria:
 - Expected agent development work can be labeled and reviewed without hiding
   genuinely unusual behavior.
 - Response remains `AlertOnly` by default.
+
+Progress:
+
+- Added `AgentProfile` config fields for known agent processes, child shells,
+  workspace roots, publish roots, package-manager tools, approved admin tasks,
+  and secret-indicator terms.
+- Added dispatch-time alert annotation with `AgentContext` details and
+  `agent_context=` entity metadata. This labels existing alerts without
+  changing score, cooldown, delivery thresholds, or response behavior.
 
 ## Phase 4: Modular Notification And Reporting
 

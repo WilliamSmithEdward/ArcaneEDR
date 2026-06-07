@@ -65,6 +65,7 @@ namespace ArcaneEDR
             if (config.WebhookTimeoutSeconds <= 0) Fail(errors, "WebhookTimeoutSeconds must be greater than zero.");
             if (config.GenericHttpApiTimeoutSeconds <= 0) Fail(errors, "GenericHttpApiTimeoutSeconds must be greater than zero.");
             if (config.WindowsEventLogAlertEventId < 1 || config.WindowsEventLogAlertEventId > 65535) Fail(errors, "WindowsEventLogAlertEventId must be between 1 and 65535.");
+            ValidateAgentProfile(config, warnings);
             if (!IsResponseMode(config.ResponseMode)) Fail(errors, "ResponseMode must be AlertOnly, BlockRemoteIp, TerminateProcess, or BlockAndTerminate.");
             if (config.ResponseMinimumScore < 90 && !config.ResponseMode.Equals("AlertOnly", StringComparison.OrdinalIgnoreCase))
             {
@@ -195,6 +196,21 @@ namespace ArcaneEDR
                 {
                     Warn(warnings, "Windows Event Log source could not be checked: " + ex.Message);
                 }
+            }
+        }
+
+        private static void ValidateAgentProfile(MonitorConfig config, List<string> warnings)
+        {
+            if (!config.EnableAgentProfile) return;
+
+            if (config.AgentProcessNames.Count == 0)
+            {
+                Warn(warnings, "EnableAgentProfile is true but AgentProcessNames is empty; agent-context labels will be limited.");
+            }
+
+            if (config.AgentChildProcessNames.Count == 0)
+            {
+                Warn(warnings, "EnableAgentProfile is true but AgentChildProcessNames is empty; child shell/package-tool correlation will be limited.");
             }
         }
 

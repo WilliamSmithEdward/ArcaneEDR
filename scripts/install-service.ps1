@@ -53,7 +53,7 @@ if ([string]::IsNullOrWhiteSpace($ServiceName)) {
 if ([string]::IsNullOrWhiteSpace($DisplayName)) {
     $DisplayName = Get-ConfigValue -Path $runtimeConfig -Name "ServiceDisplayName" -Default $ServiceName
 }
-$description = Get-ConfigValue -Path $runtimeConfig -Name "ServiceDescription" -Default "Monitors suspicious ingress and egress network activity and sends security alerts."
+$description = Get-ConfigValue -Path $runtimeConfig -Name "ServiceDescription" -Default "Monitors host, process, persistence, PowerShell, Sysmon, and network activity for suspicious behavior on unattended agent workstations."
 $logDir = Get-ConfigValue -Path $runtimeConfig -Name "LogDirectory" -Default (Join-Path $env:ProgramData "ArcaneEDR\logs")
 
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())

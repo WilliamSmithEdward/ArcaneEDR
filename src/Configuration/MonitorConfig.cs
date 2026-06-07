@@ -14,7 +14,7 @@ namespace ArcaneEDR
         public string ProductName = "Arcane EDR";
         public string ServiceName = "ArcaneEDR";
         public string ServiceDisplayName = "Arcane EDR";
-        public string ServiceDescription = "Monitors suspicious ingress and egress network activity and sends security alerts.";
+        public string ServiceDescription = "Monitors host, process, persistence, PowerShell, Sysmon, and network activity for suspicious behavior on unattended agent workstations.";
         public int PollIntervalSeconds = 10;
         public int AlertCooldownSeconds = 300;
         public int MinimumEmailScore = 60;
@@ -129,6 +129,14 @@ namespace ArcaneEDR
         public HashSet<string> UserWritablePathIndicators = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> TrustedPersistencePathIndicators = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> TrustedPersistenceNamePrefixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public bool EnableAgentProfile = true;
+        public HashSet<string> AgentProcessNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> AgentChildProcessNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> AgentWorkspaceRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> AgentPublishRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> AgentPackageManagerProcesses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> AgentApprovedAdminTaskNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> AgentSecretIndicatorTerms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public HashSet<IPAddress> AllowedDnsResolvers = new HashSet<IPAddress>();
         public bool EnforceAuthorizedDnsResolvers;
         public int ConnectionBurstThreshold = 25;
@@ -282,6 +290,14 @@ namespace ArcaneEDR
             config.UserWritablePathIndicators = ReadStringSet(values, "UserWritablePathIndicators");
             config.TrustedPersistencePathIndicators = ReadStringSet(values, "TrustedPersistencePathIndicators");
             config.TrustedPersistenceNamePrefixes = ReadStringSet(values, "TrustedPersistenceNamePrefixes");
+            config.EnableAgentProfile = ReadBool(values, "EnableAgentProfile", config.EnableAgentProfile);
+            config.AgentProcessNames = ReadStringSet(values, "AgentProcessNames");
+            config.AgentChildProcessNames = ReadStringSet(values, "AgentChildProcessNames");
+            config.AgentWorkspaceRoots = NormalizePathIndicators(ReadStringSet(values, "AgentWorkspaceRoots"));
+            config.AgentPublishRoots = NormalizePathIndicators(ReadStringSet(values, "AgentPublishRoots"));
+            config.AgentPackageManagerProcesses = ReadStringSet(values, "AgentPackageManagerProcesses");
+            config.AgentApprovedAdminTaskNames = ReadStringSet(values, "AgentApprovedAdminTaskNames");
+            config.AgentSecretIndicatorTerms = ReadStringSet(values, "AgentSecretIndicatorTerms");
             config.EnforceAuthorizedDnsResolvers = ReadBool(values, "EnforceAuthorizedDnsResolvers", false);
             config.AllowedDnsResolvers = ReadIpSet(values, "AllowedDnsResolvers");
             config.ConnectionBurstThreshold = ReadInt(values, "ConnectionBurstThreshold", config.ConnectionBurstThreshold);
@@ -475,6 +491,31 @@ namespace ArcaneEDR
             {
                 string trimmed = part.Trim();
                 if (trimmed.Length > 0) result.Add(trimmed);
+            }
+
+            return result;
+        }
+
+        private static HashSet<string> NormalizePathIndicators(HashSet<string> values)
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string value in values)
+            {
+                string trimmed = value.Trim();
+                if (trimmed.Length == 0) continue;
+
+                try
+                {
+                    if (Path.IsPathRooted(trimmed))
+                    {
+                        trimmed = Path.GetFullPath(trimmed);
+                    }
+                }
+                catch
+                {
+                }
+
+                result.Add(trimmed.TrimEnd('\\') + "\\");
             }
 
             return result;

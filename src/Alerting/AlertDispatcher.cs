@@ -30,26 +30,28 @@ namespace ArcaneEDR
             int sentThisDispatch = 0;
             foreach (Alert alert in alerts)
             {
-                if (IsCoolingDown(alert))
+                Alert annotatedAlert = AgentAlertAnnotator.Annotate(config, alert);
+
+                if (IsCoolingDown(annotatedAlert))
                 {
                     continue;
                 }
 
-                Remember(alert);
-                logger.Alert(alert);
-                responseManager.Handle(alert);
+                Remember(annotatedAlert);
+                logger.Alert(annotatedAlert);
+                responseManager.Handle(annotatedAlert);
 
-                if (ShouldSendExternal(alert, sentThisDispatch))
+                if (ShouldSendExternal(annotatedAlert, sentThisDispatch))
                 {
                     string failureReason;
-                    if (TrySendExternalAlert(alert, out failureReason))
+                    if (TrySendExternalAlert(annotatedAlert, out failureReason))
                     {
                         RememberExternalSend();
                         sentThisDispatch++;
                     }
                     else
                     {
-                        QueueFailedExternal(alert, failureReason);
+                        QueueFailedExternal(annotatedAlert, failureReason);
                     }
                 }
             }
@@ -57,11 +59,12 @@ namespace ArcaneEDR
 
         public void SendExternal(Alert alert)
         {
-            logger.Alert(alert);
+            Alert annotatedAlert = AgentAlertAnnotator.Annotate(config, alert);
+            logger.Alert(annotatedAlert);
             string failureReason;
-            if (!TrySendExternalAlert(alert, out failureReason))
+            if (!TrySendExternalAlert(annotatedAlert, out failureReason))
             {
-                QueueFailedExternal(alert, failureReason);
+                QueueFailedExternal(annotatedAlert, failureReason);
             }
         }
 
