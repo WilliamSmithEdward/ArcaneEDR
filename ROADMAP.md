@@ -199,6 +199,9 @@ Progress:
 - Added `--support-bundle` to generate a bounded local folder with version,
   redacted config, health state, collector/sink/runtime checks, summarized
   alerts, recent warning/error lines, and incident summaries.
+- Added `scripts\simulate-detection.cmd` / `.ps1` for safe representative
+  simulations covering encoded PowerShell, unexpected localhost listener, and
+  scheduled-task persistence telemetry.
 
 Exit criteria:
 

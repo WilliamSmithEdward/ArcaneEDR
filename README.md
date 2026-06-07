@@ -305,6 +305,29 @@ summaries, recent warning/error lines, and recent incident summaries. It does
 not copy raw alert bodies, entities, command lines, script blocks, OpenAI
 payloads, or secret values.
 
+List safe detection simulations:
+
+```powershell
+.\scripts\simulate-detection.cmd -Scenario List
+```
+
+Run one representative simulation:
+
+```powershell
+.\scripts\simulate-detection.cmd -Scenario EncodedPowerShell
+.\scripts\simulate-detection.cmd -Scenario UnexpectedListener -DurationSeconds 120
+.\scripts\simulate-detection.cmd -Scenario ScheduledTaskPersistence
+```
+
+Clean up the scheduled-task simulation artifact:
+
+```powershell
+.\scripts\simulate-detection.cmd -Scenario Cleanup
+```
+
+These simulations are harmless, but they can generate real local alerts and
+external notifications when the service is running.
+
 ## Alerting
 
 All alerts are always written locally under `LogDirectory`:
