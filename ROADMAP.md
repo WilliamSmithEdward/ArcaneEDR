@@ -26,6 +26,26 @@ deployment.
   privacy, recovery behavior, and a clear mission as an agent-workstation safety
   layer.
 
+## Milestone Execution Policy
+
+Work should finish the active milestone before moving to the next milestone
+whenever that is practical. A later milestone may be touched early only when it
+unblocks the active milestone, prevents avoidable rework, fixes an urgent
+operational issue, or is a very small adjacent change with low risk.
+
+Current active milestone: `v0.5.0`.
+
+Definition of done before moving focus to `v0.6.0`:
+
+- Safe simulations cover the representative v1 detection paths well enough for
+  a new user to prove the detection loop.
+- `why` explanations and the rule-family reference make real alerts
+  understandable without source-code inspection.
+- Incident summary and timeline commands are usable for recent local alerts.
+- Support bundle output is bounded, redacted, and useful for troubleshooting.
+- Remaining `v0.5.0` gaps are either completed or explicitly deferred with a
+  reason.
+
 ## Milestone Status
 
 This section is the high-level completion tracker. Detailed work remains in the
