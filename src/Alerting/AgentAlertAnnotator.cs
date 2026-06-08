@@ -69,10 +69,16 @@ namespace ArcaneEDR
 
         private static void AddContainsMatches(List<string> reasons, string text, string label, HashSet<string> terms)
         {
+            bool rootMatch = label.Equals("agent-workspace", StringComparison.OrdinalIgnoreCase) ||
+                label.Equals("agent-publish-root", StringComparison.OrdinalIgnoreCase);
+
             foreach (string term in terms)
             {
                 if (String.IsNullOrWhiteSpace(term)) continue;
-                if (text.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)
+                bool matched = rootMatch
+                    ? ContainsRootText(text, term)
+                    : text.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0;
+                if (matched)
                 {
                     AddUnique(reasons, label + ":" + NormalizeReason(term));
                 }
@@ -174,6 +180,26 @@ namespace ArcaneEDR
 
             if (normalized.Length <= 80) return normalized;
             return normalized.Substring(0, 80);
+        }
+
+        private static bool ContainsRootText(string text, string root)
+        {
+            string normalizedText = NormalizePathText(text);
+            string normalizedRoot = NormalizeRoot(root);
+            return !String.IsNullOrWhiteSpace(normalizedText) &&
+                !String.IsNullOrWhiteSpace(normalizedRoot) &&
+                normalizedText.IndexOf(normalizedRoot, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static string NormalizeRoot(string root)
+        {
+            if (String.IsNullOrWhiteSpace(root)) return "";
+            return NormalizePathText(root).TrimEnd('\\') + "\\";
+        }
+
+        private static string NormalizePathText(string value)
+        {
+            return value == null ? "" : value.Replace('/', '\\');
         }
     }
 }

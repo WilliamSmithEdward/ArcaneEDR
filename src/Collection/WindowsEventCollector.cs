@@ -159,6 +159,7 @@ namespace ArcaneEDR
             ev.IpAddress = GetFirst(data, "IpAddress", "ClientAddress", "WorkstationName");
             ev.LogonType = GetFirst(data, "LogonType");
             ev.ProcessName = GetFirst(data, "ProcessName", "NewProcessName", "Application");
+            ev.ParentProcessName = GetFirst(data, "ParentProcessName", "CreatorProcessName", "ParentImage");
             ev.ServiceName = GetFirst(data, "ServiceName", "ServiceFileName");
             ev.TaskName = GetFirst(data, "TaskName");
             ev.CommandLine = GetFirst(data, "CommandLine", "ProcessCommandLine", "ServiceFileName", "ImagePath", "TaskContentNew", "TaskContent", "ActionName");

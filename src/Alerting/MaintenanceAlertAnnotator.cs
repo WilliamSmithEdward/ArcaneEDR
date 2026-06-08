@@ -16,11 +16,19 @@ namespace ArcaneEDR
                 return alert;
             }
 
-            string matchedGroup = TermGroupRules.FindFirstMatchingGroup(AlertText(alert), config.MaintenanceContextTermGroups);
-            if (String.IsNullOrWhiteSpace(matchedGroup))
+            MaintenanceSessionMarker marker = new MaintenanceSessionMarkerStore(config, null).FindActive(alert.TimestampUtc);
+            if (marker != null)
             {
+                string markerSummary = marker.AnnotationSummary(alert.TimestampUtc);
+                alert.MaintenanceContext = true;
+                alert.Body = AppendLine(alert.Body, "MaintenanceContext: involved=true " + markerSummary);
+                alert.EntitySummary = AppendEntity(alert.EntitySummary, "maintenance_context=involved " + markerSummary);
+                alert.AddWhy("The alert occurred during an active maintenance session marker: " + markerSummary + ".");
                 return alert;
             }
+
+            string matchedGroup = TermGroupRules.FindFirstMatchingGroup(AlertText(alert), config.MaintenanceContextTermGroups);
+            if (String.IsNullOrWhiteSpace(matchedGroup)) return alert;
 
             string summary = NormalizeReason(matchedGroup);
             alert.MaintenanceContext = true;

@@ -101,9 +101,17 @@ ServiceName=ArcaneEDR
 ServiceDisplayName=Arcane EDR
 LogDirectory=C:\Security
 ResponseMode=AlertOnly
+EnableFirewallBlockResponse=false
+EnableProcessTerminationResponse=false
+EnableResponsePolicy=true
+ResponseAllowedRuleIds=
+ResponseAllowedCategories=
 ```
 
-For a first install, `AlertOnly` is the safest response mode.
+For a first install, `AlertOnly` is the safest response mode. Before enabling
+dry-run or active response, read `docs\response-safety-and-rollback.md`.
+Active response requires both the action gate and an explicit response-policy
+allow entry.
 
 Save and close Notepad.
 

@@ -25,6 +25,8 @@ namespace ArcaneEDR
             if (StartsWith(value, "FILE-")) return "File";
             if (StartsWith(value, "PROC-")) return "Process";
             if (StartsWith(value, "AUDIT-PROC-")) return "Process";
+            if (StartsWith(value, "AGENT-")) return "Agent";
+            if (StartsWith(value, "RESPONSE-")) return "Response";
             if (StartsWith(value, "RAT-")) return "RAT";
             if (StartsWith(value, "AI-")) return "AI";
             if (StartsWith(value, "SERVICE-")) return "Health";
@@ -55,6 +57,8 @@ namespace ArcaneEDR
                 category.Equals("Auth", StringComparison.OrdinalIgnoreCase) ||
                 category.Equals("File", StringComparison.OrdinalIgnoreCase) ||
                 category.Equals("Process", StringComparison.OrdinalIgnoreCase) ||
+                category.Equals("Agent", StringComparison.OrdinalIgnoreCase) ||
+                category.Equals("Response", StringComparison.OrdinalIgnoreCase) ||
                 category.Equals("RAT", StringComparison.OrdinalIgnoreCase) ||
                 category.Equals("AI", StringComparison.OrdinalIgnoreCase) ||
                 category.Equals("Health", StringComparison.OrdinalIgnoreCase) ||

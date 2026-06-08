@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Web.Script.Serialization;
 
 namespace ArcaneEDR
 {
@@ -38,6 +39,7 @@ namespace ArcaneEDR
             PruneRecentExecutableFileDrops(timestampUtc);
             AnalyzeFileEvents(snapshot.FileEvents, alerts);
             AnalyzeProcessReputation(snapshot.ProcessEvents, alerts);
+            AnalyzeResponseProcessRespawns(snapshot.ProcessEvents, alerts);
             AnalyzeCustomNetworkRules(snapshot.Endpoints, alerts);
 
             return alerts;
@@ -122,6 +124,9 @@ namespace ArcaneEDR
                         ev));
                 }
 
+                AnalyzeAgentAdminPowerShell(ev, alerts);
+                AnalyzeAgentSecretPowerShell(ev, alerts);
+                AnalyzeAgentSupplyChainPowerShell(ev, alerts);
                 alerts.AddRange(customRuleEngine.AnalyzePowerShell(ev));
             }
         }
@@ -329,6 +334,504 @@ namespace ArcaneEDR
                     "Review parent process and user context. This can indicate a loader chain before network activity is visible.",
                     ev));
             }
+
+            AnalyzeAgentAdminWindowsProcess(ev, alerts);
+            AnalyzeAgentSecretWindowsProcess(ev, alerts);
+            AnalyzeAgentSupplyChainWindowsProcess(ev, alerts);
+        }
+
+        private void AnalyzeAgentAdminPowerShell(PowerShellEvent ev, List<Alert> alerts)
+        {
+            string text = CombineText(
+                ev == null ? "" : ev.SearchText,
+                ev == null ? "" : ev.EntitySummary,
+                ev == null ? "" : ev.ProcessCommandLine,
+                ev == null ? "" : ev.ParentCommandLine,
+                ev == null ? "" : ev.ProcessPath,
+                ev == null ? "" : ev.ParentProcessPath);
+            AgentAdminCommandFinding finding = FindAgentAdminCommand(text);
+            if (!finding.Detected) return;
+
+            Alert alert = Alert.FromPowerShellEvent(
+                "AGENT-ADMIN-COMMAND",
+                "Agent-adjacent admin command observed",
+                finding.Score,
+                AgentAdminCommandBody(finding, "PowerShell telemetry"),
+                "Confirm this was intended agent maintenance. If expected, use the constrained admin-task bridge or tune AgentApprovedAdminTaskNames and maintenance context locally.",
+                ev);
+            alert.Category = "Agent";
+            alerts.Add(alert);
+        }
+
+        private void AnalyzeAgentAdminWindowsProcess(WindowsAuditEvent ev, List<Alert> alerts)
+        {
+            string text = CombineText(ev == null ? "" : ev.SearchText, ev == null ? "" : ev.EntitySummary);
+            AgentAdminCommandFinding finding = FindAgentAdminCommand(text);
+            if (!finding.Detected) return;
+
+            Alert alert = Alert.FromWindowsEvent(
+                "AGENT-ADMIN-COMMAND",
+                "Agent-adjacent admin command observed",
+                finding.Score,
+                AgentAdminCommandBody(finding, "Windows process-creation audit"),
+                "Confirm this was intended agent maintenance. If expected, use the constrained admin-task bridge or tune AgentApprovedAdminTaskNames and maintenance context locally.",
+                ev);
+            alert.Category = "Agent";
+            alerts.Add(alert);
+        }
+
+        private void AnalyzeAgentAdminProcess(SysmonProcessEvent process, List<Alert> alerts)
+        {
+            string text = CombineText(process == null ? "" : process.EntitySummary);
+            AgentAdminCommandFinding finding = FindAgentAdminCommand(text);
+            if (!finding.Detected) return;
+
+            Alert alert = Alert.FromProcessEvent(
+                "AGENT-ADMIN-COMMAND",
+                "Agent-adjacent admin command observed",
+                finding.Score,
+                AgentAdminCommandBody(finding, "Sysmon process telemetry"),
+                "Confirm this was intended agent maintenance. If expected, use the constrained admin-task bridge or tune AgentApprovedAdminTaskNames and maintenance context locally.",
+                process);
+            alert.Category = "Agent";
+            alerts.Add(alert);
+        }
+
+        private void AnalyzeAgentSecretPowerShell(PowerShellEvent ev, List<Alert> alerts)
+        {
+            string text = CombineText(
+                ev == null ? "" : ev.SearchText,
+                ev == null ? "" : ev.EntitySummary,
+                ev == null ? "" : ev.ProcessCommandLine,
+                ev == null ? "" : ev.ParentCommandLine,
+                ev == null ? "" : ev.ProcessPath,
+                ev == null ? "" : ev.ParentProcessPath);
+            AgentGuardrailFinding finding = FindAgentSecretReference(text);
+            if (!finding.Detected) return;
+
+            Alert alert = Alert.FromPowerShellEvent(
+                "AGENT-SECRET-REFERENCE",
+                "Agent-adjacent secret reference observed",
+                finding.Score,
+                AgentSecretReferenceBody(finding, "PowerShell telemetry"),
+                "Confirm the agent did not copy, expose, or modify credentials. Rotate affected secrets if this was not intended.",
+                ev);
+            alert.Category = "Agent";
+            alerts.Add(alert);
+        }
+
+        private void AnalyzeAgentSecretWindowsProcess(WindowsAuditEvent ev, List<Alert> alerts)
+        {
+            string text = CombineText(ev == null ? "" : ev.SearchText, ev == null ? "" : ev.EntitySummary);
+            AgentGuardrailFinding finding = FindAgentSecretReference(text);
+            if (!finding.Detected) return;
+
+            Alert alert = Alert.FromWindowsEvent(
+                "AGENT-SECRET-REFERENCE",
+                "Agent-adjacent secret reference observed",
+                finding.Score,
+                AgentSecretReferenceBody(finding, "Windows process-creation audit"),
+                "Confirm the agent did not copy, expose, or modify credentials. Rotate affected secrets if this was not intended.",
+                ev);
+            alert.Category = "Agent";
+            alerts.Add(alert);
+        }
+
+        private void AnalyzeAgentSecretProcess(SysmonProcessEvent process, List<Alert> alerts)
+        {
+            string text = CombineText(process == null ? "" : process.EntitySummary);
+            AgentGuardrailFinding finding = FindAgentSecretReference(text);
+            if (!finding.Detected) return;
+
+            Alert alert = Alert.FromProcessEvent(
+                "AGENT-SECRET-REFERENCE",
+                "Agent-adjacent secret reference observed",
+                finding.Score,
+                AgentSecretReferenceBody(finding, "Sysmon process telemetry"),
+                "Confirm the agent did not copy, expose, or modify credentials. Rotate affected secrets if this was not intended.",
+                process);
+            alert.Category = "Agent";
+            alerts.Add(alert);
+        }
+
+        private void AnalyzeAgentSupplyChainPowerShell(PowerShellEvent ev, List<Alert> alerts)
+        {
+            string text = CombineText(
+                ev == null ? "" : ev.SearchText,
+                ev == null ? "" : ev.EntitySummary,
+                ev == null ? "" : ev.ProcessCommandLine,
+                ev == null ? "" : ev.ParentCommandLine,
+                ev == null ? "" : ev.ProcessPath,
+                ev == null ? "" : ev.ParentProcessPath);
+            AgentGuardrailFinding finding = FindAgentSupplyChainCommand(text);
+            if (!finding.Detected) return;
+
+            Alert alert = Alert.FromPowerShellEvent(
+                "AGENT-SUPPLY-CHAIN-COMMAND",
+                "Agent-adjacent package or download command observed",
+                finding.Score,
+                AgentSupplyChainBody(finding, "PowerShell telemetry"),
+                "Review the package source, downloaded script, and workspace context. Use maintenance markers for expected install or publish windows.",
+                ev);
+            alert.Category = "Agent";
+            alerts.Add(alert);
+        }
+
+        private void AnalyzeAgentSupplyChainWindowsProcess(WindowsAuditEvent ev, List<Alert> alerts)
+        {
+            string text = CombineText(ev == null ? "" : ev.SearchText, ev == null ? "" : ev.EntitySummary);
+            AgentGuardrailFinding finding = FindAgentSupplyChainCommand(text);
+            if (!finding.Detected) return;
+
+            Alert alert = Alert.FromWindowsEvent(
+                "AGENT-SUPPLY-CHAIN-COMMAND",
+                "Agent-adjacent package or download command observed",
+                finding.Score,
+                AgentSupplyChainBody(finding, "Windows process-creation audit"),
+                "Review the package source, downloaded script, and workspace context. Use maintenance markers for expected install or publish windows.",
+                ev);
+            alert.Category = "Agent";
+            alerts.Add(alert);
+        }
+
+        private void AnalyzeAgentSupplyChainProcess(SysmonProcessEvent process, List<Alert> alerts)
+        {
+            string text = CombineText(process == null ? "" : process.EntitySummary);
+            AgentGuardrailFinding finding = FindAgentSupplyChainCommand(text);
+            if (!finding.Detected) return;
+
+            Alert alert = Alert.FromProcessEvent(
+                "AGENT-SUPPLY-CHAIN-COMMAND",
+                "Agent-adjacent package or download command observed",
+                finding.Score,
+                AgentSupplyChainBody(finding, "Sysmon process telemetry"),
+                "Review the package source, downloaded script, and workspace context. Use maintenance markers for expected install or publish windows.",
+                process);
+            alert.Category = "Agent";
+            alerts.Add(alert);
+        }
+
+        private AgentAdminCommandFinding FindAgentAdminCommand(string text)
+        {
+            AgentAdminCommandFinding finding = new AgentAdminCommandFinding();
+            if (String.IsNullOrWhiteSpace(text) ||
+                !config.EnableAgentProfile ||
+                !config.EnableAgentAdminCommandGuardrails)
+            {
+                return finding;
+            }
+
+            string normalized = NormalizePathText(text);
+            if (!IsAgentInitiatedText(normalized)) return finding;
+
+            string term = FirstConfiguredTerm(normalized, config.AgentAdminCommandTerms);
+            if (String.IsNullOrWhiteSpace(term)) return finding;
+
+            finding.Approved = IsApprovedAgentAdminText(normalized);
+            if (finding.Approved) return finding;
+
+            finding.Detected = true;
+            finding.Term = term;
+            finding.CommandFamily = AgentAdminCommandFamily(term);
+            finding.Score = ClampScore(config.AgentAdminCommandMinimumScore);
+            return finding;
+        }
+
+        private string AgentAdminCommandBody(AgentAdminCommandFinding finding, string source)
+        {
+            return source + " includes an agent-initiated admin, elevation, persistence, firewall, security-control, registry, service, scheduled-task, or ACL command outside configured approved admin tasks." +
+                " CommandFamily=" + finding.CommandFamily +
+                " MatchedTerm=" + SafeReason(finding.Term) +
+                " ResponseMode=AlertOnly.";
+        }
+
+        private AgentGuardrailFinding FindAgentSecretReference(string text)
+        {
+            AgentGuardrailFinding finding = new AgentGuardrailFinding();
+            if (String.IsNullOrWhiteSpace(text) ||
+                !config.EnableAgentProfile ||
+                !config.EnableAgentSecretReferenceGuardrails)
+            {
+                return finding;
+            }
+
+            string normalized = NormalizePathText(text);
+            if (!IsAgentInitiatedText(normalized)) return finding;
+
+            string term = FirstConfiguredTerm(normalized, config.AgentSecretReferenceTerms);
+            if (String.IsNullOrWhiteSpace(term))
+            {
+                term = FirstConfiguredTerm(normalized, config.AgentSecretIndicatorTerms);
+            }
+
+            if (String.IsNullOrWhiteSpace(term)) return finding;
+
+            finding.Detected = true;
+            finding.Term = term;
+            finding.CommandFamily = AgentSecretReferenceFamily(term);
+            finding.Score = ClampScore(config.AgentSecretReferenceMinimumScore);
+            return finding;
+        }
+
+        private AgentGuardrailFinding FindAgentSupplyChainCommand(string text)
+        {
+            AgentGuardrailFinding finding = new AgentGuardrailFinding();
+            if (String.IsNullOrWhiteSpace(text) ||
+                !config.EnableAgentProfile ||
+                !config.EnableAgentSupplyChainGuardrails)
+            {
+                return finding;
+            }
+
+            string normalized = NormalizePathText(text);
+            if (!IsAgentInitiatedText(normalized)) return finding;
+
+            string term = FirstConfiguredTerm(normalized, config.AgentSupplyChainTerms);
+            if (String.IsNullOrWhiteSpace(term)) return finding;
+
+            finding.Detected = true;
+            finding.Term = term;
+            finding.CommandFamily = AgentSupplyChainFamily(term);
+            finding.Score = ClampScore(config.AgentSupplyChainMinimumScore);
+            return finding;
+        }
+
+        private string AgentSecretReferenceBody(AgentGuardrailFinding finding, string source)
+        {
+            return source + " includes an agent-initiated reference to a configured secret, credential, SSH key, certificate, token, or browser credential-store indicator." +
+                " SecretReferenceFamily=" + finding.CommandFamily +
+                " MatchedTerm=" + SafeReason(finding.Term) +
+                " ResponseMode=AlertOnly.";
+        }
+
+        private string AgentSupplyChainBody(AgentGuardrailFinding finding, string source)
+        {
+            return source + " includes an agent-initiated package install, source clone, download, install script, or expression-execution indicator." +
+                " SupplyChainFamily=" + finding.CommandFamily +
+                " MatchedTerm=" + SafeReason(finding.Term) +
+                " ResponseMode=AlertOnly.";
+        }
+
+        private static string AgentSecretReferenceFamily(string term)
+        {
+            string value = term == null ? "" : term.ToLowerInvariant();
+            if (value.IndexOf("id_rsa", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("id_ed25519", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("ssh", StringComparison.OrdinalIgnoreCase) >= 0) return "ssh-material";
+            if (value.IndexOf(".pem", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf(".pfx", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("private_key", StringComparison.OrdinalIgnoreCase) >= 0) return "key-or-certificate";
+            if (value.IndexOf("chrome", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("edge", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("firefox", StringComparison.OrdinalIgnoreCase) >= 0) return "browser-credential-store";
+            if (value.IndexOf("aws_", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("azure_", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("gcloud", StringComparison.OrdinalIgnoreCase) >= 0) return "cloud-secret";
+            if (value.IndexOf("token", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("secret", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("apikey", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("api_key", StringComparison.OrdinalIgnoreCase) >= 0) return "token-or-api-key";
+            return "secret-reference";
+        }
+
+        private static string AgentSupplyChainFamily(string term)
+        {
+            string value = term == null ? "" : term.ToLowerInvariant();
+            if (value.IndexOf("npm", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("npx", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("pnpm", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("yarn", StringComparison.OrdinalIgnoreCase) >= 0) return "node-package-manager";
+            if (value.IndexOf("pip", StringComparison.OrdinalIgnoreCase) >= 0) return "python-package-manager";
+            if (value.IndexOf("git clone", StringComparison.OrdinalIgnoreCase) >= 0) return "source-clone";
+            if (value.IndexOf("curl", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("webrequest", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("download", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("wget", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("restmethod", StringComparison.OrdinalIgnoreCase) >= 0) return "download";
+            if (value.IndexOf("iex", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("expression", StringComparison.OrdinalIgnoreCase) >= 0) return "download-and-execute";
+            if (value.IndexOf("install", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("postinstall", StringComparison.OrdinalIgnoreCase) >= 0) return "install-script";
+            return "supply-chain";
+        }
+
+        private bool IsAgentInitiatedText(string text)
+        {
+            if (ContainsConfiguredRootText(text, config.AgentWorkspaceRoots)) return true;
+            if (ContainsConfiguredRootText(text, config.AgentPublishRoots)) return true;
+            if (ContainsProcessFieldAny(text, config.AgentProcessNames, "process=", "process_name=", "parent=", "parent_process=", "parent_process_name=", "host_application=")) return true;
+            if (ContainsProcessFieldAny(text, config.AgentProcessNames, "parent_image=", "parent_path=", "parent_command_line=", "process_command_line=")) return true;
+
+            bool childProcess = ContainsProcessFieldAny(text, config.AgentChildProcessNames, "process=", "process_name=");
+            bool packageTool = ContainsProcessFieldAny(text, config.AgentPackageManagerProcesses, "process=", "process_name=");
+            if ((childProcess || packageTool) &&
+                (ContainsProcessFieldAny(text, config.AgentProcessNames, "parent=", "parent_process=", "parent_process_name=") ||
+                 ContainsConfiguredRootText(text, config.AgentWorkspaceRoots) ||
+                 ContainsConfiguredRootText(text, config.AgentPublishRoots)))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool IsApprovedAgentAdminText(string text)
+        {
+            foreach (string taskName in config.AgentApprovedAdminTaskNames)
+            {
+                if (String.IsNullOrWhiteSpace(taskName)) continue;
+                string normalizedTask = NormalizePathText(taskName);
+                if (text.IndexOf(normalizedTask, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+
+                string compactTask = normalizedTask.Trim('\\');
+                if (compactTask.Length > 0 &&
+                    text.IndexOf(compactTask, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static string AgentAdminCommandFamily(string term)
+        {
+            string value = term == null ? "" : term.ToLowerInvariant();
+            if (value.IndexOf("firewall", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("advfirewall", StringComparison.OrdinalIgnoreCase) >= 0) return "firewall";
+            if (value.IndexOf("schtasks", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("scheduledtask", StringComparison.OrdinalIgnoreCase) >= 0) return "scheduled-task";
+            if (value.IndexOf("service", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("sc ", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("sc.exe", StringComparison.OrdinalIgnoreCase) >= 0) return "service";
+            if (value.IndexOf("icacls", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("takeown", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("set-acl", StringComparison.OrdinalIgnoreCase) >= 0) return "acl";
+            if (value.IndexOf("runas", StringComparison.OrdinalIgnoreCase) >= 0) return "elevation";
+            if (value.IndexOf("mppreference", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("defender", StringComparison.OrdinalIgnoreCase) >= 0) return "security-control";
+            if (value.IndexOf("reg ", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("currentversion", StringComparison.OrdinalIgnoreCase) >= 0) return "registry";
+            return "admin-command";
+        }
+
+        private static string FirstConfiguredTerm(string text, HashSet<string> terms)
+        {
+            if (String.IsNullOrWhiteSpace(text) || terms == null) return "";
+            foreach (string term in terms)
+            {
+                if (!String.IsNullOrWhiteSpace(term) &&
+                    text.IndexOf(NormalizePathText(term), StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return term;
+                }
+            }
+
+            return "";
+        }
+
+        private static bool ContainsAnyConfigured(string text, HashSet<string> terms)
+        {
+            if (String.IsNullOrWhiteSpace(text) || terms == null) return false;
+            foreach (string term in terms)
+            {
+                if (!String.IsNullOrWhiteSpace(term) &&
+                    text.IndexOf(NormalizePathText(term), StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool ContainsProcessFieldAny(string text, HashSet<string> values, params string[] fieldNames)
+        {
+            if (String.IsNullOrWhiteSpace(text) || values == null || fieldNames == null) return false;
+            foreach (string fieldName in fieldNames)
+            {
+                foreach (string value in values)
+                {
+                    if (ContainsProcessField(text, fieldName, value)) return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool ContainsProcessField(string text, string fieldName, string expected)
+        {
+            if (String.IsNullOrWhiteSpace(text) || String.IsNullOrWhiteSpace(fieldName) || String.IsNullOrWhiteSpace(expected)) return false;
+
+            int index = text.IndexOf(fieldName, StringComparison.OrdinalIgnoreCase);
+            while (index >= 0)
+            {
+                int start = index + fieldName.Length;
+                if (ValueMatchesAt(text, start, expected)) return true;
+                index = text.IndexOf(fieldName, index + fieldName.Length, StringComparison.OrdinalIgnoreCase);
+            }
+
+            return false;
+        }
+
+        private static bool ValueMatchesAt(string text, int start, string expected)
+        {
+            int index = start;
+            while (index < text.Length && Char.IsWhiteSpace(text[index]))
+            {
+                index++;
+            }
+
+            if (index < text.Length && text[index] == '"') index++;
+            if (index + expected.Length > text.Length) return false;
+            if (!text.Substring(index, expected.Length).Equals(expected, StringComparison.OrdinalIgnoreCase)) return false;
+
+            int after = index + expected.Length;
+            return after >= text.Length || IsTokenBoundary(text[after]);
+        }
+
+        private static bool IsTokenBoundary(char value)
+        {
+            return Char.IsWhiteSpace(value) ||
+                value == '"' ||
+                value == '\'' ||
+                value == ',' ||
+                value == ';' ||
+                value == ')' ||
+                value == '(' ||
+                value == '|' ||
+                value == '\r' ||
+                value == '\n';
+        }
+
+        private static int ClampScore(int score)
+        {
+            if (score < 0) return 0;
+            if (score > 100) return 100;
+            return score;
+        }
+
+        private static string SafeReason(string value)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return "unknown";
+            string result = value.Trim()
+                .Replace("\r", "")
+                .Replace("\n", "")
+                .Replace(",", "_")
+                .Replace(";", "_")
+                .Replace("|", "_");
+            return result.Length <= 80 ? result : result.Substring(0, 80);
+        }
+
+        private static string CombineText(params string[] values)
+        {
+            List<string> parts = new List<string>();
+            foreach (string value in values)
+            {
+                if (!String.IsNullOrWhiteSpace(value)) parts.Add(value);
+            }
+
+            return String.Join(" ", parts.ToArray());
         }
 
         private void AnalyzePersistence(List<PersistenceItem> items, List<Alert> alerts)
@@ -424,6 +927,9 @@ namespace ArcaneEDR
                         process));
                 }
 
+                AnalyzeAgentAdminProcess(process, alerts);
+                AnalyzeAgentSecretProcess(process, alerts);
+                AnalyzeAgentSupplyChainProcess(process, alerts);
                 alerts.AddRange(customRuleEngine.AnalyzeProcess(process));
             }
         }
@@ -494,6 +1000,118 @@ namespace ArcaneEDR
             {
                 if (!state.MarkEventSeen("custom-network|" + endpoint.ConnectionKey)) continue;
                 alerts.AddRange(customRuleEngine.AnalyzeEndpoint(endpoint));
+            }
+        }
+
+        private void AnalyzeResponseProcessRespawns(List<SysmonProcessEvent> processes, List<Alert> alerts)
+        {
+            if (!config.EnableResponseFollowUpDetections ||
+                !config.EnableResponseLedger ||
+                String.IsNullOrWhiteSpace(config.ResponseLedgerFile) ||
+                !File.Exists(config.ResponseLedgerFile))
+            {
+                return;
+            }
+
+            List<ResponseTerminationObservation> terminations = LoadRecentResponseTerminations();
+            if (terminations.Count == 0) return;
+
+            foreach (SysmonProcessEvent process in processes)
+            {
+                if (process == null || String.IsNullOrWhiteSpace(process.ProcessName)) continue;
+
+                ResponseTerminationObservation matched = FindMatchingTermination(process, terminations);
+                if (matched == null) continue;
+
+                string key = "response-respawn|" + matched.ResponseId + "|" + process.RecordId.ToString(CultureInfo.InvariantCulture);
+                if (!state.MarkEventSeen(key)) continue;
+
+                Alert alert = Alert.FromProcessEvent(
+                    "RESPONSE-PROCESS-RESPAWN",
+                    "Process relaunched after Arcane response termination",
+                    ClampScore(config.ResponseProcessRespawnMinimumScore),
+                    "Arcane previously terminated process=" + SafeReason(matched.ProcessName) +
+                        " response_id=" + SafeReason(matched.ResponseId) +
+                        " trigger_rule=" + SafeReason(matched.TriggerRuleId) +
+                        " and a same-named process launched again within " +
+                        Math.Max(1, config.ResponseProcessRespawnWindowMinutes).ToString(CultureInfo.InvariantCulture) +
+                        " minute(s). This can indicate service recovery, persistence, supervisor restart, or resilient malware behavior.",
+                    "Review the parent process, service/task inventory, persistence locations, and whether termination was operator-approved. Avoid repeated automated kills until the respawn source is understood.",
+                    process);
+                alert.Category = "Response";
+                alert.CooldownKey = "RESPONSE-PROCESS-RESPAWN|" + matched.ResponseId + "|" + process.ProcessName;
+                alerts.Add(alert);
+            }
+        }
+
+        private ResponseTerminationObservation FindMatchingTermination(SysmonProcessEvent process, List<ResponseTerminationObservation> terminations)
+        {
+            ResponseTerminationObservation best = null;
+            DateTime processTime = process.TimestampUtc == DateTime.MinValue ? DateTime.UtcNow : process.TimestampUtc;
+            foreach (ResponseTerminationObservation termination in terminations)
+            {
+                if (!process.ProcessName.Equals(termination.ProcessName, StringComparison.OrdinalIgnoreCase)) continue;
+                if (process.ProcessId.ToString(CultureInfo.InvariantCulture).Equals(termination.ProcessId, StringComparison.OrdinalIgnoreCase)) continue;
+                if (processTime <= termination.TimestampUtc) continue;
+                if (processTime > termination.TimestampUtc.AddMinutes(Math.Max(1, config.ResponseProcessRespawnWindowMinutes))) continue;
+                if (best == null || termination.TimestampUtc > best.TimestampUtc) best = termination;
+            }
+
+            return best;
+        }
+
+        private List<ResponseTerminationObservation> LoadRecentResponseTerminations()
+        {
+            List<ResponseTerminationObservation> result = new List<ResponseTerminationObservation>();
+            DateTime cutoffUtc = DateTime.UtcNow.AddMinutes(-Math.Max(1, config.ResponseProcessRespawnWindowMinutes));
+            JavaScriptSerializer serializer = new JavaScriptSerializer();
+
+            try
+            {
+                foreach (string line in File.ReadAllLines(config.ResponseLedgerFile))
+                {
+                    ResponseTerminationObservation observation = ParseResponseTermination(serializer, line);
+                    if (observation == null || observation.TimestampUtc < cutoffUtc) continue;
+                    result.Add(observation);
+                }
+            }
+            catch
+            {
+            }
+
+            return result;
+        }
+
+        private static ResponseTerminationObservation ParseResponseTermination(JavaScriptSerializer serializer, string line)
+        {
+            if (String.IsNullOrWhiteSpace(line)) return null;
+
+            try
+            {
+                Dictionary<string, object> parsed = serializer.Deserialize<Dictionary<string, object>>(line);
+                if (parsed == null) return null;
+                if (!ReadString(parsed, "action").Equals("TerminateProcess", StringComparison.OrdinalIgnoreCase)) return null;
+                if (ReadBool(parsed, "dry_run")) return null;
+                if (!String.IsNullOrWhiteSpace(ReadString(parsed, "skipped_reason"))) return null;
+
+                DateTime timestampUtc;
+                if (!TryParseUtc(ReadString(parsed, "timestamp_utc"), out timestampUtc)) return null;
+
+                string processName = ReadString(parsed, "target_process_name");
+                if (String.IsNullOrWhiteSpace(processName)) return null;
+
+                return new ResponseTerminationObservation
+                {
+                    TimestampUtc = timestampUtc,
+                    ResponseId = ReadString(parsed, "response_id"),
+                    TriggerRuleId = ReadString(parsed, "trigger_rule_id"),
+                    ProcessName = processName,
+                    ProcessId = ReadString(parsed, "target_value")
+                };
+            }
+            catch
+            {
+                return null;
             }
         }
 
@@ -698,8 +1316,9 @@ namespace ArcaneEDR
             string normalized = NormalizePathForRootCompare(path);
             foreach (string root in roots)
             {
-                if (!String.IsNullOrWhiteSpace(root) &&
-                    normalized.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                string normalizedRoot = NormalizePathForRootCompare(root);
+                if (!String.IsNullOrWhiteSpace(normalizedRoot) &&
+                    normalized.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }
@@ -762,6 +1381,24 @@ namespace ArcaneEDR
             {
                 if (!String.IsNullOrWhiteSpace(indicator) &&
                     normalized.IndexOf(NormalizePathText(indicator), StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool ContainsConfiguredRootText(string text, HashSet<string> roots)
+        {
+            if (String.IsNullOrWhiteSpace(text) || roots == null || roots.Count == 0) return false;
+
+            string normalizedText = NormalizePathText(text);
+            foreach (string root in roots)
+            {
+                string normalizedRoot = NormalizePathForRootCompare(root);
+                if (!String.IsNullOrWhiteSpace(normalizedRoot) &&
+                    normalizedText.IndexOf(normalizedRoot, StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     return true;
                 }
@@ -1016,6 +1653,34 @@ namespace ArcaneEDR
             return "A " + changeDescription + " matched configured trusted persistence name plus " +
                 context + " indicators and did not include suspicious command, untrusted user-writable path, or RMM traits.";
         }
+
+        private static bool TryParseUtc(string value, out DateTime result)
+        {
+            result = DateTime.MinValue;
+            if (String.IsNullOrWhiteSpace(value)) return false;
+
+            DateTime parsed;
+            if (!DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out parsed))
+            {
+                return false;
+            }
+
+            result = parsed.ToUniversalTime();
+            return true;
+        }
+
+        private static string ReadString(Dictionary<string, object> parsed, string key)
+        {
+            object value;
+            return parsed.TryGetValue(key, out value) && value != null ? value.ToString() : "";
+        }
+
+        private static bool ReadBool(Dictionary<string, object> parsed, string key)
+        {
+            object value;
+            bool result;
+            return parsed.TryGetValue(key, out value) && value != null && Boolean.TryParse(value.ToString(), out result) && result;
+        }
     }
 
     internal sealed class RemoteLogonObservation
@@ -1023,5 +1688,31 @@ namespace ArcaneEDR
         public DateTime TimestampUtc;
         public string IpAddress;
         public string LogonType;
+    }
+
+    internal sealed class ResponseTerminationObservation
+    {
+        public DateTime TimestampUtc;
+        public string ResponseId;
+        public string TriggerRuleId;
+        public string ProcessName;
+        public string ProcessId;
+    }
+
+    internal sealed class AgentAdminCommandFinding
+    {
+        public bool Detected;
+        public bool Approved;
+        public string Term;
+        public string CommandFamily;
+        public int Score;
+    }
+
+    internal sealed class AgentGuardrailFinding
+    {
+        public bool Detected;
+        public string Term;
+        public string CommandFamily;
+        public int Score;
     }
 }

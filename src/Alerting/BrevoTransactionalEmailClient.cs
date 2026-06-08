@@ -39,6 +39,8 @@ namespace ArcaneEDR
             request.ContentType = "application/json";
             request.Headers["api-key"] = apiKey;
             request.ContentLength = body.Length;
+            request.Timeout = TimeoutMilliseconds(config.BrevoTimeoutSeconds);
+            request.ReadWriteTimeout = TimeoutMilliseconds(config.BrevoTimeoutSeconds);
 
             using (Stream requestStream = request.GetRequestStream())
             {
@@ -65,6 +67,12 @@ namespace ArcaneEDR
         private string GetApiKey()
         {
             return secretProvider.GetSecret(config.BrevoApiKeyEnvironmentVariable);
+        }
+
+        private static int TimeoutMilliseconds(int timeoutSeconds)
+        {
+            int seconds = timeoutSeconds <= 0 ? 15 : timeoutSeconds;
+            return seconds * 1000;
         }
 
         private static string BuildPayload(BrevoEmailMessage message)

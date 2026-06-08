@@ -36,7 +36,9 @@ namespace ArcaneEDR
             WriteRecentAlerts(bundleDirectory);
             WriteRecentErrors(bundleDirectory);
             WriteRecentIncidents(bundleDirectory);
+            WriteRecentMaintenanceSessions(bundleDirectory);
             WriteRecentAgentActivity(bundleDirectory);
+            WriteRecentResponseActivity(bundleDirectory);
 
             return bundleDirectory;
         }
@@ -56,6 +58,18 @@ namespace ArcaneEDR
             lines.Add("ServiceDisplayName=" + config.ServiceDisplayName);
             lines.Add("ExternalAlertProviders=" + String.Join(",", ToList(config.GetExternalAlertProviders()).ToArray()));
             lines.Add("ResponseMode=" + config.ResponseMode);
+            lines.Add("ResponseMinimumScore=" + config.ResponseMinimumScore.ToString(CultureInfo.InvariantCulture));
+            lines.Add("FirewallBlockResponseEnabled=" + config.EnableFirewallBlockResponse);
+            lines.Add("ProcessTerminationResponseEnabled=" + config.EnableProcessTerminationResponse);
+            lines.Add("ResponsePolicyEnabled=" + config.EnableResponsePolicy);
+            lines.Add("ResponseAllowedRuleCount=" + CountConfigured(config.ResponseAllowedRuleIds).ToString(CultureInfo.InvariantCulture));
+            lines.Add("ResponseAllowedCategoryCount=" + CountConfigured(config.ResponseAllowedCategories).ToString(CultureInfo.InvariantCulture));
+            lines.Add("ResponseBlockedRuleCount=" + CountConfigured(config.ResponseBlockedRuleIds).ToString(CultureInfo.InvariantCulture));
+            lines.Add("ResponseBlockedCategoryCount=" + CountConfigured(config.ResponseBlockedCategories).ToString(CultureInfo.InvariantCulture));
+            lines.Add("ResponseProtectedProcessCount=" + CountConfigured(config.ResponseProtectedProcessNames).ToString(CultureInfo.InvariantCulture));
+            lines.Add("ResponseLedgerEnabled=" + config.EnableResponseLedger);
+            lines.Add("ResponseFollowUpDetectionsEnabled=" + config.EnableResponseFollowUpDetections);
+            lines.Add("ResponseFollowUpExternalAlertMinimumScore=" + config.ResponseFollowUpExternalAlertMinimumScore.ToString(CultureInfo.InvariantCulture));
             lines.Add("BaselineEnabled=" + config.BaselineEnabled);
             lines.Add("BaselineLearningMode=" + config.BaselineLearningMode);
             lines.Add("AIAnalysisEnabled=" + config.EnableAIAnalysis);
@@ -65,6 +79,7 @@ namespace ArcaneEDR
             lines.Add("DetectionPolicyEnabled=" + config.EnableDetectionPolicy);
             lines.Add("DetectionPolicyFile=" + RedactPath(config.DetectionPolicyFile));
             lines.Add("IncidentGroupingEnabled=" + config.EnableIncidentGrouping);
+            lines.Add("MaintenanceSessionMarkersEnabled=" + config.EnableMaintenanceSessionMarkers);
             lines.Add("AgentActivityLedgerEnabled=" + config.EnableAgentActivityLedger);
             WriteLines(Path.Combine(bundleDirectory, "manifest.txt"), lines);
         }
@@ -273,6 +288,66 @@ namespace ArcaneEDR
             WriteLines(Path.Combine(bundleDirectory, "agent-activity-summary.jsonl"), output);
         }
 
+        private void WriteRecentMaintenanceSessions(string bundleDirectory)
+        {
+            if (!config.EnableMaintenanceSessionMarkers)
+            {
+                WriteLines(Path.Combine(bundleDirectory, "maintenance-sessions-summary.jsonl"), new[] { "{\"enabled\":false}" });
+                return;
+            }
+
+            JavaScriptSerializer serializer = new JavaScriptSerializer();
+            MaintenanceSessionMarkerStore store = new MaintenanceSessionMarkerStore(config, null);
+            MaintenanceSessionMarker active = store.FindActive(DateTime.UtcNow);
+            List<string> output = new List<string>();
+            foreach (MaintenanceSessionMarker marker in store.Recent(TimeSpan.FromHours(24)))
+            {
+                Dictionary<string, object> summary = new Dictionary<string, object>();
+                summary["timestamp_utc"] = Format(marker.TimestampUtc);
+                summary["start_utc"] = Format(marker.StartUtc);
+                summary["end_utc"] = Format(marker.EndUtc);
+                summary["duration_minutes"] = marker.DurationMinutes;
+                summary["reason"] = RedactSensitiveText(marker.Reason);
+                summary["source"] = RedactSensitiveText(marker.Source);
+                summary["cleared"] = marker.Cleared;
+                summary["active"] = active != null &&
+                    !marker.Cleared &&
+                    marker.TimestampUtc == active.TimestampUtc &&
+                    marker.EndUtc == active.EndUtc;
+                output.Add(serializer.Serialize(summary));
+            }
+
+            if (output.Count == 0)
+            {
+                output.Add("{\"enabled\":true,\"active\":" + (active == null ? "false" : "true") + ",\"records\":0}");
+            }
+
+            WriteLines(Path.Combine(bundleDirectory, "maintenance-sessions-summary.jsonl"), output);
+        }
+
+        private void WriteRecentResponseActivity(string bundleDirectory)
+        {
+            if (!config.EnableResponseLedger)
+            {
+                WriteLines(Path.Combine(bundleDirectory, "response-activity-summary.jsonl"), new[] { "{\"enabled\":false}" });
+                return;
+            }
+
+            List<string> output = new List<string>();
+            foreach (string line in Tail(config.ResponseLedgerFile, MaxRecentAlertLines))
+            {
+                string summary = SummarizeResponseActivityJson(line);
+                if (!String.IsNullOrWhiteSpace(summary)) output.Add(summary);
+            }
+
+            if (output.Count == 0)
+            {
+                output.Add("{\"enabled\":true,\"records\":0}");
+            }
+
+            WriteLines(Path.Combine(bundleDirectory, "response-activity-summary.jsonl"), output);
+        }
+
         private static string SummarizeAlertJson(string line)
         {
             try
@@ -325,6 +400,40 @@ namespace ArcaneEDR
                 Copy(parsed, summary, "command_category");
                 Copy(parsed, summary, "endpoint_category");
                 Copy(parsed, summary, "file_category");
+                return serializer.Serialize(summary);
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        private static string SummarizeResponseActivityJson(string line)
+        {
+            try
+            {
+                JavaScriptSerializer serializer = new JavaScriptSerializer();
+                Dictionary<string, object> parsed = serializer.Deserialize<Dictionary<string, object>>(line);
+                if (parsed == null) return "";
+
+                Dictionary<string, object> summary = new Dictionary<string, object>();
+                Copy(parsed, summary, "timestamp_utc");
+                Copy(parsed, summary, "response_id");
+                Copy(parsed, summary, "mode");
+                Copy(parsed, summary, "dry_run");
+                Copy(parsed, summary, "action");
+                Copy(parsed, summary, "trigger_rule_id");
+                Copy(parsed, summary, "rule_id");
+                Copy(parsed, summary, "category");
+                Copy(parsed, summary, "score");
+                Copy(parsed, summary, "severity");
+                Copy(parsed, summary, "target_type");
+                Copy(parsed, summary, "target_process_name");
+                Copy(parsed, summary, "firewall_rule_name");
+                Copy(parsed, summary, "skipped_reason");
+                object targetValue;
+                summary["target_present"] = parsed.TryGetValue("target_value", out targetValue) &&
+                    !String.IsNullOrWhiteSpace(targetValue == null ? "" : targetValue.ToString());
                 return serializer.Serialize(summary);
             }
             catch
@@ -428,6 +537,18 @@ namespace ArcaneEDR
             if (value.IndexOf("http://", StringComparison.OrdinalIgnoreCase) >= 0) return true;
             if (value.IndexOf("https://", StringComparison.OrdinalIgnoreCase) >= 0) return true;
             return Regex.IsMatch(value, @"\b(?:\d{1,3}\.){3}\d{1,3}\b");
+        }
+
+        private static int CountConfigured(IEnumerable<string> values)
+        {
+            if (values == null) return 0;
+            int count = 0;
+            foreach (string value in values)
+            {
+                if (!String.IsNullOrWhiteSpace(value)) count++;
+            }
+
+            return count;
         }
 
         private static string RedactSensitiveText(string value)

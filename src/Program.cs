@@ -88,6 +88,18 @@ namespace ArcaneEDR
                 return;
             }
 
+            if (args.Length > 0 && args[0].Equals("--maintenance", StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.ExitCode = MaintenanceSessionConsole.Run(AppDomain.CurrentDomain.BaseDirectory, args);
+                return;
+            }
+
+            if (args.Length > 0 && args[0].Equals("--response-firewall", StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.ExitCode = ResponseFirewallConsole.Run(AppDomain.CurrentDomain.BaseDirectory, args);
+                return;
+            }
+
             if (args.Length > 0 && args[0].Equals("--policy-preview", StringComparison.OrdinalIgnoreCase))
             {
                 Environment.ExitCode = DetectionPolicyConsole.Preview(AppDomain.CurrentDomain.BaseDirectory, args);
@@ -163,6 +175,8 @@ namespace ArcaneEDR
             Console.WriteLine("  ArcaneEDR.exe --preview-ai-payload");
             Console.WriteLine("  ArcaneEDR.exe --alert-volume --last <duration>");
             Console.WriteLine("  ArcaneEDR.exe --agent-activity --last <duration>");
+            Console.WriteLine("  ArcaneEDR.exe --maintenance start|clear|list [options]");
+            Console.WriteLine("  ArcaneEDR.exe --response-firewall list|remove|remove-all");
             Console.WriteLine("  ArcaneEDR.exe --policy-preview --last <duration> [--limit <n>]");
             Console.WriteLine("  ArcaneEDR.exe --policy-preview --sample-rule <rule-id> [sample context options]");
             Console.WriteLine("  ArcaneEDR.exe --policy-preview --sample-alert <json-path>");

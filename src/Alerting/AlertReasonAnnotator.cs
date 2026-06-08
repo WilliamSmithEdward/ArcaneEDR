@@ -46,6 +46,16 @@ namespace ArcaneEDR
                 alert.AddWhy("Process creation telemetry matched suspicious command, path, parent, network, hash, or reputation traits.");
             }
 
+            if (StartsWith(ruleId, "RESPONSE-"))
+            {
+                alert.AddWhy("Arcane response follow-up telemetry matched a monitored post-response condition.");
+            }
+
+            if (StartsWith(ruleId, "AGENT-"))
+            {
+                alert.AddWhy("Configured agent-context telemetry matched an alert-only workstation guardrail.");
+            }
+
             if (StartsWith(ruleId, "PERSIST-"))
             {
                 alert.AddWhy("Service, scheduled task, startup, registry, or other persistence telemetry changed or appeared suspicious.");

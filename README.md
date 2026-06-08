@@ -406,8 +406,8 @@ readable for the operator.
 
 Alerts also carry a rule `category`, derived from the rule ID. Current
 categories include `Network`, `DNS`, `PowerShell`, `Persistence`, `Auth`,
-`File`, `Process`, `RAT`, `AI`, `Health`, `Integrity`, `Baseline`, `Reputation`,
-`Custom`, `Test`, and `General`.
+`File`, `Process`, `Agent`, `Response`, `RAT`, `AI`, `Health`, `Integrity`,
+`Baseline`, `Reputation`, `Custom`, `Test`, and `General`.
 
 Arcane persists Windows, PowerShell, and Sysmon event-log watermarks under
 `LogDirectory` by default:
@@ -515,12 +515,29 @@ making it disappear:
 EnableMaintenanceContext=true
 MaintenanceContextExternalAlertMinimumScore=95
 MaintenanceContextTermGroups=icacls|/inheritance:r,powershell|-executionpolicy bypass|publish.ps1,ArcaneEDR.exe|--validate-config
+EnableMaintenanceSessionMarkers=true
+MaintenanceSessionMarkerFile=ArcaneMaintenanceSessions.jsonl
+MaintenanceSessionDefaultMinutes=60
+MaintenanceSessionMaximumMinutes=240
 ```
 
 Each comma-separated group uses `|` for terms that must all appear in the alert
 text. Matching alerts get `maintenance_context=true`, retain their local log and
 incident records, and only suppress external delivery when the score is below
 `MaintenanceContextExternalAlertMinimumScore`.
+
+For expected work that does not fit a durable term group, start a bounded local
+maintenance marker:
+
+```powershell
+.\bin\ArcaneEDR.exe --maintenance start --duration 1h --reason publish
+.\bin\ArcaneEDR.exe --maintenance list
+.\bin\ArcaneEDR.exe --maintenance clear --reason done
+```
+
+Active markers label alerts with maintenance context for their configured
+window. They do not suppress local evidence, change scores, or perform response
+actions.
 
 Low-value repeat dampening reduces external notification volume for the same
 stable behavior while preserving local evidence:
@@ -683,6 +700,8 @@ alert log, incident grouping, or daily report context.
 `ExternalAlertProviderMaxPerHour` adds optional per-provider hourly caps after
 global rate limits. Use it to keep a noisy provider quiet while still allowing
 another configured sink to receive eligible alerts.
+`ExternalAlertMaxPerHour` is the shared runtime cap for normal detection
+alerts, direct service/report/AI notifications, and retry deliveries.
 
 SMTP:
 
@@ -836,6 +855,7 @@ AIAnalysisExcludedRuleIds=AI-LOG-ANALYSIS-ALERT,AI-LOG-ANALYSIS-TEST,SERVICE-STA
 AIAnalysisMaxLogLines=80
 AIAnalysisMaxAlertLines=80
 AIAnalysisMaxChars=12000
+AIAnalysisTimeoutSeconds=30
 EnableDailySummaryAIAnalysis=true
 ```
 
@@ -934,6 +954,15 @@ AgentPublishRoots=C:\Applications\
 AgentPackageManagerProcesses=git.exe,git-remote-https.exe,node.exe,npm.exe,npm.cmd,python.exe,pip.exe,curl.exe
 AgentApprovedAdminTaskNames=\ArcaneEDR\PublishRestart,\ArcaneEDR\InstallService,\ArcaneEDR\ValidateAdmin
 AgentSecretIndicatorTerms=apikey,api_key,access_token,refresh_token,client_secret,private_key,id_rsa,.pem,.pfx,.env
+EnableAgentAdminCommandGuardrails=true
+AgentAdminCommandMinimumScore=84
+AgentAdminCommandTerms=-verb runas,runas.exe,schtasks,start-scheduledtask,register-scheduledtask,new-scheduledtask,run-admin-task.cmd,run-admin-task.ps1,admin-task-runner.ps1,new-service,sc.exe create,sc create,set-service,netsh advfirewall,new-netfirewallrule,set-netfirewallrule,remove-netfirewallrule,icacls,takeown,set-acl,reg add,\currentversion\run,set-mppreference,add-mppreference,disableantispyware,disablerealtimemonitoring
+EnableAgentSecretReferenceGuardrails=true
+AgentSecretReferenceMinimumScore=78
+AgentSecretReferenceTerms=apikey,api_key,access_token,refresh_token,client_secret,private_key,id_rsa,id_ed25519,.pem,.pfx,.env,credentials,token.json,aws_access_key_id,azure_client_secret,gcloud,\appdata\local\google\chrome\user data,\appdata\local\microsoft\edge\user data,\mozilla\firefox\profiles
+EnableAgentSupplyChainGuardrails=true
+AgentSupplyChainMinimumScore=74
+AgentSupplyChainTerms=npm install,npm ci,npm exec,npx,pnpm install,yarn install,pip install,pip3 install,python -m pip install,curl,curl.exe,invoke-webrequest,wget,downloadstring,downloadfile,git clone,invoke-restmethod,invoke-expression,install.ps1,install.sh,postinstall
 EnableAgentActivityLedger=true
 AgentActivityLedgerFile=ArcaneAgentActivity.jsonl
 AgentActivityLedgerMinimumScore=60
@@ -951,6 +980,25 @@ stores rule, score, process family, agent reason labels, command category,
 endpoint category, and file category; it does not store raw command lines,
 paths, IPs, users, URLs, or alert bodies.
 
+When `EnableAgentAdminCommandGuardrails=true`, Arcane raises
+`AGENT-ADMIN-COMMAND` when PowerShell, Windows process-creation audit, or
+Sysmon process telemetry shows an agent-initiated elevation, service,
+scheduled-task, firewall, ACL, registry, persistence, or security-control
+command that is not one of the configured `AgentApprovedAdminTaskNames`. This
+is alert-only evidence; it does not change `ResponseMode` or perform
+containment.
+
+When `EnableAgentSecretReferenceGuardrails=true`, Arcane raises
+`AGENT-SECRET-REFERENCE` for agent-initiated commands or script blocks that
+reference configured token, key, certificate, SSH material, cloud credential,
+or browser credential-store indicators.
+
+When `EnableAgentSupplyChainGuardrails=true`, Arcane raises
+`AGENT-SUPPLY-CHAIN-COMMAND` for agent-initiated package installs, source
+clones, downloads, install scripts, or expression-execution indicators. These
+rules are review prompts for unattended agent work, not automatic containment
+triggers.
+
 ## Custom Rules
 
 Custom rules are compact JSON objects with `source`, `score`, `contains_any`,
@@ -964,11 +1012,60 @@ The default is alert-only:
 ```ini
 ResponseMode=AlertOnly
 ResponseMinimumScore=95
+EnableFirewallBlockResponse=false
+EnableProcessTerminationResponse=false
+EnableResponsePolicy=true
+ResponseAllowedRuleIds=
+ResponseAllowedCategories=
+ResponseBlockedRuleIds=SERVICE-STARTED,SERVICE-STOPPED,SERVICE-RECOVERED-AFTER-UNCLEAN-STOP,TEST-ALERT
+ResponseBlockedCategories=Agent,AI,Baseline,Health,Response,Test
+ResponseProtectedProcessNames=System,Idle,Registry,smss.exe,csrss.exe,wininit.exe,winlogon.exe,services.exe,lsass.exe,svchost.exe,explorer.exe,dwm.exe,fontdrvhost.exe,sihost.exe,taskhostw.exe,chrome.exe,msedge.exe,firefox.exe,code.exe,devenv.exe,git.exe,git-remote-https.exe,codex.exe,Codex.exe
+EnableResponseLedger=true
+ResponseLedgerFile=ArcaneResponseLedger.jsonl
+EnableResponseFollowUpDetections=true
+ResponseProcessRespawnWindowMinutes=10
+ResponseProcessRespawnMinimumScore=94
+ResponseFollowUpExternalAlertMinimumScore=95
 ```
 
-Other supported modes are `BlockRemoteIp`, `TerminateProcess`, and
+Dry-run modes are `DryRunBlockRemoteIp`, `DryRunTerminateProcess`, and
+`DryRunBlockAndTerminate`. They evaluate candidate response targets, write
+compact local records to `ResponseLedgerFile`, and log what would have
+happened, but they do not add firewall rules or kill processes. If response
+policy would block the same alert in an active mode, the dry-run ledger records
+that policy skip reason.
+
+Active modes are `BlockRemoteIp`, `TerminateProcess`, and
 `BlockAndTerminate`. These are intentionally opt-in because false positives can
-disrupt legitimate tools.
+disrupt legitimate tools. Keep `ResponseMinimumScore` high when testing active
+response. Firewall blocking requires `EnableFirewallBlockResponse=true`, and
+process termination requires `EnableProcessTerminationResponse=true` because it
+cannot be rolled back. Read `docs\response-safety-and-rollback.md` before
+enabling active response.
+
+When `EnableResponsePolicy=true`, active response also requires an explicit
+allow entry in `ResponseAllowedRuleIds` or `ResponseAllowedCategories`. The
+example config leaves both allowlists empty, so active modes skip every action
+even if an action gate is enabled. Dry-run modes remain useful for discovering
+candidate rules before adding a narrow allow entry.
+
+Firewall block response rules are named `ArcaneEDR_BLOCK_<response-id>`, where
+`response-id` is a GUID recorded in `ResponseLedgerFile` with the triggering
+alert rule, score, target, and firewall rule name. List or remove Arcane-owned
+firewall blocks with:
+
+```powershell
+.\bin\ArcaneEDR.exe --response-firewall list
+.\bin\ArcaneEDR.exe --response-firewall remove <response-id-or-ArcaneEDR_BLOCK_guid>
+.\bin\ArcaneEDR.exe --response-firewall remove-all
+```
+
+If process termination is enabled and a same-named process relaunches within
+`ResponseProcessRespawnWindowMinutes`, Arcane raises
+`RESPONSE-PROCESS-RESPAWN` as escalatory local evidence. By default,
+`ResponseFollowUpExternalAlertMinimumScore=95` keeps these follow-up alerts
+from sending external notifications unless the score or local policy warrants
+it.
 
 ## Hardening Notes
 

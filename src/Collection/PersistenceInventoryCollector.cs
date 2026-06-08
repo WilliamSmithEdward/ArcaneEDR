@@ -138,28 +138,36 @@ namespace ArcaneEDR
                 startInfo.RedirectStandardError = true;
                 startInfo.CreateNoWindow = true;
 
-                using (Process process = Process.Start(startInfo))
+                BoundedProcessResult result = BoundedProcessRunner.Run(startInfo, 10000);
+                if (result.TimedOut)
                 {
-                    string output = process.StandardOutput.ReadToEnd();
-                    process.WaitForExit(10000);
-                    if (!process.HasExited)
-                    {
-                        try { process.Kill(); }
-                        catch { }
-                        return;
-                    }
-
-                    ParseScheduledTaskCsv(output, telemetry);
+                    WarnTasksOnce("Persistence scheduled task scan timed out.");
+                    return;
                 }
+
+                if (!String.IsNullOrWhiteSpace(result.StandardError))
+                {
+                    WarnTasksOnce("Persistence scheduled task scan stderr: " + result.StandardError.Trim());
+                }
+
+                if (result.ExitCode != 0)
+                {
+                    WarnTasksOnce("Persistence scheduled task scan exited with code " + result.ExitCode.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".");
+                }
+
+                ParseScheduledTaskCsv(result.StandardOutput, telemetry);
             }
             catch (Exception ex)
             {
-                if (!warnedTasks)
-                {
-                    logger.Warn("Persistence scheduled task scan failed: " + ex.Message);
-                    warnedTasks = true;
-                }
+                WarnTasksOnce("Persistence scheduled task scan failed: " + ex.Message);
             }
+        }
+
+        private void WarnTasksOnce(string message)
+        {
+            if (warnedTasks) return;
+            if (logger != null) logger.Warn(message);
+            warnedTasks = true;
         }
 
         private void ParseScheduledTaskCsv(string output, HostTelemetry telemetry)

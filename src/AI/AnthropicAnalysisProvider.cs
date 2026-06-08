@@ -85,6 +85,8 @@ namespace ArcaneEDR
             }
 
             request.ContentLength = body.Length;
+            request.Timeout = TimeoutMilliseconds(config.AIAnalysisTimeoutSeconds);
+            request.ReadWriteTimeout = TimeoutMilliseconds(config.AIAnalysisTimeoutSeconds);
             using (Stream stream = request.GetRequestStream())
             {
                 stream.Write(body, 0, body.Length);
@@ -126,6 +128,12 @@ namespace ArcaneEDR
         private string GetApiKey()
         {
             return secretProvider.GetSecret(settings.ApiKeyEnvironmentVariable);
+        }
+
+        private static int TimeoutMilliseconds(int timeoutSeconds)
+        {
+            int seconds = timeoutSeconds <= 0 ? 30 : timeoutSeconds;
+            return seconds * 1000;
         }
 
         private bool RequiresApiKey()

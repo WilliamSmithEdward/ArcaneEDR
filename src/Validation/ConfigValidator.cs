@@ -62,10 +62,12 @@ namespace ArcaneEDR
             ValidateLowValueRepeatDampening(config, errors, warnings);
             ValidateTermGroups(config.MaintenanceContextTermGroups, "MaintenanceContextTermGroups", warnings);
             if (config.MaintenanceContextExternalAlertMinimumScore < 0 || config.MaintenanceContextExternalAlertMinimumScore > 100) Warn(warnings, "MaintenanceContextExternalAlertMinimumScore is outside the usual 0-100 range.");
+            ValidateMaintenanceSessionMarkers(config, errors, warnings);
             if (config.BaselineLearningEmailMinimumScore < 0 || config.BaselineLearningEmailMinimumScore > 100) Warn(warnings, "BaselineLearningEmailMinimumScore is outside the usual 0-100 range.");
             if (config.AIAnalysisBaselineEmailMinimumScore < 0 || config.AIAnalysisBaselineEmailMinimumScore > 100) Warn(warnings, "AIAnalysisBaselineEmailMinimumScore is outside the usual 0-100 range.");
             if (config.AIAnalysisMinimumIncludedAlertScore < 0 || config.AIAnalysisMinimumIncludedAlertScore > 100) Warn(warnings, "AIAnalysisMinimumIncludedAlertScore is outside the usual 0-100 range.");
             if (config.AIAnalysisBaselineMinimumIncludedAlertScore < 0 || config.AIAnalysisBaselineMinimumIncludedAlertScore > 100) Warn(warnings, "AIAnalysisBaselineMinimumIncludedAlertScore is outside the usual 0-100 range.");
+            if (config.AIAnalysisTimeoutSeconds <= 0) Fail(errors, "AIAnalysisTimeoutSeconds must be greater than zero.");
             ValidateAiAnalysisProvider(config, errors, warnings);
             ValidateDailySummarySchedule(config, errors, warnings);
             ValidateDailyReportConfig(config, errors, warnings);
@@ -73,6 +75,7 @@ namespace ArcaneEDR
             ValidateRulePolicy(config, warnings);
             if (config.AIAnalysisMaxChars > 20000) Warn(warnings, "AIAnalysisMaxChars is above 20000; compact analysis may use more tokens than intended.");
             ValidateHighSignalFileDetection(config, warnings);
+            if (config.BrevoTimeoutSeconds <= 0) Fail(errors, "BrevoTimeoutSeconds must be greater than zero.");
             if (config.SmtpPort < 1 || config.SmtpPort > 65535) Fail(errors, "SmtpPort must be between 1 and 65535.");
             if (config.SmtpTimeoutSeconds <= 0) Fail(errors, "SmtpTimeoutSeconds must be greater than zero.");
             if (config.WebhookTimeoutSeconds <= 0) Fail(errors, "WebhookTimeoutSeconds must be greater than zero.");
@@ -90,11 +93,7 @@ namespace ArcaneEDR
             }
             ValidateAgentProfile(config, warnings);
             ValidateAgentActivityLedger(config, errors, warnings);
-            if (!IsResponseMode(config.ResponseMode)) Fail(errors, "ResponseMode must be AlertOnly, BlockRemoteIp, TerminateProcess, or BlockAndTerminate.");
-            if (config.ResponseMinimumScore < 90 && !config.ResponseMode.Equals("AlertOnly", StringComparison.OrdinalIgnoreCase))
-            {
-                Warn(warnings, "ResponseMinimumScore is below 90 while an active response mode is enabled.");
-            }
+            ValidateResponseConfig(config, errors, warnings);
         }
 
         private static void ValidateDailySummarySchedule(MonitorConfig config, List<string> errors, List<string> warnings)
@@ -608,6 +607,50 @@ namespace ArcaneEDR
             {
                 Warn(warnings, "EnableAgentProfile is true but AgentChildProcessNames is empty; child shell/package-tool correlation will be limited.");
             }
+
+            if (config.EnableAgentAdminCommandGuardrails)
+            {
+                if (config.AgentAdminCommandTerms.Count == 0)
+                {
+                    Warn(warnings, "EnableAgentAdminCommandGuardrails is true but AgentAdminCommandTerms is empty; agent admin-command guardrails will not match.");
+                }
+
+                if (config.AgentAdminCommandMinimumScore < 0 || config.AgentAdminCommandMinimumScore > 100)
+                {
+                    Warn(warnings, "AgentAdminCommandMinimumScore is outside the usual 0-100 range.");
+                }
+
+                if (config.AgentApprovedAdminTaskNames.Count == 0)
+                {
+                    Warn(warnings, "EnableAgentAdminCommandGuardrails is true but AgentApprovedAdminTaskNames is empty; expected admin bridge activity may require local tuning.");
+                }
+            }
+
+            if (config.EnableAgentSecretReferenceGuardrails)
+            {
+                if (config.AgentSecretReferenceTerms.Count == 0 && config.AgentSecretIndicatorTerms.Count == 0)
+                {
+                    Warn(warnings, "EnableAgentSecretReferenceGuardrails is true but AgentSecretReferenceTerms and AgentSecretIndicatorTerms are empty; secret-reference guardrails will not match.");
+                }
+
+                if (config.AgentSecretReferenceMinimumScore < 0 || config.AgentSecretReferenceMinimumScore > 100)
+                {
+                    Warn(warnings, "AgentSecretReferenceMinimumScore is outside the usual 0-100 range.");
+                }
+            }
+
+            if (config.EnableAgentSupplyChainGuardrails)
+            {
+                if (config.AgentSupplyChainTerms.Count == 0)
+                {
+                    Warn(warnings, "EnableAgentSupplyChainGuardrails is true but AgentSupplyChainTerms is empty; package/download guardrails will not match.");
+                }
+
+                if (config.AgentSupplyChainMinimumScore < 0 || config.AgentSupplyChainMinimumScore > 100)
+                {
+                    Warn(warnings, "AgentSupplyChainMinimumScore is outside the usual 0-100 range.");
+                }
+            }
         }
 
         private static void ValidateAgentActivityLedger(MonitorConfig config, List<string> errors, List<string> warnings)
@@ -627,6 +670,146 @@ namespace ArcaneEDR
             if (config.AgentActivityLedgerMinimumScore < 0 || config.AgentActivityLedgerMinimumScore > 100)
             {
                 Warn(warnings, "AgentActivityLedgerMinimumScore is outside the usual 0-100 range.");
+            }
+        }
+
+        private static void ValidateMaintenanceSessionMarkers(MonitorConfig config, List<string> errors, List<string> warnings)
+        {
+            if (!config.EnableMaintenanceSessionMarkers) return;
+
+            if (!config.EnableMaintenanceContext)
+            {
+                Warn(warnings, "EnableMaintenanceSessionMarkers is true but EnableMaintenanceContext is false; markers will not annotate alerts.");
+            }
+
+            if (String.IsNullOrWhiteSpace(config.MaintenanceSessionMarkerFile))
+            {
+                Fail(errors, "MaintenanceSessionMarkerFile must be configured when maintenance session markers are enabled.");
+            }
+
+            if (config.MaintenanceSessionDefaultMinutes <= 0)
+            {
+                Fail(errors, "MaintenanceSessionDefaultMinutes must be greater than zero.");
+            }
+
+            if (config.MaintenanceSessionMaximumMinutes <= 0)
+            {
+                Fail(errors, "MaintenanceSessionMaximumMinutes must be greater than zero.");
+            }
+
+            if (config.MaintenanceSessionDefaultMinutes > config.MaintenanceSessionMaximumMinutes)
+            {
+                Warn(warnings, "MaintenanceSessionDefaultMinutes is greater than MaintenanceSessionMaximumMinutes; requested default sessions will be capped.");
+            }
+        }
+
+        private static void ValidateResponseConfig(MonitorConfig config, List<string> errors, List<string> warnings)
+        {
+            if (!IsResponseMode(config.ResponseMode))
+            {
+                Fail(errors, "ResponseMode must be AlertOnly, DryRunBlockRemoteIp, DryRunTerminateProcess, DryRunBlockAndTerminate, BlockRemoteIp, TerminateProcess, or BlockAndTerminate.");
+            }
+
+            if (config.ResponseMinimumScore < 0 || config.ResponseMinimumScore > 100)
+            {
+                Warn(warnings, "ResponseMinimumScore is outside the usual 0-100 range.");
+            }
+
+            if (IsFirewallResponseMode(config.ResponseMode) && !config.EnableFirewallBlockResponse)
+            {
+                Fail(errors, "BlockRemoteIp and BlockAndTerminate require EnableFirewallBlockResponse=true. Use a DryRun* mode unless firewall blocking is intentional.");
+            }
+
+            if (IsTerminateResponseMode(config.ResponseMode) && !config.EnableProcessTerminationResponse)
+            {
+                Fail(errors, "TerminateProcess and BlockAndTerminate require EnableProcessTerminationResponse=true. Process termination cannot be rolled back.");
+            }
+
+            if (IsActiveResponseMode(config.ResponseMode) && config.ResponseMinimumScore < 90)
+            {
+                Warn(warnings, "ResponseMinimumScore is below 90 while an active response mode is enabled.");
+            }
+
+            if (IsDryRunResponseMode(config.ResponseMode) && config.ResponseMinimumScore < 60)
+            {
+                Warn(warnings, "ResponseMinimumScore is below 60 while response dry-run is enabled; the ledger may become noisy.");
+            }
+
+            if (config.EnableResponseLedger && String.IsNullOrWhiteSpace(config.ResponseLedgerFile))
+            {
+                Fail(errors, "ResponseLedgerFile must be configured when response ledger is enabled.");
+            }
+
+            if (IsActiveResponseMode(config.ResponseMode) && !config.EnableResponseLedger)
+            {
+                Fail(errors, "Active response requires EnableResponseLedger=true so actions are auditable and firewall blocks can be reviewed.");
+            }
+
+            ValidateResponsePolicy(config, warnings);
+
+            if (IsDryRunResponseMode(config.ResponseMode) && !config.EnableResponseLedger)
+            {
+                Warn(warnings, "Response dry-run mode is enabled but EnableResponseLedger is false; intended actions will only appear in the service log.");
+            }
+
+            if (config.EnableResponseFollowUpDetections)
+            {
+                if (!config.EnableResponseLedger)
+                {
+                    Warn(warnings, "EnableResponseFollowUpDetections is true but EnableResponseLedger is false; response follow-up detections will be limited.");
+                }
+
+                if (config.ResponseProcessRespawnWindowMinutes <= 0)
+                {
+                    Fail(errors, "ResponseProcessRespawnWindowMinutes must be greater than zero when response follow-up detections are enabled.");
+                }
+
+                if (config.ResponseProcessRespawnMinimumScore < 0 || config.ResponseProcessRespawnMinimumScore > 100)
+                {
+                    Warn(warnings, "ResponseProcessRespawnMinimumScore is outside the usual 0-100 range.");
+                }
+            }
+
+            if (config.ResponseFollowUpExternalAlertMinimumScore < 0 || config.ResponseFollowUpExternalAlertMinimumScore > 100)
+            {
+                Warn(warnings, "ResponseFollowUpExternalAlertMinimumScore is outside the usual 0-100 range.");
+            }
+        }
+
+        private static void ValidateResponsePolicy(MonitorConfig config, List<string> warnings)
+        {
+            foreach (string category in config.ResponseAllowedCategories)
+            {
+                if (!AlertRuleCatalog.IsKnownCategory(category))
+                {
+                    Warn(warnings, "ResponseAllowedCategories contains an unknown category: " + category);
+                }
+            }
+
+            foreach (string category in config.ResponseBlockedCategories)
+            {
+                if (!AlertRuleCatalog.IsKnownCategory(category))
+                {
+                    Warn(warnings, "ResponseBlockedCategories contains an unknown category: " + category);
+                }
+            }
+
+            if (!IsActiveResponseMode(config.ResponseMode)) return;
+
+            if (!config.EnableResponsePolicy)
+            {
+                Warn(warnings, "Active response is enabled while EnableResponsePolicy is false; actions will rely only on score, action gates, and target availability.");
+            }
+            else if (!HasConfiguredValues(config.ResponseAllowedRuleIds) &&
+                !HasConfiguredValues(config.ResponseAllowedCategories))
+            {
+                Warn(warnings, "Active response is enabled but ResponseAllowedRuleIds and ResponseAllowedCategories are empty; response policy will skip all active actions.");
+            }
+
+            if (IsTerminateResponseMode(config.ResponseMode) &&
+                !HasConfiguredValues(config.ResponseProtectedProcessNames))
+            {
+                Warn(warnings, "Process termination response is enabled but ResponseProtectedProcessNames is empty.");
             }
         }
 
@@ -875,10 +1058,46 @@ namespace ArcaneEDR
 
         private static bool IsResponseMode(string value)
         {
-            return value.Equals("AlertOnly", StringComparison.OrdinalIgnoreCase) ||
-                value.Equals("BlockRemoteIp", StringComparison.OrdinalIgnoreCase) ||
-                value.Equals("TerminateProcess", StringComparison.OrdinalIgnoreCase) ||
-                value.Equals("BlockAndTerminate", StringComparison.OrdinalIgnoreCase);
+            return String.Equals(value, "AlertOnly", StringComparison.OrdinalIgnoreCase) ||
+                IsDryRunResponseMode(value) ||
+                IsActiveResponseMode(value);
+        }
+
+        private static bool IsDryRunResponseMode(string value)
+        {
+            return String.Equals(value, "DryRunBlockRemoteIp", StringComparison.OrdinalIgnoreCase) ||
+                String.Equals(value, "DryRunTerminateProcess", StringComparison.OrdinalIgnoreCase) ||
+                String.Equals(value, "DryRunBlockAndTerminate", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsActiveResponseMode(string value)
+        {
+            return String.Equals(value, "BlockRemoteIp", StringComparison.OrdinalIgnoreCase) ||
+                String.Equals(value, "TerminateProcess", StringComparison.OrdinalIgnoreCase) ||
+                String.Equals(value, "BlockAndTerminate", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsTerminateResponseMode(string value)
+        {
+            return String.Equals(value, "TerminateProcess", StringComparison.OrdinalIgnoreCase) ||
+                String.Equals(value, "BlockAndTerminate", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsFirewallResponseMode(string value)
+        {
+            return String.Equals(value, "BlockRemoteIp", StringComparison.OrdinalIgnoreCase) ||
+                String.Equals(value, "BlockAndTerminate", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool HasConfiguredValues(HashSet<string> values)
+        {
+            if (values == null) return false;
+            foreach (string value in values)
+            {
+                if (!String.IsNullOrWhiteSpace(value)) return true;
+            }
+
+            return false;
         }
 
         private static bool ProviderEnabled(MonitorConfig config, string expectedProvider)

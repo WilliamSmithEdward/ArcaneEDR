@@ -10,6 +10,8 @@ namespace ArcaneEDR
     {
         private readonly FileLogger logger;
         private readonly IProcessEnricher processEnricher;
+        private bool warnedNetstatTimeout;
+        private bool warnedNetstatExit;
 
         public NetstatNetworkSnapshotCollector(FileLogger logger, IProcessEnricher processEnricher)
         {
@@ -27,20 +29,32 @@ namespace ArcaneEDR
                 RedirectStandardError = true
             };
 
-            using (Process process = Process.Start(startInfo))
+            BoundedProcessResult result = BoundedProcessRunner.Run(startInfo, 10000);
+            if (result.TimedOut)
             {
-                string output = process.StandardOutput.ReadToEnd();
-                string error = process.StandardError.ReadToEnd();
-                process.WaitForExit(10000);
-
-                if (!String.IsNullOrWhiteSpace(error))
-                {
-                    logger.Warn("netstat stderr: " + error.Trim());
-                }
-
-                Dictionary<int, ProcessInfo> processes = processEnricher.CaptureProcesses();
-                return new NetworkSnapshot(Parse(output, processes));
+                WarnOnce(ref warnedNetstatTimeout, "netstat timed out; continuing poll without netstat network telemetry.");
+                return new NetworkSnapshot(new List<NetworkEndpoint>());
             }
+
+            if (!String.IsNullOrWhiteSpace(result.StandardError))
+            {
+                logger.Warn("netstat stderr: " + result.StandardError.Trim());
+            }
+
+            if (result.ExitCode != 0)
+            {
+                WarnOnce(ref warnedNetstatExit, "netstat exited with code " + result.ExitCode.ToString(CultureInfo.InvariantCulture) + "; continuing with any parsed output.");
+            }
+
+            Dictionary<int, ProcessInfo> processes = processEnricher.CaptureProcesses();
+            return new NetworkSnapshot(Parse(result.StandardOutput, processes));
+        }
+
+        private void WarnOnce(ref bool warned, string message)
+        {
+            if (warned || logger == null) return;
+            logger.Warn(message);
+            warned = true;
         }
 
         private static List<NetworkEndpoint> Parse(string output, Dictionary<int, ProcessInfo> processes)

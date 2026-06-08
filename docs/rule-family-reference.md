@@ -169,6 +169,66 @@ Rule IDs include `PROC-*`, `REPUTATION-*`, and `RAT-LOLBIN-*`.
 - Expected alert shape: `why` explains process creation, LOLBin, reputation,
   hash, path, parent, or network traits.
 
+## Agent Guardrails
+
+Rule IDs include `AGENT-ADMIN-COMMAND`, `AGENT-SECRET-REFERENCE`, and
+`AGENT-SUPPLY-CHAIN-COMMAND`.
+
+- Detects: configured unattended-agent context invoking elevation, scheduled
+  task, service, firewall, ACL, registry persistence, or security-control
+  commands outside configured approved admin tasks; configured secret, token,
+  SSH key, certificate, cloud credential, or browser credential-store
+  references; and package installs, source clones, downloads, install scripts,
+  or expression-execution indicators launched from agent-adjacent telemetry.
+- Required telemetry: PowerShell Operational log, Windows process-creation
+  audit events, or Sysmon process creation events, plus `AgentProfile` config.
+- Why it matters: unattended coding agents often need broad local tools, so
+  unexpected machine-control, credential-adjacent, and supply-chain-adjacent
+  commands should be visible even when the command is not independently
+  malicious.
+- Common false positives: approved publish/restart work, install scripts,
+  package-manager postinstall hooks, admin validation, and intentional local
+  maintenance.
+- Tuning knobs: `EnableAgentProfile`, `AgentProcessNames`,
+  `AgentChildProcessNames`, `AgentWorkspaceRoots`, `AgentPublishRoots`,
+  `AgentApprovedAdminTaskNames`, `EnableAgentAdminCommandGuardrails`,
+  `AgentAdminCommandMinimumScore`, `AgentAdminCommandTerms`,
+  `EnableAgentSecretReferenceGuardrails`,
+  `AgentSecretReferenceMinimumScore`, `AgentSecretReferenceTerms`,
+  `EnableAgentSupplyChainGuardrails`, `AgentSupplyChainMinimumScore`,
+  `AgentSupplyChainTerms`, maintenance context term groups, and bounded
+  maintenance session markers.
+- Scope boundary: this is alert-only evidence. It does not change
+  `ResponseMode`, add firewall blocks, terminate processes, or suppress local
+  logs.
+- Safe test: run an approved admin task through
+  `scripts\run-admin-task.cmd ValidateAdmin` and confirm it is labeled as
+  expected context; test unapproved commands only in a disposable lab.
+- Expected alert shape: `why` explains configured agent context; body includes
+  `CommandFamily`, `SecretReferenceFamily`, or `SupplyChainFamily`, matched
+  term, source telemetry, and `ResponseMode=AlertOnly`.
+
+## Response Follow-Up
+
+Rule IDs include `RESPONSE-*`, currently `RESPONSE-PROCESS-RESPAWN`.
+
+- Detects: a same-named process launching shortly after Arcane successfully
+  recorded an active process-termination response for that process.
+- Required telemetry: response ledger plus Sysmon process creation events.
+- Why it matters: process respawn after termination can indicate service
+  recovery, a supervisor, persistence, or resilient malware behavior.
+- Common false positives: expected services, watchdogs, updaters, shells, and
+  intentionally restarted tools.
+- Tuning knobs: `EnableResponseFollowUpDetections`,
+  `ResponseProcessRespawnWindowMinutes`, `ResponseProcessRespawnMinimumScore`,
+  `ResponseFollowUpExternalAlertMinimumScore`, response ledger settings, and
+  detection policy.
+- Flood protection: response follow-up alerts use a separate external alert
+  threshold so local evidence is preserved without creating repeated email or
+  webhook notifications by default.
+- Expected alert shape: `why` explains response follow-up context; body includes
+  response ID, triggering rule, process name, and respawn window.
+
 ## DNS And Domain Signals
 
 Rule IDs include `DNS-*` and `DNS-DOH-*`.

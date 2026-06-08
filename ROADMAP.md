@@ -40,7 +40,8 @@ partial implementations that look supported but only work through aliases or
 proxy behavior; a feature should be called supported when config, validation,
 runtime behavior, logging, reports, and docs all share the same model.
 
-Current active milestone: `v0.6.0`.
+Current active milestone: `v0.6.0` is release-ready locally; tagging and live
+deployment remain explicit operator actions.
 
 Recently completed `v0.4.0` gate:
 
@@ -65,12 +66,11 @@ phase sections below.
 | `v0.3.0` | Done | Complete | Detection-quality work is released as `v0.3.0`; further empirical tuning feeds later milestones. |
 | `v0.4.0` | Done | Complete | Modular alert sinks are released for Brevo, SMTP, webhook, generic HTTP/API, Windows Event Log, and local JSONL. Daily report preview, local archive, selectable sections, row limits, independent report destinations, canonical destination names, and concurrent AI provider fan-out are released in `v0.4.0`. |
 | `v0.5.0` | Done | Complete | Released investigation MVP: `why` explanations, incident grouping, timeline command, support bundle, simulations and demo path, rule-family docs, poll-stage fail-isolation, and structured local detection-policy preview/tuning. |
-| `v0.6.0` | In progress | Partial | Agent Profile labeling exists. Remaining work includes agent write/elevation guardrails, compact activity ledger, maintenance/session markers, response policy, and active-response dry-run. |
+| `v0.6.0` | Ready | Release-ready locally | Agent Profile labeling, file-write guardrails, compact activity ledger, alert-only admin/secret/supply-chain guardrails, response dry-run ledger, active-response policy gates, rollback helpers, follow-up detections, maintenance session markers, `0.6.0` versioning, package ZIP, checksum, and staged validation are complete. Not yet tagged or deployed. |
 | `v0.7.0` | Not started | Planned | Collector/rule interface cleanup, privacy hardening, and AI provider abstraction remain planned. |
 | `v1.0.0` | Not ready | Planned | Requires completed docs, tuned alert volume, tested install/upgrade/release flow, dry-run/manual response safety, and stable privacy/operations posture. |
 
-Current milestone focus: `v0.6.0` agentic workstation guardrails and
-active-response dry-run groundwork.
+Current milestone focus: tag and deploy `v0.6.0` only when explicitly requested.
 
 ## `v1.0.0` Scope Boundary
 
@@ -492,6 +492,40 @@ Progress:
   category, plus `ArcaneEDR.exe --agent-activity --last <duration>` for local
   review. Raw command lines, file paths, users, IPs, URLs, and alert bodies are
   not stored in the ledger.
+- Added the first alert-only agent admin-command guardrail:
+  `AGENT-ADMIN-COMMAND` detects agent-initiated elevation, scheduled-task,
+  service, firewall, ACL, registry persistence, and security-control command
+  terms outside configured `AgentApprovedAdminTaskNames`. This records local
+  evidence and compact ledger context without changing `ResponseMode`.
+- Added alert-only agent secret-reference and supply-chain guardrails:
+  `AGENT-SECRET-REFERENCE` detects configured token, key, credential, SSH,
+  certificate, cloud-secret, and browser credential-store indicators in
+  agent-adjacent telemetry, while `AGENT-SUPPLY-CHAIN-COMMAND` detects
+  package installs, source clones, downloads, install scripts, and
+  expression-execution indicators from agent-launched contexts.
+- Added dry-run response modes and a compact local response ledger so operators
+  can see proposed firewall-block and process-termination actions before
+  enabling active response.
+- Added explicit active-response safety gates so firewall blocks and process
+  termination require separate opt-in config, and active response requires the
+  local response ledger.
+- Added a response policy layer so active response requires explicit
+  `ResponseAllowedRuleIds` or `ResponseAllowedCategories` entries, while
+  blocked rule/category lists and protected process names keep agent, test,
+  health, AI, baseline, response-follow-up, browser, Git, development, and core
+  Windows processes out of automatic containment by default.
+- Added `ArcaneEDR_BLOCK_<response-id>` firewall rule naming, response-ledger
+  mapping back to the trigger alert, and `ArcaneEDR.exe --response-firewall` for
+  listing or removing Arcane-owned firewall block rules.
+- Added response follow-up detection for process respawn after Arcane
+  termination, with separate external-notification thresholding to avoid email
+  or webhook floods.
+- Added bounded maintenance session markers via `ArcaneEDR.exe --maintenance`
+  so expected publish, package, install, and validation windows can be labeled
+  without suppressing local evidence.
+- Bumped `VersionInfo` to `0.6.0` and generated a local release package plus
+  SHA256 checksum under `artifacts\ArcaneEDR-0.6.0*`. The staged package binary
+  reports `Arcane EDR 0.6.0` and validates its bundled example config.
 
 ## Phase 4: Modular Notification And Reporting
 
@@ -701,8 +735,9 @@ audit.
 - Build response eligibility from the v0.5 detection policy only after policy
   matches are explainable, validated, and auditable.
 - De-duplicate firewall rules.
-- Maintain a response ledger for rollback.
-- Add commands to list and remove Arcane EDR firewall blocks.
+- Maintain a response ledger for rollback. (Initial ledger exists.)
+- Add commands to list and remove Arcane EDR firewall blocks. (Initial
+  `--response-firewall` command exists.)
 - Restrict active response to high-confidence rules by default:
   - blocked hash
   - blocked domain

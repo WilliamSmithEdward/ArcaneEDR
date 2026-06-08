@@ -37,6 +37,10 @@ namespace ArcaneEDR
         public bool EnableMaintenanceContext = true;
         public HashSet<string> MaintenanceContextTermGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public int MaintenanceContextExternalAlertMinimumScore = 95;
+        public bool EnableMaintenanceSessionMarkers = true;
+        public string MaintenanceSessionMarkerFile = "ArcaneMaintenanceSessions.jsonl";
+        public int MaintenanceSessionDefaultMinutes = 60;
+        public int MaintenanceSessionMaximumMinutes = 240;
         public bool ExternalAlertRetryEnabled = true;
         public int ExternalAlertRetryIntervalSeconds = 300;
         public int ExternalAlertRetryMaxIntervalSeconds = 3600;
@@ -95,6 +99,7 @@ namespace ArcaneEDR
         public int AIAnalysisMaxLogLines = 80;
         public int AIAnalysisMaxAlertLines = 80;
         public int AIAnalysisMaxChars = 12000;
+        public int AIAnalysisTimeoutSeconds = 30;
         public bool DetectEncodedCommandLines = true;
         public int EncodedCommandMinimumLength = 80;
         public string ExternalAlertProvider = "Disabled";
@@ -104,6 +109,7 @@ namespace ArcaneEDR
         public string BrevoSenderName = "Arcane EDR";
         public string BrevoRecipientEmail;
         public string BrevoRecipientName;
+        public int BrevoTimeoutSeconds = 15;
         public string SmtpHost;
         public int SmtpPort = 587;
         public bool SmtpEnableSsl = true;
@@ -168,6 +174,20 @@ namespace ArcaneEDR
         public string BaselineFile = "ArcaneBaseline.tsv";
         public string ResponseMode = "AlertOnly";
         public int ResponseMinimumScore = 95;
+        public bool EnableFirewallBlockResponse;
+        public bool EnableProcessTerminationResponse;
+        public bool EnableResponsePolicy = true;
+        public HashSet<string> ResponseAllowedRuleIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> ResponseAllowedCategories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> ResponseBlockedRuleIds = DefaultResponseBlockedRuleIds();
+        public HashSet<string> ResponseBlockedCategories = DefaultResponseBlockedCategories();
+        public HashSet<string> ResponseProtectedProcessNames = DefaultResponseProtectedProcessNames();
+        public bool EnableResponseLedger = true;
+        public string ResponseLedgerFile = "ArcaneResponseLedger.jsonl";
+        public bool EnableResponseFollowUpDetections = true;
+        public int ResponseProcessRespawnWindowMinutes = 10;
+        public int ResponseProcessRespawnMinimumScore = 94;
+        public int ResponseFollowUpExternalAlertMinimumScore = 95;
         public long MaxLogFileBytes = 10485760;
         public PortRuleSet AllowedListeningPorts = new PortRuleSet();
         public PortRuleSet AllowedOutboundPorts = new PortRuleSet();
@@ -194,6 +214,15 @@ namespace ArcaneEDR
         public HashSet<string> AgentPackageManagerProcesses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> AgentApprovedAdminTaskNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> AgentSecretIndicatorTerms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public bool EnableAgentAdminCommandGuardrails = true;
+        public int AgentAdminCommandMinimumScore = 84;
+        public HashSet<string> AgentAdminCommandTerms = DefaultAgentAdminCommandTerms();
+        public bool EnableAgentSecretReferenceGuardrails = true;
+        public int AgentSecretReferenceMinimumScore = 78;
+        public HashSet<string> AgentSecretReferenceTerms = DefaultAgentSecretReferenceTerms();
+        public bool EnableAgentSupplyChainGuardrails = true;
+        public int AgentSupplyChainMinimumScore = 74;
+        public HashSet<string> AgentSupplyChainTerms = DefaultAgentSupplyChainTerms();
         public bool EnableAgentActivityLedger = true;
         public string AgentActivityLedgerFile = "ArcaneAgentActivity.jsonl";
         public int AgentActivityLedgerMinimumScore = 60;
@@ -270,6 +299,10 @@ namespace ArcaneEDR
             config.MaintenanceContextExternalAlertMinimumScore = ReadInt(values, "MaintenanceContextExternalAlertMinimumScore", config.MaintenanceContextExternalAlertMinimumScore);
             config.RequireExternalAlerting = ReadBool(values, "RequireExternalAlerting", ReadBool(values, "RequireEmailConfig", false));
             config.LogDirectory = ResolvePath(baseDirectory, ReadString(values, "LogDirectory", "logs"));
+            config.EnableMaintenanceSessionMarkers = ReadBool(values, "EnableMaintenanceSessionMarkers", config.EnableMaintenanceSessionMarkers);
+            config.MaintenanceSessionMarkerFile = ResolvePath(config.LogDirectory, ReadString(values, "MaintenanceSessionMarkerFile", config.MaintenanceSessionMarkerFile));
+            config.MaintenanceSessionDefaultMinutes = ReadInt(values, "MaintenanceSessionDefaultMinutes", config.MaintenanceSessionDefaultMinutes);
+            config.MaintenanceSessionMaximumMinutes = ReadInt(values, "MaintenanceSessionMaximumMinutes", config.MaintenanceSessionMaximumMinutes);
             config.PersistEventLogWatermarks = ReadBool(values, "PersistEventLogWatermarks", config.PersistEventLogWatermarks);
             config.EventLogWatermarkFile = ResolvePath(config.LogDirectory, ReadString(values, "EventLogWatermarkFile", config.EventLogWatermarkFile));
             config.ExternalAlertRetryEnabled = ReadBool(values, "ExternalAlertRetryEnabled", config.ExternalAlertRetryEnabled);
@@ -331,6 +364,7 @@ namespace ArcaneEDR
             config.AIAnalysisMaxLogLines = ReadInt(values, "AIAnalysisMaxLogLines", config.AIAnalysisMaxLogLines);
             config.AIAnalysisMaxAlertLines = ReadInt(values, "AIAnalysisMaxAlertLines", config.AIAnalysisMaxAlertLines);
             config.AIAnalysisMaxChars = ReadInt(values, "AIAnalysisMaxChars", config.AIAnalysisMaxChars);
+            config.AIAnalysisTimeoutSeconds = ReadInt(values, "AIAnalysisTimeoutSeconds", config.AIAnalysisTimeoutSeconds);
             config.AIAnalysisModel = ReadString(values, "AIAnalysisModel", config.AIAnalysisModel);
             config.AIAnalysisApiKeyEnvironmentVariable = ReadString(values, "AIAnalysisApiKeyEnvironmentVariable", config.AIAnalysisApiKeyEnvironmentVariable);
             config.AIAnalysisApiUrl = ReadString(values, "AIAnalysisApiUrl", config.AIAnalysisApiUrl);
@@ -345,6 +379,7 @@ namespace ArcaneEDR
             config.BrevoSenderName = ReadString(values, "BrevoSenderName", config.BrevoSenderName);
             config.BrevoRecipientEmail = ReadString(values, "BrevoRecipientEmail", "");
             config.BrevoRecipientName = ReadString(values, "BrevoRecipientName", "");
+            config.BrevoTimeoutSeconds = ReadInt(values, "BrevoTimeoutSeconds", config.BrevoTimeoutSeconds);
             config.SmtpHost = ReadString(values, "SmtpHost", "");
             config.SmtpPort = ReadInt(values, "SmtpPort", config.SmtpPort);
             config.SmtpEnableSsl = ReadBool(values, "SmtpEnableSsl", config.SmtpEnableSsl);
@@ -413,6 +448,26 @@ namespace ArcaneEDR
             config.BaselineFile = ResolvePath(config.LogDirectory, ReadString(values, "BaselineFile", config.BaselineFile));
             config.ResponseMode = ReadString(values, "ResponseMode", config.ResponseMode);
             config.ResponseMinimumScore = ReadInt(values, "ResponseMinimumScore", config.ResponseMinimumScore);
+            config.EnableFirewallBlockResponse = ReadBool(values, "EnableFirewallBlockResponse", config.EnableFirewallBlockResponse);
+            config.EnableProcessTerminationResponse = ReadBool(values, "EnableProcessTerminationResponse", config.EnableProcessTerminationResponse);
+            config.EnableResponsePolicy = ReadBool(values, "EnableResponsePolicy", config.EnableResponsePolicy);
+            config.ResponseAllowedRuleIds = ReadStringSet(values, "ResponseAllowedRuleIds");
+            config.ResponseAllowedCategories = ReadStringSet(values, "ResponseAllowedCategories");
+            config.ResponseBlockedRuleIds = values.ContainsKey("ResponseBlockedRuleIds")
+                ? ReadStringSet(values, "ResponseBlockedRuleIds")
+                : DefaultResponseBlockedRuleIds();
+            config.ResponseBlockedCategories = values.ContainsKey("ResponseBlockedCategories")
+                ? ReadStringSet(values, "ResponseBlockedCategories")
+                : DefaultResponseBlockedCategories();
+            config.ResponseProtectedProcessNames = values.ContainsKey("ResponseProtectedProcessNames")
+                ? ReadStringSet(values, "ResponseProtectedProcessNames")
+                : DefaultResponseProtectedProcessNames();
+            config.EnableResponseLedger = ReadBool(values, "EnableResponseLedger", config.EnableResponseLedger);
+            config.ResponseLedgerFile = ResolvePath(config.LogDirectory, ReadString(values, "ResponseLedgerFile", config.ResponseLedgerFile));
+            config.EnableResponseFollowUpDetections = ReadBool(values, "EnableResponseFollowUpDetections", config.EnableResponseFollowUpDetections);
+            config.ResponseProcessRespawnWindowMinutes = ReadInt(values, "ResponseProcessRespawnWindowMinutes", config.ResponseProcessRespawnWindowMinutes);
+            config.ResponseProcessRespawnMinimumScore = ReadInt(values, "ResponseProcessRespawnMinimumScore", config.ResponseProcessRespawnMinimumScore);
+            config.ResponseFollowUpExternalAlertMinimumScore = ReadInt(values, "ResponseFollowUpExternalAlertMinimumScore", config.ResponseFollowUpExternalAlertMinimumScore);
             config.MaxLogFileBytes = ReadLong(values, "MaxLogFileBytes", config.MaxLogFileBytes);
             config.AllowedListeningPorts = ReadPortSet(values, "AllowedListeningPorts");
             config.AllowedOutboundPorts = ReadPortSet(values, "AllowedOutboundPorts");
@@ -441,6 +496,21 @@ namespace ArcaneEDR
             config.AgentPackageManagerProcesses = ReadStringSet(values, "AgentPackageManagerProcesses");
             config.AgentApprovedAdminTaskNames = ReadStringSet(values, "AgentApprovedAdminTaskNames");
             config.AgentSecretIndicatorTerms = ReadStringSet(values, "AgentSecretIndicatorTerms");
+            config.EnableAgentAdminCommandGuardrails = ReadBool(values, "EnableAgentAdminCommandGuardrails", config.EnableAgentAdminCommandGuardrails);
+            config.AgentAdminCommandMinimumScore = ReadInt(values, "AgentAdminCommandMinimumScore", config.AgentAdminCommandMinimumScore);
+            config.AgentAdminCommandTerms = values.ContainsKey("AgentAdminCommandTerms")
+                ? ReadStringSet(values, "AgentAdminCommandTerms")
+                : DefaultAgentAdminCommandTerms();
+            config.EnableAgentSecretReferenceGuardrails = ReadBool(values, "EnableAgentSecretReferenceGuardrails", config.EnableAgentSecretReferenceGuardrails);
+            config.AgentSecretReferenceMinimumScore = ReadInt(values, "AgentSecretReferenceMinimumScore", config.AgentSecretReferenceMinimumScore);
+            config.AgentSecretReferenceTerms = values.ContainsKey("AgentSecretReferenceTerms")
+                ? ReadStringSet(values, "AgentSecretReferenceTerms")
+                : DefaultAgentSecretReferenceTerms();
+            config.EnableAgentSupplyChainGuardrails = ReadBool(values, "EnableAgentSupplyChainGuardrails", config.EnableAgentSupplyChainGuardrails);
+            config.AgentSupplyChainMinimumScore = ReadInt(values, "AgentSupplyChainMinimumScore", config.AgentSupplyChainMinimumScore);
+            config.AgentSupplyChainTerms = values.ContainsKey("AgentSupplyChainTerms")
+                ? ReadStringSet(values, "AgentSupplyChainTerms")
+                : DefaultAgentSupplyChainTerms();
             config.EnableAgentActivityLedger = ReadBool(values, "EnableAgentActivityLedger", config.EnableAgentActivityLedger);
             config.AgentActivityLedgerFile = ResolvePath(config.LogDirectory, ReadString(values, "AgentActivityLedgerFile", config.AgentActivityLedgerFile));
             config.AgentActivityLedgerMinimumScore = ReadInt(values, "AgentActivityLedgerMinimumScore", config.AgentActivityLedgerMinimumScore);
@@ -937,6 +1007,142 @@ namespace ArcaneEDR
             result.Add("Microsoft Windows");
             result.Add("Microsoft Corporation");
             result.Add("Microsoft Windows Publisher");
+            return result;
+        }
+
+        private static HashSet<string> DefaultAgentAdminCommandTerms()
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            result.Add("-verb runas");
+            result.Add("runas.exe");
+            result.Add("schtasks");
+            result.Add("start-scheduledtask");
+            result.Add("register-scheduledtask");
+            result.Add("new-scheduledtask");
+            result.Add("run-admin-task.cmd");
+            result.Add("run-admin-task.ps1");
+            result.Add("admin-task-runner.ps1");
+            result.Add("new-service");
+            result.Add("sc.exe create");
+            result.Add("sc create");
+            result.Add("set-service");
+            result.Add("netsh advfirewall");
+            result.Add("new-netfirewallrule");
+            result.Add("set-netfirewallrule");
+            result.Add("remove-netfirewallrule");
+            result.Add("icacls");
+            result.Add("takeown");
+            result.Add("set-acl");
+            result.Add("reg add");
+            result.Add("\\currentversion\\run");
+            result.Add("set-mppreference");
+            result.Add("add-mppreference");
+            result.Add("disableantispyware");
+            result.Add("disablerealtimemonitoring");
+            return result;
+        }
+
+        private static HashSet<string> DefaultAgentSecretReferenceTerms()
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            result.Add("apikey");
+            result.Add("api_key");
+            result.Add("access_token");
+            result.Add("refresh_token");
+            result.Add("client_secret");
+            result.Add("private_key");
+            result.Add("id_rsa");
+            result.Add("id_ed25519");
+            result.Add(".pem");
+            result.Add(".pfx");
+            result.Add(".env");
+            result.Add("credentials");
+            result.Add("token.json");
+            result.Add("aws_access_key_id");
+            result.Add("azure_client_secret");
+            result.Add("gcloud");
+            result.Add("\\appdata\\local\\google\\chrome\\user data");
+            result.Add("\\appdata\\local\\microsoft\\edge\\user data");
+            result.Add("\\mozilla\\firefox\\profiles");
+            return result;
+        }
+
+        private static HashSet<string> DefaultAgentSupplyChainTerms()
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            result.Add("npm install");
+            result.Add("npm ci");
+            result.Add("npm exec");
+            result.Add("npx ");
+            result.Add("pnpm install");
+            result.Add("yarn install");
+            result.Add("pip install");
+            result.Add("pip3 install");
+            result.Add("python -m pip install");
+            result.Add("curl ");
+            result.Add("curl.exe");
+            result.Add("invoke-webrequest");
+            result.Add("wget ");
+            result.Add("downloadstring");
+            result.Add("downloadfile");
+            result.Add("git clone");
+            result.Add("invoke-restmethod");
+            result.Add("invoke-expression");
+            result.Add("install.ps1");
+            result.Add("install.sh");
+            result.Add("postinstall");
+            return result;
+        }
+
+        private static HashSet<string> DefaultResponseBlockedRuleIds()
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            result.Add("SERVICE-STARTED");
+            result.Add("SERVICE-STOPPED");
+            result.Add("SERVICE-RECOVERED-AFTER-UNCLEAN-STOP");
+            result.Add("TEST-ALERT");
+            return result;
+        }
+
+        private static HashSet<string> DefaultResponseBlockedCategories()
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            result.Add("Agent");
+            result.Add("AI");
+            result.Add("Baseline");
+            result.Add("Health");
+            result.Add("Response");
+            result.Add("Test");
+            return result;
+        }
+
+        private static HashSet<string> DefaultResponseProtectedProcessNames()
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            result.Add("System");
+            result.Add("Idle");
+            result.Add("Registry");
+            result.Add("smss.exe");
+            result.Add("csrss.exe");
+            result.Add("wininit.exe");
+            result.Add("winlogon.exe");
+            result.Add("services.exe");
+            result.Add("lsass.exe");
+            result.Add("svchost.exe");
+            result.Add("explorer.exe");
+            result.Add("dwm.exe");
+            result.Add("fontdrvhost.exe");
+            result.Add("sihost.exe");
+            result.Add("taskhostw.exe");
+            result.Add("chrome.exe");
+            result.Add("msedge.exe");
+            result.Add("firefox.exe");
+            result.Add("code.exe");
+            result.Add("devenv.exe");
+            result.Add("git.exe");
+            result.Add("git-remote-https.exe");
+            result.Add("codex.exe");
+            result.Add("Codex.exe");
             return result;
         }
 

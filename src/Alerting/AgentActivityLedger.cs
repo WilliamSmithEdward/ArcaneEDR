@@ -91,6 +91,10 @@ namespace ArcaneEDR
         private string CommandCategory(Alert alert, string text)
         {
             string ruleId = alert.RuleId ?? "";
+            if (StartsWith(ruleId, "AGENT-ADMIN-")) return "agent-admin-command";
+            if (StartsWith(ruleId, "AGENT-SECRET-")) return "agent-secret-reference";
+            if (StartsWith(ruleId, "AGENT-SUPPLY-")) return "agent-supply-chain";
+            if (StartsWith(ruleId, "AGENT-")) return "agent-guardrail";
             if (Contains(ruleId, "ENCODED") || Contains(text, "base64")) return "encoded";
             if (StartsWith(ruleId, "PS-DEFENDER") || Contains(text, "defender")) return "security-control-change";
             if (StartsWith(ruleId, "PS-PERSIST") || StartsWith(ruleId, "PERSIST-")) return "persistence";
@@ -124,8 +128,8 @@ namespace ArcaneEDR
             if (Contains(normalized, "\\start menu\\programs\\startup\\") || Contains(normalized, "\\startup\\")) return "startup";
             if (Contains(normalized, "\\windows\\system32\\tasks\\")) return "scheduled-task-storage";
             if (Contains(normalized, "\\extensions\\")) return "browser-extension";
-            if (ContainsAnyConfigured(normalized, config.AgentWorkspaceRoots)) return "agent-workspace";
-            if (ContainsAnyConfigured(normalized, config.AgentPublishRoots)) return "agent-publish-root";
+            if (ContainsAnyConfiguredRoot(normalized, config.AgentWorkspaceRoots)) return "agent-workspace";
+            if (ContainsAnyConfiguredRoot(normalized, config.AgentPublishRoots)) return "agent-publish-root";
             if (ContainsAnyConfigured(normalized, config.SensitiveFileNameIndicators) ||
                 ContainsAnyConfigured(normalized, config.AgentSecretIndicatorTerms)) return "sensitive-name";
             if (FileSystemRules.IsUserWritablePath(normalized, config)) return "user-writable";
@@ -226,6 +230,22 @@ namespace ArcaneEDR
             return false;
         }
 
+        private static bool ContainsAnyConfiguredRoot(string text, HashSet<string> roots)
+        {
+            if (String.IsNullOrWhiteSpace(text) || roots == null) return false;
+            foreach (string root in roots)
+            {
+                string normalizedRoot = NormalizeRoot(root);
+                if (!String.IsNullOrWhiteSpace(normalizedRoot) &&
+                    text.IndexOf(normalizedRoot, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static string FirstNonEmpty(string first, string second)
         {
             return !String.IsNullOrWhiteSpace(first) ? first : second;
@@ -244,6 +264,12 @@ namespace ArcaneEDR
         private static string NormalizePathText(string value)
         {
             return value == null ? "" : value.Replace('/', '\\');
+        }
+
+        private static string NormalizeRoot(string value)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return "";
+            return NormalizePathText(value).TrimEnd('\\') + "\\";
         }
 
         private static string SafeToken(string value, int maxLength)

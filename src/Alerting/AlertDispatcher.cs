@@ -110,8 +110,18 @@ namespace ArcaneEDR
                 return;
             }
 
+            if (IsExternalHourlyLimitReached())
+            {
+                WarnThrottled("hourly limit reached");
+                return;
+            }
+
             string failureReason;
-            if (!TrySendExternalAlert(annotatedAlert, out failureReason))
+            if (TrySendExternalAlert(annotatedAlert, out failureReason))
+            {
+                RememberExternalSend();
+            }
+            else
             {
                 QueueFailedExternal(annotatedAlert, failureReason);
             }
@@ -184,7 +194,25 @@ namespace ArcaneEDR
 
         private void RetryExternalAlerts()
         {
-            retryQueue.RetryDue(TrySendExternalAlert);
+            retryQueue.RetryDue(TrySendExternalRetry);
+        }
+
+        private bool TrySendExternalRetry(Alert alert, out string failureReason)
+        {
+            failureReason = "";
+            if (IsExternalHourlyLimitReached())
+            {
+                WarnThrottled("hourly limit reached");
+                return false;
+            }
+
+            if (TrySendExternalAlert(alert, out failureReason))
+            {
+                RememberExternalSend();
+                return true;
+            }
+
+            return false;
         }
 
         private bool ShouldSendExternal(Alert alert, int sentThisDispatch)
@@ -210,6 +238,14 @@ namespace ArcaneEDR
                 alert.Score < config.MaintenanceContextExternalAlertMinimumScore)
             {
                 WarnThrottled("maintenance context below external alert threshold");
+                return false;
+            }
+
+            if (!forceExternal &&
+                StartsWith(alert.RuleId, "RESPONSE-") &&
+                alert.Score < config.ResponseFollowUpExternalAlertMinimumScore)
+            {
+                WarnThrottled("response follow-up below external alert threshold");
                 return false;
             }
 
@@ -240,13 +276,24 @@ namespace ArcaneEDR
             }
 
             PruneExternalSendWindow();
-            if (config.ExternalAlertMaxPerHour > 0 && externalSends.Count >= config.ExternalAlertMaxPerHour)
+            if (IsExternalHourlyLimitReachedWithoutPrune())
             {
                 WarnThrottled("hourly limit reached");
                 return false;
             }
 
             return true;
+        }
+
+        private bool IsExternalHourlyLimitReached()
+        {
+            PruneExternalSendWindow();
+            return IsExternalHourlyLimitReachedWithoutPrune();
+        }
+
+        private bool IsExternalHourlyLimitReachedWithoutPrune()
+        {
+            return config.ExternalAlertMaxPerHour > 0 && externalSends.Count >= config.ExternalAlertMaxPerHour;
         }
 
         private void RememberExternalSend()
@@ -278,6 +325,11 @@ namespace ArcaneEDR
                 (alert.Title ?? "") + " " +
                 (alert.Body ?? "") + " " +
                 (alert.EntitySummary ?? "");
+        }
+
+        private static bool StartsWith(string value, string prefix)
+        {
+            return value != null && value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

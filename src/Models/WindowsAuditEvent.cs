@@ -14,6 +14,7 @@ namespace ArcaneEDR
         public string IpAddress;
         public string LogonType;
         public string ProcessName;
+        public string ParentProcessName;
         public string ServiceName;
         public string TaskName;
         public string CommandLine;
@@ -41,6 +42,7 @@ namespace ArcaneEDR
                     " ip=" + Safe(IpAddress) +
                     " logon_type=" + Safe(LogonType) +
                     " process=" + Safe(ProcessName) +
+                    " parent=" + Safe(ParentProcessName) +
                     " service=" + Safe(ServiceName) +
                     " task=" + Safe(TaskName) +
                     " command_line=" + Compact(CommandLine);
@@ -53,6 +55,7 @@ namespace ArcaneEDR
             {
                 return (Safe(SubjectUser) + " " + Safe(TargetUser) + " " +
                     Safe(IpAddress) + " " + Safe(ProcessName) + " " +
+                    Safe(ParentProcessName) + " " +
                     Safe(ServiceName) + " " + Safe(TaskName) + " " +
                     Safe(CommandLine) + " " + Safe(Message)).Trim();
             }
