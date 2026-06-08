@@ -68,8 +68,7 @@ false positives, and safe tests.
   and some event-log validation checks.
 - Optional: Sysmon for richer process, network, DNS, and narrow file-create telemetry.
 - Optional: Brevo transactional email for external alert delivery.
-- Optional: AI provider API key for compact secondary log analysis; OpenAI is
-  the default supported provider.
+- Optional: AI provider API key for compact secondary log analysis.
 
 ## Quick Start
 
@@ -300,7 +299,6 @@ Force compact AI log analysis:
 
 ```powershell
 .\bin\ArcaneEDR.exe --test-ai-analysis
-.\bin\ArcaneEDR.exe --test-openai-analysis
 ```
 
 Generate and send a daily report on demand:
@@ -326,7 +324,6 @@ making an API call:
 
 ```powershell
 .\bin\ArcaneEDR.exe --preview-ai-payload
-.\bin\ArcaneEDR.exe --preview-openai-payload
 ```
 
 Generate a privacy-first local support bundle:
@@ -675,7 +672,7 @@ DailySummaryIntervalHours=24
 DailySummaryLocalTime=08:00
 DailySummaryTimeZoneId=<configured Windows time zone ID>
 DailySummaryScore=60
-EnableDailySummaryOpenAiAnalysis=true
+EnableDailySummaryAIAnalysis=true
 DailyReportDestinations=ExternalAlertSinks,LocalArchive
 HealthHeartbeatSeconds=60
 ```
@@ -698,7 +695,7 @@ Daily report structure and local archive output are configurable:
 
 ```ini
 DailyReportDestinations=ExternalAlertSinks,LocalArchive
-DailyReportSections=QuickVerdict,CriticalCallouts,AtAGlance,SignalSummary,FalsePositiveContext,HighSignalDetails,AutomationActivity,OpenAIReview,TuningNotes
+DailyReportSections=QuickVerdict,CriticalCallouts,AtAGlance,SignalSummary,FalsePositiveContext,HighSignalDetails,AutomationActivity,AIReview,TuningNotes
 DailyReportCriticalCalloutRows=5
 DailyReportHighSignalRows=7
 DailyReportBucketRows=6
@@ -749,51 +746,66 @@ detail levels.
 
 ## AI Log Analysis
 
-Arcane EDR can send a compact log sample to an AI analysis provider for
-secondary analysis. `v0.4` supports OpenAI and OpenAI-compatible Responses-style
-HTTP endpoints through the same redacted payload and parser. Full provider
-adapters for APIs with different request/response shapes remain future work.
-
-Existing `OpenAIAnalysis*` settings remain supported. New `AIAnalysis*` aliases
-let users configure an OpenAI-compatible endpoint without treating OpenAI as the
-only provider.
+Arcane EDR can send a compact log sample to one or more AI analysis providers
+for secondary analysis. `v0.4` supports concurrent provider fan-out for OpenAI,
+OpenAI-compatible Responses-style endpoints, and native Anthropic Claude
+Messages API endpoints. Each provider receives the same compact, redacted
+payload and returns the same Arcane result contract.
 
 ```ini
-EnableOpenAiLogAnalysis=true
-AIAnalysisProvider=OpenAI
-AIAnalysisModel=
-AIAnalysisApiKeyEnvironmentVariable=
-AIAnalysisApiUrl=
-AIAnalysisAuthHeaderName=Authorization
-AIAnalysisAuthHeaderPrefix=Bearer
-OpenAIAnalysisIntervalMinutes=60
-OpenAIAnalysisScoreThreshold=95
-OpenAIAnalysisBaselineEmailMinimumScore=95
-OpenAIAnalysisMinimumIncludedAlertScore=60
-OpenAIAnalysisBaselineMinimumIncludedAlertScore=95
-OpenAIAnalysisExcludedRuleIds=OPENAI-LOG-ANALYSIS-ALERT,OPENAI-LOG-ANALYSIS-TEST,SERVICE-STARTED,SERVICE-STOPPED,SERVICE-DAILY-SUMMARY,SERVICE-HEALTH-TEST,TEST-ALERT-DELIVERY
-OpenAIAnalysisModel=gpt-5.5
-OpenAIApiKeyEnvironmentVariable=<configured env var>
-OpenAIAnalysisApiUrl=https://api.openai.com/v1/responses
-OpenAIAnalysisMaxLogLines=80
-OpenAIAnalysisMaxAlertLines=80
-OpenAIAnalysisMaxChars=12000
-EnableDailySummaryOpenAiAnalysis=true
+EnableAIAnalysis=true
+AIAnalysisIntervalMinutes=60
+AIAnalysisScoreThreshold=95
+AIAnalysisBaselineEmailMinimumScore=95
+AIAnalysisMinimumIncludedAlertScore=60
+AIAnalysisBaselineMinimumIncludedAlertScore=95
+AIAnalysisExcludedRuleIds=AI-LOG-ANALYSIS-ALERT,AI-LOG-ANALYSIS-TEST,SERVICE-STARTED,SERVICE-STOPPED,SERVICE-DAILY-SUMMARY,SERVICE-HEALTH-TEST,TEST-ALERT-DELIVERY
+AIAnalysisMaxLogLines=80
+AIAnalysisMaxAlertLines=80
+AIAnalysisMaxChars=12000
+EnableDailySummaryAIAnalysis=true
 ```
 
-If `AIAnalysisModel`, `AIAnalysisApiKeyEnvironmentVariable`, or
-`AIAnalysisApiUrl` are empty, Arcane falls back to the matching
-`OpenAIAnalysis*` setting. Set `AIAnalysisProvider=OpenAICompatible` for a
-generic Responses-style endpoint. Set `AIAnalysisAuthHeaderName=` only for a
-trusted no-auth local endpoint.
+Single-provider configuration:
+
+```ini
+AIAnalysisProviders=OpenAI
+AIAnalysisModel=<configured model>
+AIAnalysisApiKeyEnvironmentVariable=OPENAI_API_KEY
+AIAnalysisApiUrl=https://api.openai.com/v1/responses
+```
+
+Provider defaults fill common auth headers: OpenAI uses `Authorization` with a
+`Bearer ` prefix, and Claude uses `x-api-key` plus `anthropic-version`.
+
+Multi-provider configuration:
+
+```ini
+AIAnalysisProviders=OpenAI,Claude
+AIAnalysisProviderTypes=OpenAI=OpenAI,Claude=Anthropic
+AIAnalysisProviderModels=OpenAI=<configured OpenAI model>,Claude=<configured Claude model>
+AIAnalysisProviderApiKeyEnvironmentVariables=OpenAI=OPENAI_API_KEY,Claude=ANTHROPIC_API_KEY
+AIAnalysisProviderApiUrls=OpenAI=https://api.openai.com/v1/responses,Claude=https://api.anthropic.com/v1/messages
+AIAnalysisProviderAuthHeaderNames=OpenAI=Authorization,Claude=x-api-key
+AIAnalysisProviderAuthHeaderPrefixes=OpenAI=Bearer,Claude=
+AIAnalysisProviderVersionHeaderNames=Claude=anthropic-version
+AIAnalysisProviderVersionHeaderValues=Claude=2023-06-01
+```
+
+When multiple providers are enabled, Arcane runs them concurrently. A failed
+provider is recorded in the provider breakdown without blocking a successful
+provider. The aggregate AI review uses the strongest alertable provider result,
+or the highest-scored completed result when no provider flags the sample, and
+keeps each provider's score, flag, and read visible in the daily report.
+Set `AIAnalysisAuthHeaderName=` only for a trusted no-auth local endpoint.
 
 The payload is intentionally compact and redacted. It includes health counters,
 recent event summaries, alert metadata, and sanitized aggregate context. The
 aggregate context includes score buckets, category/rule counts, repeated-rule
 indicators, maintenance/agent-context counts, trend counters, and top sanitized
 reasons for score-60+ activity. Detailed alert summaries still honor
-`OpenAIAnalysisMinimumIncludedAlertScore` or
-`OpenAIAnalysisBaselineMinimumIncludedAlertScore`.
+`AIAnalysisMinimumIncludedAlertScore` or
+`AIAnalysisBaselineMinimumIncludedAlertScore`.
 
 Arcane EDR does not send alert bodies, entities, command lines, script blocks,
 decoded payload previews, usernames, file paths, IPs, URLs, emails, or
@@ -802,14 +814,14 @@ configured secret values.
 Results are written to:
 
 ```text
-<LogDirectory>\ArcaneOpenAIAnalysis.jsonl
+<LogDirectory>\ArcaneAIAnalysis.jsonl
 ```
 
 Hourly compact analysis records use `analysis_type=compact_log`; daily report
 analysis records use `analysis_type=daily_report`.
 
 If the configured AI provider returns `alertable=true` with a score at or above
-`OpenAIAnalysisScoreThreshold`, Arcane EDR sends the model's summary and
+`AIAnalysisScoreThreshold`, Arcane EDR sends the model's summary and
 recommended action through the configured external alert sinks.
 
 ## Baseline Learning
@@ -886,5 +898,5 @@ disrupt legitimate tools.
 
 - Run the service as a dedicated low-privilege user.
 - Grant that user read access to the app config and write access only to `LogDirectory`.
-- Keep Brevo and OpenAI keys out of config and expose them only through environment variables for the service account.
+- Keep Brevo, AI provider, SMTP, and webhook secrets out of config and expose them only through environment variables for the service account.
 - Keep allowlists narrow. Start in console mode, observe normal traffic, then tune config.

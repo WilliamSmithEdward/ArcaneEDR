@@ -14,7 +14,7 @@ deployment.
 ## Release Targets
 
 - `v0.1.x-preview`: functional preview, GitHub-safe config templates, service
-  install, logging, Brevo alerting, Sysmon ingestion, OpenAI compact analysis,
+  install, logging, Brevo alerting, Sysmon ingestion, AI compact analysis,
   baseline learning, and daily summaries.
 - `v0.2.0`: install, upgrade, validation, and packaging hardening.
 - `v0.3.0`: detection quality, false-positive reduction, and per-rule tuning.
@@ -33,6 +33,12 @@ Work should finish the active milestone before moving to the next milestone
 whenever that is practical. A later milestone may be touched early only when it
 unblocks the active milestone, prevents avoidable rework, fixes an urgent
 operational issue, or is a very small adjacent change with low risk.
+
+Because the project is still pre-`v1.0.0`, prefer active refactoring toward
+unified product surfaces over preserving backwards-compatibility hacks. Avoid
+partial implementations that look supported but only work through aliases or
+proxy behavior; a feature should be called supported when config, validation,
+runtime behavior, logging, reports, and docs all share the same model.
 
 Current active milestone: `v0.4.0`.
 
@@ -54,10 +60,10 @@ phase sections below.
 
 | Milestone | Status | Completion | Notes |
 | --- | --- | --- | --- |
-| `v0.1.x-preview` | Done | Complete | Functional preview: service, local logging, Brevo alerting, Sysmon ingestion, OpenAI compact analysis, baseline learning, and daily summaries. |
+| `v0.1.x-preview` | Done | Complete | Functional preview: service, local logging, Brevo alerting, Sysmon ingestion, AI compact analysis, baseline learning, and daily summaries. |
 | `v0.2.0-beta` | Done | Complete | Tagged beta with install, upgrade, validation, package-release script, config preservation, and scheduled-task admin bridge. |
 | `v0.3.0` | Done | Complete | Detection-quality work is released as `v0.3.0`; further empirical tuning feeds later milestones. |
-| `v0.4.0` | In progress | Near complete | Modular alert sinks are implemented for Brevo, SMTP, webhook, generic HTTP/API, Windows Event Log, and local JSONL. Daily report preview, local archive, selectable sections, row limits, and independent report destinations are implemented; additional report destinations remain future work. |
+| `v0.4.0` | In progress | Near complete | Modular alert sinks are implemented for Brevo, SMTP, webhook, generic HTTP/API, Windows Event Log, and local JSONL. Daily report preview, local archive, selectable sections, row limits, independent report destinations, and concurrent AI provider fan-out are implemented; additional report destinations remain future work. |
 | `v0.5.0` | Mostly done | Substantial | `why` explanations, incident grouping, timeline command, support bundle, simulations, and rule-family docs are implemented. Remaining work is polishing expected alert shapes, demo flow, and user-friendly granular allow/block detection policy. |
 | `v0.6.0` | Started | Partial | Agent Profile labeling exists. Remaining work includes agent write/elevation guardrails, compact activity ledger, maintenance/session markers, response policy, and active-response dry-run. |
 | `v0.7.0` | Not started | Planned | Collector/rule interface cleanup, privacy hardening, and AI provider abstraction remain planned. |
@@ -118,7 +124,7 @@ Exit criteria:
 - `ExternalSendFailures=0` after alert configuration is complete.
 - No recurring high or critical false positives.
 - Daily summary arrives at the configured local time.
-- OpenAI compact analysis does not alert on ordinary baseline noise.
+- AI compact analysis does not alert on ordinary baseline noise.
 
 ## Phase 2: Install And Upgrade Hardening
 
@@ -163,7 +169,7 @@ Exit criteria:
 
 - Add per-rule enable/disable and per-rule minimum email score.
 - Add rule categories such as `Network`, `PowerShell`, `Persistence`, `Auth`,
-  `Sysmon`, `OpenAI`, and `Health`.
+  `Sysmon`, `AI`, and `Health`.
 - Improve Microsoft-signed scheduled-task and service trust handling.
 - Add maintenance-context labeling for expected build, publish, install, and
   validation commands without hiding local evidence.
@@ -192,7 +198,7 @@ Progress:
   logs, retry queue state, incident records, and support-bundle summaries.
 - Added machine-local system time, Windows time-zone ID, and UTC offset to alert
   JSON, email/plain-text formatting, Windows Event Log alerts, local logs,
-  retry queue state, compact OpenAI alert context, agent activity summaries, and
+  retry queue state, compact AI alert context, agent activity summaries, and
   support-bundle summaries.
 - Added config-driven rule policy:
   - `DisabledRuleIds`
@@ -204,7 +210,7 @@ Progress:
   - `MaintenanceContextTermGroups`
   - `MaintenanceContextExternalAlertMinimumScore`
 - Maintenance-context matches are labeled in alerts, logs, incidents, support
-  bundles, and compact OpenAI metadata, while external delivery is dampened only
+  bundles, and compact AI metadata, while external delivery is dampened only
   below the configured maintenance threshold.
 - Split unexpected listener alerts into lower-severity localhost-only listener
   rules and higher-severity reachable listener rules, and limited inbound
@@ -304,11 +310,11 @@ Progress:
   the v0.3 tuning loop: quick compromise assessment, report verdict,
   confidence, recommended next step, compact tables for critical callouts,
   health, signal summary, false-positive context, high-signal review,
-  automation activity, tuning notes, and optional OpenAI daily analysis using a
+  automation activity, tuning notes, and optional AI daily analysis using a
   false-positive-aware report prompt instead of the hourly alertability prompt
   or generic alert email template. The top-level report determination and
   critical callouts now remain deterministic local-telemetry sections, with
-  OpenAI confined to a labeled secondary review section.
+  AI output confined to a labeled secondary review section.
 - Added persisted event-log watermarks for Windows, PowerShell, and Sysmon
   ingestion so service restarts and publish/restart cycles do not recycle the
   same recent event records into fresh alerts or daily-report counts. Watermark
@@ -543,11 +549,16 @@ Progress:
 - Added `ArcaneEDR.exe --validate-config <config-path>` so cloned or staged
   deployments can validate a specific machine-tuned config without copying it
   into the runtime config directory first.
-- Added an `IAiAnalysisProvider` foundation with OpenAI-compatible
-  Responses-style endpoint support and generic `AIAnalysis*` config aliases.
-  Full adapters for non-compatible provider APIs remain Phase 7 work.
+- Added an `IAiAnalysisProvider` foundation with concurrent `AIAnalysisProviders`
+  fan-out, OpenAI/OpenAI-compatible Responses endpoint support, native
+  Anthropic Claude Messages API support, and per-provider config maps for
+  models, endpoints, auth headers, API key environment variables, and version
+  headers.
 - Added active AI provider metadata to support bundles without exposing API
   keys or endpoint URLs.
+- Refactored the public AI analysis surface away from OpenAI-specific config,
+  report section, alert ID, command, and log naming. The strategy is to keep
+  provider-specific names only where they refer to an actual provider adapter.
 
 Reporting should be separate from alerting where useful:
 
@@ -676,7 +687,7 @@ Exit criteria:
 
 ## Phase 7: Privacy And Modular AI Analysis
 
-- Keep OpenAI analysis optional and disabled in example config.
+- Keep AI analysis optional and disabled in example config.
 - Keep payloads compact, bounded, and redacted.
 - Add a command that previews exactly what would be sent.
 - Include sanitized aggregate rule, category, score, trend, maintenance-context,
@@ -697,9 +708,10 @@ Exit criteria:
 
 Modular AI analysis providers:
 
-- Introduce an `IAiAnalysisProvider` abstraction so OpenAI is one provider, not
-  the analysis architecture.
-- Keep OpenAI as the first supported provider.
+- Keep `IAiAnalysisProvider` as the analysis architecture so each model vendor
+  is one provider, not the product surface.
+- Keep direct provider adapters complete enough to validate and document before
+  marking them supported.
 - Add provider adapters for widely used AI APIs:
   - OpenAI
   - Azure OpenAI
@@ -735,7 +747,7 @@ Required `v1.0.0` documentation:
 - Developer install guide using a source clone.
 - Configuration reference for every supported config key.
 - Alerting and notification sink guide.
-- OpenAI and modular AI analysis privacy guide.
+- Modular AI analysis privacy guide.
 - Sysmon setup guide.
 - Admin-task elevation guide.
 - Operations guide for start, stop, restart, validate, logs, daily summaries,

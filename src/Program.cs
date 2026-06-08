@@ -50,19 +50,15 @@ namespace ArcaneEDR
                 return;
             }
 
-            if (args.Length > 0 &&
-                (args[0].Equals("--test-openai-analysis", StringComparison.OrdinalIgnoreCase) ||
-                 args[0].Equals("--test-ai-analysis", StringComparison.OrdinalIgnoreCase)))
+            if (args.Length > 0 && args[0].Equals("--test-ai-analysis", StringComparison.OrdinalIgnoreCase))
             {
-                AlertTestHarness.SendOpenAiAnalysisTest(AppDomain.CurrentDomain.BaseDirectory);
+                AlertTestHarness.SendAiAnalysisTest(AppDomain.CurrentDomain.BaseDirectory);
                 return;
             }
 
-            if (args.Length > 0 &&
-                (args[0].Equals("--preview-openai-payload", StringComparison.OrdinalIgnoreCase) ||
-                 args[0].Equals("--preview-ai-payload", StringComparison.OrdinalIgnoreCase)))
+            if (args.Length > 0 && args[0].Equals("--preview-ai-payload", StringComparison.OrdinalIgnoreCase))
             {
-                AlertTestHarness.PreviewOpenAiPayload(AppDomain.CurrentDomain.BaseDirectory);
+                AlertTestHarness.PreviewAiPayload(AppDomain.CurrentDomain.BaseDirectory);
                 return;
             }
 
@@ -157,9 +153,7 @@ namespace ArcaneEDR
             Console.WriteLine("  ArcaneEDR.exe --test-health");
             Console.WriteLine("  ArcaneEDR.exe --test-daily-report");
             Console.WriteLine("  ArcaneEDR.exe --preview-daily-report [--json] [--archive]");
-            Console.WriteLine("  ArcaneEDR.exe --test-openai-analysis");
             Console.WriteLine("  ArcaneEDR.exe --test-ai-analysis");
-            Console.WriteLine("  ArcaneEDR.exe --preview-openai-payload");
             Console.WriteLine("  ArcaneEDR.exe --preview-ai-payload");
             Console.WriteLine("  ArcaneEDR.exe --alert-volume --last <duration>");
             Console.WriteLine("  ArcaneEDR.exe --agent-activity --last <duration>");

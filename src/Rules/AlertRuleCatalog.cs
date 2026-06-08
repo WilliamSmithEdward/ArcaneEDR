@@ -26,7 +26,7 @@ namespace ArcaneEDR
             if (StartsWith(value, "PROC-")) return "Process";
             if (StartsWith(value, "AUDIT-PROC-")) return "Process";
             if (StartsWith(value, "RAT-")) return "RAT";
-            if (StartsWith(value, "OPENAI-")) return "AI";
+            if (StartsWith(value, "AI-")) return "AI";
             if (StartsWith(value, "SERVICE-")) return "Health";
             if (StartsWith(value, "APP-")) return "Integrity";
             if (StartsWith(value, "BASELINE-")) return "Baseline";

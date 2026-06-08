@@ -62,15 +62,15 @@ namespace ArcaneEDR
             ValidateTermGroups(config.MaintenanceContextTermGroups, "MaintenanceContextTermGroups", warnings);
             if (config.MaintenanceContextExternalAlertMinimumScore < 0 || config.MaintenanceContextExternalAlertMinimumScore > 100) Warn(warnings, "MaintenanceContextExternalAlertMinimumScore is outside the usual 0-100 range.");
             if (config.BaselineLearningEmailMinimumScore < 0 || config.BaselineLearningEmailMinimumScore > 100) Warn(warnings, "BaselineLearningEmailMinimumScore is outside the usual 0-100 range.");
-            if (config.OpenAIAnalysisBaselineEmailMinimumScore < 0 || config.OpenAIAnalysisBaselineEmailMinimumScore > 100) Warn(warnings, "OpenAIAnalysisBaselineEmailMinimumScore is outside the usual 0-100 range.");
-            if (config.OpenAIAnalysisMinimumIncludedAlertScore < 0 || config.OpenAIAnalysisMinimumIncludedAlertScore > 100) Warn(warnings, "OpenAIAnalysisMinimumIncludedAlertScore is outside the usual 0-100 range.");
-            if (config.OpenAIAnalysisBaselineMinimumIncludedAlertScore < 0 || config.OpenAIAnalysisBaselineMinimumIncludedAlertScore > 100) Warn(warnings, "OpenAIAnalysisBaselineMinimumIncludedAlertScore is outside the usual 0-100 range.");
+            if (config.AIAnalysisBaselineEmailMinimumScore < 0 || config.AIAnalysisBaselineEmailMinimumScore > 100) Warn(warnings, "AIAnalysisBaselineEmailMinimumScore is outside the usual 0-100 range.");
+            if (config.AIAnalysisMinimumIncludedAlertScore < 0 || config.AIAnalysisMinimumIncludedAlertScore > 100) Warn(warnings, "AIAnalysisMinimumIncludedAlertScore is outside the usual 0-100 range.");
+            if (config.AIAnalysisBaselineMinimumIncludedAlertScore < 0 || config.AIAnalysisBaselineMinimumIncludedAlertScore > 100) Warn(warnings, "AIAnalysisBaselineMinimumIncludedAlertScore is outside the usual 0-100 range.");
             ValidateAiAnalysisProvider(config, errors, warnings);
             ValidateDailySummarySchedule(config, errors, warnings);
             ValidateDailyReportConfig(config, errors, warnings);
             if (config.MinimumEmailScore < 0 || config.MinimumEmailScore > 100) Warn(warnings, "MinimumEmailScore is outside the usual 0-100 range.");
             ValidateRulePolicy(config, warnings);
-            if (config.OpenAIAnalysisMaxChars > 20000) Warn(warnings, "OpenAIAnalysisMaxChars is above 20000; compact analysis may use more tokens than intended.");
+            if (config.AIAnalysisMaxChars > 20000) Warn(warnings, "AIAnalysisMaxChars is above 20000; compact analysis may use more tokens than intended.");
             ValidateHighSignalFileDetection(config, warnings);
             if (config.SmtpPort < 1 || config.SmtpPort > 65535) Fail(errors, "SmtpPort must be between 1 and 65535.");
             if (config.SmtpTimeoutSeconds <= 0) Fail(errors, "SmtpTimeoutSeconds must be greater than zero.");
@@ -164,35 +164,58 @@ namespace ArcaneEDR
 
         private static void ValidateAiAnalysisProvider(MonitorConfig config, List<string> errors, List<string> warnings)
         {
-            string provider = MonitorConfig.CanonicalAiAnalysisProvider(config.AIAnalysisProvider);
-            if (!IsAiAnalysisProvider(provider))
+            if (!config.EnableAIAnalysis) return;
+
+            List<string> providers = config.GetAiAnalysisProviderNames();
+            if (providers.Count == 0)
             {
-                Fail(errors, "AIAnalysisProvider must be OpenAI, OpenAICompatible, Disabled, None, or Off.");
+                Fail(errors, "AIAnalysisProviders must include at least one provider when EnableAIAnalysis is true.");
                 return;
             }
 
-            if (!config.EnableOpenAiLogAnalysis) return;
-
-            if (provider.Equals("Disabled", StringComparison.OrdinalIgnoreCase))
+            foreach (string providerName in providers)
             {
-                Warn(warnings, "EnableAIAnalysis/EnableOpenAiLogAnalysis is true but AIAnalysisProvider is disabled.");
-                return;
-            }
+                AiAnalysisProviderSettings settings = config.AiAnalysisSettingsFor(providerName);
+                if (!IsAiAnalysisProvider(settings.ProviderType))
+                {
+                    Fail(errors, "AIAnalysisProviders contains unsupported provider: " + providerName);
+                    continue;
+                }
 
-            if (String.IsNullOrWhiteSpace(config.ActiveAiAnalysisModel()))
-            {
-                Fail(errors, "AI analysis model must be configured using AIAnalysisModel or OpenAIAnalysisModel.");
-            }
+                if (settings.ProviderType.Equals("Disabled", StringComparison.OrdinalIgnoreCase))
+                {
+                    Warn(warnings, "EnableAIAnalysis is true but AI provider is disabled: " + providerName);
+                    continue;
+                }
 
-            if (String.IsNullOrWhiteSpace(config.ActiveAiAnalysisApiUrl()))
-            {
-                Fail(errors, "AI analysis API URL must be configured using AIAnalysisApiUrl or OpenAIAnalysisApiUrl.");
-            }
+                if (String.IsNullOrWhiteSpace(settings.Model))
+                {
+                    Fail(errors, "AI analysis model must be configured for provider " + providerName + " using AIAnalysisModel or AIAnalysisProviderModels.");
+                }
 
-            if (!String.IsNullOrWhiteSpace(config.ActiveAiAnalysisAuthHeaderName()) &&
-                String.IsNullOrWhiteSpace(config.ActiveAiAnalysisApiKeyEnvironmentVariable()))
-            {
-                Fail(errors, "AI analysis API key environment variable must be configured when AIAnalysisAuthHeaderName is not empty.");
+                if (String.IsNullOrWhiteSpace(settings.ApiUrl))
+                {
+                    Fail(errors, "AI analysis API URL must be configured for provider " + providerName + " using AIAnalysisApiUrl or AIAnalysisProviderApiUrls.");
+                }
+
+                if (!String.IsNullOrWhiteSpace(settings.AuthHeaderName) &&
+                    String.IsNullOrWhiteSpace(settings.ApiKeyEnvironmentVariable))
+                {
+                    Fail(errors, "AI analysis API key environment variable must be configured for provider " + providerName + " when its auth header is not empty.");
+                }
+
+                if (settings.ProviderType.Equals("Anthropic", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (String.IsNullOrWhiteSpace(settings.VersionHeaderName))
+                    {
+                        Fail(errors, "Anthropic provider " + providerName + " requires an AIAnalysisProviderVersionHeaderNames entry or default.");
+                    }
+
+                    if (String.IsNullOrWhiteSpace(settings.VersionHeaderValue))
+                    {
+                        Fail(errors, "Anthropic provider " + providerName + " requires an AIAnalysisProviderVersionHeaderValues entry or default.");
+                    }
+                }
             }
         }
 
@@ -263,7 +286,7 @@ namespace ArcaneEDR
                 ProviderMatches(section, "FalsePositiveContext") ||
                 ProviderMatches(section, "HighSignalDetails") ||
                 ProviderMatches(section, "AutomationActivity") ||
-                ProviderMatches(section, "OpenAIReview") ||
+                ProviderMatches(section, "AIReview") ||
                 ProviderMatches(section, "TuningNotes");
         }
 
@@ -628,19 +651,23 @@ namespace ArcaneEDR
                 }
             }
 
-            if (config.EnableOpenAiLogAnalysis)
+            if (config.EnableAIAnalysis)
             {
-                if (String.IsNullOrWhiteSpace(config.ActiveAiAnalysisAuthHeaderName()))
+                foreach (string providerName in config.GetAiAnalysisProviderNames())
                 {
-                    Pass("AI analysis auth header disabled by config.");
-                }
-                else if (String.IsNullOrWhiteSpace(secrets.GetSecret(config.ActiveAiAnalysisApiKeyEnvironmentVariable())))
-                {
-                    Warn(warnings, "AI analysis API key environment variable is not visible: " + config.ActiveAiAnalysisApiKeyEnvironmentVariable());
-                }
-                else
-                {
-                    Pass("AI analysis API key is visible via environment variable: " + config.ActiveAiAnalysisApiKeyEnvironmentVariable());
+                    AiAnalysisProviderSettings settings = config.AiAnalysisSettingsFor(providerName);
+                    if (String.IsNullOrWhiteSpace(settings.AuthHeaderName))
+                    {
+                        Pass("AI analysis auth header disabled by config for provider: " + providerName);
+                    }
+                    else if (String.IsNullOrWhiteSpace(secrets.GetSecret(settings.ApiKeyEnvironmentVariable)))
+                    {
+                        Warn(warnings, "AI analysis API key environment variable is not visible for provider " + providerName + ": " + settings.ApiKeyEnvironmentVariable);
+                    }
+                    else
+                    {
+                        Pass("AI analysis API key is visible for provider " + providerName + " via environment variable: " + settings.ApiKeyEnvironmentVariable);
+                    }
                 }
             }
         }
@@ -758,14 +785,24 @@ namespace ArcaneEDR
 
         private static bool IsAiAnalysisProvider(string provider)
         {
-            return ProviderMatches(provider, "Disabled") ||
-                ProviderMatches(provider, "None") ||
-                ProviderMatches(provider, "Off") ||
-                ProviderMatches(provider, "OpenAI") ||
-                ProviderMatches(provider, "OpenAICompatible") ||
-                ProviderMatches(provider, "OpenAIResponses") ||
-                ProviderMatches(provider, "OpenAICompatibleResponses") ||
-                ProviderMatches(provider, "Responses");
+            return AiProviderMatches(provider, "Disabled") ||
+                AiProviderMatches(provider, "None") ||
+                AiProviderMatches(provider, "Off") ||
+                AiProviderMatches(provider, "OpenAI") ||
+                AiProviderMatches(provider, "OpenAICompatible") ||
+                AiProviderMatches(provider, "OpenAIResponses") ||
+                AiProviderMatches(provider, "OpenAICompatibleResponses") ||
+                AiProviderMatches(provider, "Responses") ||
+                AiProviderMatches(provider, "Anthropic") ||
+                AiProviderMatches(provider, "Claude") ||
+                AiProviderMatches(provider, "AnthropicClaude");
+        }
+
+        private static bool AiProviderMatches(string provider, string expected)
+        {
+            return MonitorConfig.CanonicalAiAnalysisProvider(provider).Equals(
+                MonitorConfig.CanonicalAiAnalysisProvider(expected),
+                StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool ProviderMatches(string provider, string expected)

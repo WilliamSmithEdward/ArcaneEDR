@@ -103,7 +103,7 @@ namespace ArcaneEDR
             state.PollCount++;
             state.AlertCount += alerts == null ? 0 : alerts.Count;
             HeartbeatIfNeeded();
-            SendOpenAiAnalysisIfDue();
+            SendAiAnalysisIfDue();
             SendDailySummaryIfDue();
         }
 
@@ -146,17 +146,17 @@ namespace ArcaneEDR
                 currentRunAlerts,
                 currentRunPollFailures);
             DailyReportSnapshot snapshot = reportBuilder.BuildSnapshot(now);
-            OpenAiAnalysisResult dailyAiResult = null;
+            AiAnalysisResult dailyAiResult = null;
             string dailyAiStatus = "disabled";
 
-            if (config.EnableOpenAiLogAnalysis && config.EnableDailySummaryOpenAiAnalysis)
+            if (config.EnableAIAnalysis && config.EnableDailySummaryAIAnalysis)
             {
                 dailyAiStatus = "not_configured";
                 if (aiAnalysisProvider.IsConfigured)
                 {
                     try
                     {
-                        string payload = reportBuilder.BuildOpenAiPayload(snapshot);
+                        string payload = reportBuilder.BuildAiPayload(snapshot);
                         dailyAiResult = aiAnalysisProvider.AnalyzeDailyReport(payload);
                         dailyAiStatus = "completed";
                         logger.Info("AI daily report analysis completed provider=" + aiAnalysisProvider.ProviderName +
@@ -217,43 +217,43 @@ namespace ArcaneEDR
             }
         }
 
-        public void ForceOpenAiAnalysis()
+        public void ForceAiAnalysis()
         {
             if (state == null) state = HealthState.Load(statePath);
-            RunOpenAiAnalysis(true);
+            RunAiAnalysis(true);
         }
 
-        private void SendOpenAiAnalysisIfDue()
+        private void SendAiAnalysisIfDue()
         {
-            if (!config.EnableOpenAiLogAnalysis) return;
+            if (!config.EnableAIAnalysis) return;
 
             DateTime now = DateTime.UtcNow;
-            if (state.LastOpenAiAnalysisUtc.HasValue &&
-                (now - state.LastOpenAiAnalysisUtc.Value).TotalMinutes < config.OpenAIAnalysisIntervalMinutes)
+            if (state.LastAIAnalysisUtc.HasValue &&
+                (now - state.LastAIAnalysisUtc.Value).TotalMinutes < config.AIAnalysisIntervalMinutes)
             {
                 return;
             }
 
-            RunOpenAiAnalysis(false);
+            RunAiAnalysis(false);
         }
 
-        private void RunOpenAiAnalysis(bool forced)
+        private void RunAiAnalysis(bool forced)
         {
-            if (!config.EnableOpenAiLogAnalysis && !forced) return;
+            if (!config.EnableAIAnalysis && !forced) return;
 
             try
             {
                 if (!aiAnalysisProvider.IsConfigured)
                 {
                     logger.Warn("AI analysis skipped: " + aiAnalysisProvider.MissingConfigurationReason);
-                    state.LastOpenAiAnalysisUtc = DateTime.UtcNow;
+                    state.LastAIAnalysisUtc = DateTime.UtcNow;
                     Save();
                     return;
                 }
 
                 string payload = compactLogSampler.BuildPayload(state);
-                OpenAiAnalysisResult result = aiAnalysisProvider.Analyze(payload);
-                state.LastOpenAiAnalysisUtc = DateTime.UtcNow;
+                AiAnalysisResult result = aiAnalysisProvider.Analyze(payload);
+                state.LastAIAnalysisUtc = DateTime.UtcNow;
                 Save();
 
                 logger.Info("AI analysis completed provider=" + aiAnalysisProvider.ProviderName + " alertable=" + result.Alertable + " score=" + result.Score.ToString(CultureInfo.InvariantCulture) + " title=" + result.Title);
@@ -261,25 +261,25 @@ namespace ArcaneEDR
                 if (forced)
                 {
                     dispatcher.SendExternal(Alert.SystemAlert(
-                        "OPENAI-LOG-ANALYSIS-TEST",
+                        "AI-LOG-ANALYSIS-TEST",
                         "AI log analysis test result",
                         Math.Max(config.MinimumEmailScore, result.Score),
                         result.ToBody(),
                         "No action required if you intentionally ran the AI analysis test.",
                         ServiceEntity()));
                 }
-                else if (result.Alertable && result.Score >= config.OpenAIAnalysisScoreThreshold)
+                else if (result.Alertable && result.Score >= config.AIAnalysisScoreThreshold)
                 {
-                    if (config.BaselineLearningMode && result.Score < config.OpenAIAnalysisBaselineEmailMinimumScore)
+                    if (config.BaselineLearningMode && result.Score < config.AIAnalysisBaselineEmailMinimumScore)
                     {
                         logger.Warn("AI analysis alert suppressed during baseline learning score=" + result.Score.ToString(CultureInfo.InvariantCulture) +
-                            " baseline_email_minimum=" + config.OpenAIAnalysisBaselineEmailMinimumScore.ToString(CultureInfo.InvariantCulture) +
+                            " baseline_email_minimum=" + config.AIAnalysisBaselineEmailMinimumScore.ToString(CultureInfo.InvariantCulture) +
                             " title=" + result.Title);
                         return;
                     }
 
                     dispatcher.SendExternal(Alert.SystemAlert(
-                        "OPENAI-LOG-ANALYSIS-ALERT",
+                        "AI-LOG-ANALYSIS-ALERT",
                         "AI analysis flagged security-relevant log activity",
                         Math.Max(result.Score, config.MinimumEmailScore),
                         result.ToBody(),
@@ -291,7 +291,7 @@ namespace ArcaneEDR
             {
                 if (!forced)
                 {
-                    state.LastOpenAiAnalysisUtc = DateTime.UtcNow;
+                    state.LastAIAnalysisUtc = DateTime.UtcNow;
                     Save();
                 }
 

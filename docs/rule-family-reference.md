@@ -256,7 +256,7 @@ Rule IDs include `*-IOC-*`, `CUSTOM-*`, and configured custom rule IDs.
 
 ## Service, Health, Integrity, And AI Analysis
 
-Rule IDs include `SERVICE-*`, `APP-*`, and `OPENAI-*`.
+Rule IDs include `SERVICE-*`, `APP-*`, and `AI-*`.
 
 - Detects: service start/stop/recovery, daily reports, config/executable
   integrity changes, optional compact AI log analysis verdicts, and optional
@@ -270,8 +270,8 @@ Rule IDs include `SERVICE-*`, `APP-*`, and `OPENAI-*`.
   validation tests, and manually requested AI test analysis.
 - Tuning knobs: `NotifyOnServiceStart`, `NotifyOnServiceStop`,
   `NotifyOnCrashRecovery`, `EnableDailySummary`,
-  `EnableDailySummaryOpenAiAnalysis`, `EnableOpenAiLogAnalysis`,
-  `OpenAIAnalysisScoreThreshold`, and `OpenAIAnalysisExcludedRuleIds`.
+  `EnableDailySummaryAIAnalysis`, `EnableAIAnalysis`,
+  `AIAnalysisScoreThreshold`, and `AIAnalysisExcludedRuleIds`.
 - Safe test: `ArcaneEDR.exe --test-health`, `ArcaneEDR.exe --test-alert`,
   `ArcaneEDR.exe --test-daily-report`, `ArcaneEDR.exe --preview-daily-report`,
   and `ArcaneEDR.exe --test-ai-analysis` if configured.

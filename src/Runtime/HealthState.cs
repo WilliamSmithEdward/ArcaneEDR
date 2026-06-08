@@ -10,7 +10,7 @@ namespace ArcaneEDR
         public DateTime? LastCleanStopUtc;
         public DateTime? LastHeartbeatUtc;
         public DateTime? LastDailySummaryUtc;
-        public DateTime? LastOpenAiAnalysisUtc;
+        public DateTime? LastAIAnalysisUtc;
         public string LastRunId;
         public bool Running;
         public long PollCount;
@@ -34,7 +34,7 @@ namespace ArcaneEDR
                 else if (key == "LastCleanStopUtc") state.LastCleanStopUtc = ReadDate(value);
                 else if (key == "LastHeartbeatUtc") state.LastHeartbeatUtc = ReadDate(value);
                 else if (key == "LastDailySummaryUtc") state.LastDailySummaryUtc = ReadDate(value);
-                else if (key == "LastOpenAiAnalysisUtc") state.LastOpenAiAnalysisUtc = ReadDate(value);
+                else if (key == "LastAIAnalysisUtc") state.LastAIAnalysisUtc = ReadDate(value);
                 else if (key == "LastRunId") state.LastRunId = value;
                 else if (key == "Running") state.Running = value.Equals("true", StringComparison.OrdinalIgnoreCase);
                 else if (key == "PollCount") state.PollCount = ReadLong(value);
@@ -55,7 +55,7 @@ namespace ArcaneEDR
                 "LastCleanStopUtc=" + WriteDate(LastCleanStopUtc),
                 "LastHeartbeatUtc=" + WriteDate(LastHeartbeatUtc),
                 "LastDailySummaryUtc=" + WriteDate(LastDailySummaryUtc),
-                "LastOpenAiAnalysisUtc=" + WriteDate(LastOpenAiAnalysisUtc),
+                "LastAIAnalysisUtc=" + WriteDate(LastAIAnalysisUtc),
                 "LastRunId=" + (LastRunId ?? ""),
                 "Running=" + (Running ? "true" : "false"),
                 "PollCount=" + PollCount.ToString(CultureInfo.InvariantCulture),

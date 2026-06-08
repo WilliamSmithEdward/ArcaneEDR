@@ -167,7 +167,7 @@ namespace ArcaneEDR
         {
             string ruleId = alert == null ? "" : alert.RuleId ?? "";
             return ruleId.StartsWith("SERVICE-", StringComparison.OrdinalIgnoreCase) ||
-                ruleId.StartsWith("OPENAI-LOG-ANALYSIS-", StringComparison.OrdinalIgnoreCase);
+                ruleId.StartsWith("AI-LOG-ANALYSIS-", StringComparison.OrdinalIgnoreCase);
         }
 
         private static List<AlertVolumeBucket> BuildBuckets(List<AlertVolumeRecord> records, string field)

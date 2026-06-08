@@ -113,7 +113,7 @@ namespace ArcaneEDR
                 !ruleId.Equals("SERVICE-STOPPED", StringComparison.OrdinalIgnoreCase) &&
                 !ruleId.Equals("SERVICE-DAILY-SUMMARY", StringComparison.OrdinalIgnoreCase) &&
                 !ruleId.Equals("SERVICE-HEALTH-TEST", StringComparison.OrdinalIgnoreCase) &&
-                !ruleId.Equals("OPENAI-LOG-ANALYSIS-TEST", StringComparison.OrdinalIgnoreCase) &&
+                !ruleId.Equals("AI-LOG-ANALYSIS-TEST", StringComparison.OrdinalIgnoreCase) &&
                 !ruleId.Equals("TEST-ALERT-DELIVERY", StringComparison.OrdinalIgnoreCase);
         }
 

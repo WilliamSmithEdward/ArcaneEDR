@@ -28,7 +28,7 @@ namespace ArcaneEDR
             builder.AppendLine("utc=" + DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture));
             builder.AppendLine("baseline_learning_mode=" + config.BaselineLearningMode);
             builder.AppendLine("included_alert_minimum_score=" + includedAlertMinimumScore.ToString(CultureInfo.InvariantCulture));
-            builder.AppendLine("aggregate_alert_window_lines=" + config.OpenAIAnalysisMaxAlertLines.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine("aggregate_alert_window_lines=" + config.AIAnalysisMaxAlertLines.ToString(CultureInfo.InvariantCulture));
             builder.AppendLine("aggregate_significant_minimum_score=60");
             builder.AppendLine("response_mode=" + config.ResponseMode);
             builder.AppendLine("external_alert_provider=" + config.ExternalAlertProvider);
@@ -42,23 +42,23 @@ namespace ArcaneEDR
             builder.AppendLine("last_heartbeat_utc=" + Format(state.LastHeartbeatUtc));
             builder.AppendLine();
             builder.AppendLine("[recent_arcane_edr_summary]");
-            builder.AppendLine(ReadTail(logPath, config.OpenAIAnalysisMaxLogLines, delegate(string line)
+            builder.AppendLine(ReadTail(logPath, config.AIAnalysisMaxLogLines, delegate(string line)
             {
-                return SummarizeMonitorLine(line, includedAlertMinimumScore, config.OpenAIAnalysisExcludedRuleIds);
+                return SummarizeMonitorLine(line, includedAlertMinimumScore, config.AIAnalysisExcludedRuleIds);
             }));
             builder.AppendLine();
             builder.AppendLine("[recent_arcane_edr_alert_summaries]");
-            builder.AppendLine(ReadTail(alertsPath, config.OpenAIAnalysisMaxAlertLines, delegate(string line)
+            builder.AppendLine(ReadTail(alertsPath, config.AIAnalysisMaxAlertLines, delegate(string line)
             {
-                return SummarizeAlertJsonLine(line, includedAlertMinimumScore, config.OpenAIAnalysisExcludedRuleIds);
+                return SummarizeAlertJsonLine(line, includedAlertMinimumScore, config.AIAnalysisExcludedRuleIds);
             }));
             builder.AppendLine();
             builder.AppendLine("[recent_arcane_edr_alert_aggregate]");
-            builder.AppendLine(BuildAlertAggregate(alertsPath, config.OpenAIAnalysisMaxAlertLines, config.OpenAIAnalysisExcludedRuleIds));
+            builder.AppendLine(BuildAlertAggregate(alertsPath, config.AIAnalysisMaxAlertLines, config.AIAnalysisExcludedRuleIds));
 
             string payload = builder.ToString();
-            if (payload.Length <= config.OpenAIAnalysisMaxChars) return payload;
-            return payload.Substring(payload.Length - config.OpenAIAnalysisMaxChars);
+            if (payload.Length <= config.AIAnalysisMaxChars) return payload;
+            return payload.Substring(payload.Length - config.AIAnalysisMaxChars);
         }
 
         private static string ReadTail(string path, int maxLines, Func<string, string> summarize)
@@ -102,8 +102,8 @@ namespace ArcaneEDR
         private int IncludedAlertMinimumScore()
         {
             return config.BaselineLearningMode
-                ? config.OpenAIAnalysisBaselineMinimumIncludedAlertScore
-                : config.OpenAIAnalysisMinimumIncludedAlertScore;
+                ? config.AIAnalysisBaselineMinimumIncludedAlertScore
+                : config.AIAnalysisMinimumIncludedAlertScore;
         }
 
         private static string BuildAlertAggregate(string path, int maxLines, HashSet<string> excludedRuleIds)
@@ -239,8 +239,7 @@ namespace ArcaneEDR
             }
 
             if (level.Equals("INFO", StringComparison.OrdinalIgnoreCase) &&
-                (message.StartsWith("OpenAI analysis completed", StringComparison.OrdinalIgnoreCase) ||
-                 message.StartsWith("AI analysis completed", StringComparison.OrdinalIgnoreCase)))
+                message.StartsWith("AI analysis completed", StringComparison.OrdinalIgnoreCase))
             {
                 return "";
             }
@@ -304,7 +303,7 @@ namespace ArcaneEDR
             }
         }
 
-        private static string ExtractOpenAiOutcome(string message)
+        private static string ExtractAiOutcome(string message)
         {
             string alertable = ExtractAssignment(message, "alertable");
             string score = ExtractAssignment(message, "score");

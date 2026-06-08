@@ -26,12 +26,12 @@ namespace ArcaneEDR
             get { return reason; }
         }
 
-        public OpenAiAnalysisResult Analyze(string compactLogPayload)
+        public AiAnalysisResult Analyze(string compactLogPayload)
         {
             throw new InvalidOperationException(reason);
         }
 
-        public OpenAiAnalysisResult AnalyzeDailyReport(string dailyReportPayload)
+        public AiAnalysisResult AnalyzeDailyReport(string dailyReportPayload)
         {
             throw new InvalidOperationException(reason);
         }

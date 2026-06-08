@@ -91,7 +91,7 @@ namespace ArcaneEDR
                 alert.AddWhy("Arcane EDR service lifecycle, recovery, health, or summary telemetry generated this notification.");
             }
 
-            if (StartsWith(ruleId, "OPENAI-"))
+            if (StartsWith(ruleId, "AI-"))
             {
                 alert.AddWhy("Compact AI log analysis marked recent redacted activity as alert-worthy or returned a requested test result.");
             }

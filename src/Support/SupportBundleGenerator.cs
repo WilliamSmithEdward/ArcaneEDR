@@ -58,14 +58,37 @@ namespace ArcaneEDR
             lines.Add("ResponseMode=" + config.ResponseMode);
             lines.Add("BaselineEnabled=" + config.BaselineEnabled);
             lines.Add("BaselineLearningMode=" + config.BaselineLearningMode);
-            lines.Add("AIAnalysisEnabled=" + config.EnableOpenAiLogAnalysis);
-            lines.Add("AIAnalysisProvider=" + config.ActiveAiAnalysisProvider());
-            lines.Add("AIAnalysisModel=" + RedactSensitiveText(config.ActiveAiAnalysisModel()));
-            lines.Add("AIAnalysisAuthHeaderConfigured=" + (!String.IsNullOrWhiteSpace(config.ActiveAiAnalysisAuthHeaderName())));
-            lines.Add("OpenAiLogAnalysisEnabled=" + config.EnableOpenAiLogAnalysis);
+            lines.Add("AIAnalysisEnabled=" + config.EnableAIAnalysis);
+            lines.Add("AIAnalysisProviders=" + String.Join(",", config.GetAiAnalysisProviderNames().ToArray()));
+            lines.Add("AIAnalysisProviderModels=" + BuildAiProviderModelSummary());
+            lines.Add("AIAnalysisAuthHeadersConfigured=" + BuildAiProviderAuthSummary());
             lines.Add("IncidentGroupingEnabled=" + config.EnableIncidentGrouping);
             lines.Add("AgentActivityLedgerEnabled=" + config.EnableAgentActivityLedger);
             WriteLines(Path.Combine(bundleDirectory, "manifest.txt"), lines);
+        }
+
+        private string BuildAiProviderModelSummary()
+        {
+            List<string> parts = new List<string>();
+            foreach (string providerName in config.GetAiAnalysisProviderNames())
+            {
+                AiAnalysisProviderSettings settings = config.AiAnalysisSettingsFor(providerName);
+                parts.Add(providerName + "=" + RedactSensitiveText(settings.Model));
+            }
+
+            return String.Join(",", parts.ToArray());
+        }
+
+        private string BuildAiProviderAuthSummary()
+        {
+            List<string> parts = new List<string>();
+            foreach (string providerName in config.GetAiAnalysisProviderNames())
+            {
+                AiAnalysisProviderSettings settings = config.AiAnalysisSettingsFor(providerName);
+                parts.Add(providerName + "=" + (!String.IsNullOrWhiteSpace(settings.AuthHeaderName)));
+            }
+
+            return String.Join(",", parts.ToArray());
         }
 
         private void WriteRedactedConfig(string bundleDirectory)
@@ -115,7 +138,7 @@ namespace ArcaneEDR
             lines.Add("LastCleanStopUtc=" + Format(state.LastCleanStopUtc));
             lines.Add("LastHeartbeatUtc=" + Format(state.LastHeartbeatUtc));
             lines.Add("LastDailySummaryUtc=" + Format(state.LastDailySummaryUtc));
-            lines.Add("LastOpenAiAnalysisUtc=" + Format(state.LastOpenAiAnalysisUtc));
+            lines.Add("LastAIAnalysisUtc=" + Format(state.LastAIAnalysisUtc));
             lines.Add("LastRunId=" + RedactSensitiveText(state.LastRunId));
             lines.Add("PollCount=" + state.PollCount.ToString(CultureInfo.InvariantCulture));
             lines.Add("AlertCount=" + state.AlertCount.ToString(CultureInfo.InvariantCulture));

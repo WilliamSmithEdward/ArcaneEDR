@@ -53,7 +53,7 @@ namespace ArcaneEDR
         public string DailySummaryLocalTime = "08:00";
         public string DailySummaryTimeZoneId = "";
         public int DailySummaryScore = 60;
-        public bool EnableDailySummaryOpenAiAnalysis = true;
+        public bool EnableDailySummaryAIAnalysis = true;
         public HashSet<string> DailyReportDestinations = DefaultDailyReportDestinations();
         public HashSet<string> DailyReportSections = DefaultDailyReportSections();
         public int DailyReportCriticalCalloutRows = 5;
@@ -69,25 +69,30 @@ namespace ArcaneEDR
         public string DailyReportWebhookSecretPrefix = "Bearer ";
         public int DailyReportWebhookTimeoutSeconds = 15;
         public int HealthHeartbeatSeconds = 60;
-        public bool EnableOpenAiLogAnalysis = true;
-        public int OpenAIAnalysisIntervalMinutes = 60;
-        public int OpenAIAnalysisScoreThreshold = 95;
-        public int OpenAIAnalysisBaselineEmailMinimumScore = 95;
-        public int OpenAIAnalysisMinimumIncludedAlertScore = 60;
-        public int OpenAIAnalysisBaselineMinimumIncludedAlertScore = 90;
-        public HashSet<string> OpenAIAnalysisExcludedRuleIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        public string AIAnalysisProvider = "OpenAI";
+        public bool EnableAIAnalysis;
+        public int AIAnalysisIntervalMinutes = 60;
+        public int AIAnalysisScoreThreshold = 95;
+        public int AIAnalysisBaselineEmailMinimumScore = 95;
+        public int AIAnalysisMinimumIncludedAlertScore = 60;
+        public int AIAnalysisBaselineMinimumIncludedAlertScore = 90;
+        public HashSet<string> AIAnalysisExcludedRuleIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public List<string> AIAnalysisProviders = new List<string>();
+        public Dictionary<string, string> AIAnalysisProviderTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, string> AIAnalysisProviderModels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, string> AIAnalysisProviderApiUrls = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, string> AIAnalysisProviderApiKeyEnvironmentVariables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, string> AIAnalysisProviderAuthHeaderNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, string> AIAnalysisProviderAuthHeaderPrefixes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, string> AIAnalysisProviderVersionHeaderNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, string> AIAnalysisProviderVersionHeaderValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         public string AIAnalysisModel = "";
         public string AIAnalysisApiKeyEnvironmentVariable = "";
         public string AIAnalysisApiUrl = "";
-        public string AIAnalysisAuthHeaderName = "Authorization";
-        public string AIAnalysisAuthHeaderPrefix = "Bearer ";
-        public string OpenAIAnalysisModel = "gpt-5.5";
-        public string OpenAIApiKeyEnvironmentVariable = "OPENAI_API_KEY";
-        public int OpenAIAnalysisMaxLogLines = 80;
-        public int OpenAIAnalysisMaxAlertLines = 80;
-        public int OpenAIAnalysisMaxChars = 12000;
-        public string OpenAIAnalysisApiUrl = "https://api.openai.com/v1/responses";
+        public string AIAnalysisAuthHeaderName = "";
+        public string AIAnalysisAuthHeaderPrefix = "";
+        public int AIAnalysisMaxLogLines = 80;
+        public int AIAnalysisMaxAlertLines = 80;
+        public int AIAnalysisMaxChars = 12000;
         public bool DetectEncodedCommandLines = true;
         public int EncodedCommandMinimumLength = 80;
         public string ExternalAlertProvider = "Disabled";
@@ -277,9 +282,7 @@ namespace ArcaneEDR
             config.DailySummaryLocalTime = ReadString(values, "DailySummaryLocalTime", config.DailySummaryLocalTime);
             config.DailySummaryTimeZoneId = ReadString(values, "DailySummaryTimeZoneId", config.DailySummaryTimeZoneId);
             config.DailySummaryScore = ReadInt(values, "DailySummaryScore", config.DailySummaryScore);
-            config.EnableDailySummaryOpenAiAnalysis = values.ContainsKey("EnableDailySummaryAIAnalysis")
-                ? ReadBool(values, "EnableDailySummaryAIAnalysis", config.EnableDailySummaryOpenAiAnalysis)
-                : ReadBool(values, "EnableDailySummaryOpenAiAnalysis", config.EnableDailySummaryOpenAiAnalysis);
+            config.EnableDailySummaryAIAnalysis = ReadBool(values, "EnableDailySummaryAIAnalysis", config.EnableDailySummaryAIAnalysis);
             config.DailyReportDestinations = values.ContainsKey("DailyReportDestinations")
                 ? ReadStringSet(values, "DailyReportDestinations")
                 : DefaultDailyReportDestinations();
@@ -304,25 +307,28 @@ namespace ArcaneEDR
             config.DailyReportWebhookSecretPrefix = ReadString(values, "DailyReportWebhookSecretPrefix", config.DailyReportWebhookSecretPrefix);
             config.DailyReportWebhookTimeoutSeconds = ReadInt(values, "DailyReportWebhookTimeoutSeconds", config.DailyReportWebhookTimeoutSeconds);
             config.HealthHeartbeatSeconds = ReadInt(values, "HealthHeartbeatSeconds", config.HealthHeartbeatSeconds);
-            config.EnableOpenAiLogAnalysis = values.ContainsKey("EnableAIAnalysis")
-                ? ReadBool(values, "EnableAIAnalysis", config.EnableOpenAiLogAnalysis)
-                : ReadBool(values, "EnableOpenAiLogAnalysis", config.EnableOpenAiLogAnalysis);
-            config.OpenAIAnalysisIntervalMinutes = ReadInt(values, "OpenAIAnalysisIntervalMinutes", config.OpenAIAnalysisIntervalMinutes);
-            config.OpenAIAnalysisScoreThreshold = ReadInt(values, "OpenAIAnalysisScoreThreshold", config.OpenAIAnalysisScoreThreshold);
-            config.OpenAIAnalysisBaselineEmailMinimumScore = ReadInt(values, "OpenAIAnalysisBaselineEmailMinimumScore", config.OpenAIAnalysisBaselineEmailMinimumScore);
-            config.OpenAIAnalysisMinimumIncludedAlertScore = ReadInt(values, "OpenAIAnalysisMinimumIncludedAlertScore", config.OpenAIAnalysisMinimumIncludedAlertScore);
-            config.OpenAIAnalysisBaselineMinimumIncludedAlertScore = ReadInt(values, "OpenAIAnalysisBaselineMinimumIncludedAlertScore", config.OpenAIAnalysisBaselineMinimumIncludedAlertScore);
-            config.OpenAIAnalysisExcludedRuleIds = ReadStringSet(values, "OpenAIAnalysisExcludedRuleIds");
-            config.AIAnalysisProvider = ReadString(values, "AIAnalysisProvider", config.AIAnalysisProvider);
-            config.OpenAIAnalysisModel = ReadString(values, "OpenAIAnalysisModel", config.OpenAIAnalysisModel);
-            config.OpenAIApiKeyEnvironmentVariable = ReadString(values, "OpenAIApiKeyEnvironmentVariable", config.OpenAIApiKeyEnvironmentVariable);
-            config.OpenAIAnalysisMaxLogLines = ReadInt(values, "OpenAIAnalysisMaxLogLines", config.OpenAIAnalysisMaxLogLines);
-            config.OpenAIAnalysisMaxAlertLines = ReadInt(values, "OpenAIAnalysisMaxAlertLines", config.OpenAIAnalysisMaxAlertLines);
-            config.OpenAIAnalysisMaxChars = ReadInt(values, "OpenAIAnalysisMaxChars", config.OpenAIAnalysisMaxChars);
-            config.OpenAIAnalysisApiUrl = ReadString(values, "OpenAIAnalysisApiUrl", config.OpenAIAnalysisApiUrl);
-            config.AIAnalysisModel = ReadString(values, "AIAnalysisModel", config.OpenAIAnalysisModel);
-            config.AIAnalysisApiKeyEnvironmentVariable = ReadString(values, "AIAnalysisApiKeyEnvironmentVariable", config.OpenAIApiKeyEnvironmentVariable);
-            config.AIAnalysisApiUrl = ReadString(values, "AIAnalysisApiUrl", config.OpenAIAnalysisApiUrl);
+            config.EnableAIAnalysis = ReadBool(values, "EnableAIAnalysis", config.EnableAIAnalysis);
+            config.AIAnalysisIntervalMinutes = ReadInt(values, "AIAnalysisIntervalMinutes", config.AIAnalysisIntervalMinutes);
+            config.AIAnalysisScoreThreshold = ReadInt(values, "AIAnalysisScoreThreshold", config.AIAnalysisScoreThreshold);
+            config.AIAnalysisBaselineEmailMinimumScore = ReadInt(values, "AIAnalysisBaselineEmailMinimumScore", config.AIAnalysisBaselineEmailMinimumScore);
+            config.AIAnalysisMinimumIncludedAlertScore = ReadInt(values, "AIAnalysisMinimumIncludedAlertScore", config.AIAnalysisMinimumIncludedAlertScore);
+            config.AIAnalysisBaselineMinimumIncludedAlertScore = ReadInt(values, "AIAnalysisBaselineMinimumIncludedAlertScore", config.AIAnalysisBaselineMinimumIncludedAlertScore);
+            config.AIAnalysisExcludedRuleIds = ReadStringSet(values, "AIAnalysisExcludedRuleIds");
+            config.AIAnalysisProviders = ReadStringList(values, "AIAnalysisProviders");
+            config.AIAnalysisProviderTypes = ReadStringMap(values, "AIAnalysisProviderTypes");
+            config.AIAnalysisProviderModels = ReadStringMap(values, "AIAnalysisProviderModels");
+            config.AIAnalysisProviderApiUrls = ReadStringMap(values, "AIAnalysisProviderApiUrls");
+            config.AIAnalysisProviderApiKeyEnvironmentVariables = ReadStringMap(values, "AIAnalysisProviderApiKeyEnvironmentVariables");
+            config.AIAnalysisProviderAuthHeaderNames = ReadStringMap(values, "AIAnalysisProviderAuthHeaderNames");
+            config.AIAnalysisProviderAuthHeaderPrefixes = ReadStringMap(values, "AIAnalysisProviderAuthHeaderPrefixes");
+            config.AIAnalysisProviderVersionHeaderNames = ReadStringMap(values, "AIAnalysisProviderVersionHeaderNames");
+            config.AIAnalysisProviderVersionHeaderValues = ReadStringMap(values, "AIAnalysisProviderVersionHeaderValues");
+            config.AIAnalysisMaxLogLines = ReadInt(values, "AIAnalysisMaxLogLines", config.AIAnalysisMaxLogLines);
+            config.AIAnalysisMaxAlertLines = ReadInt(values, "AIAnalysisMaxAlertLines", config.AIAnalysisMaxAlertLines);
+            config.AIAnalysisMaxChars = ReadInt(values, "AIAnalysisMaxChars", config.AIAnalysisMaxChars);
+            config.AIAnalysisModel = ReadString(values, "AIAnalysisModel", config.AIAnalysisModel);
+            config.AIAnalysisApiKeyEnvironmentVariable = ReadString(values, "AIAnalysisApiKeyEnvironmentVariable", config.AIAnalysisApiKeyEnvironmentVariable);
+            config.AIAnalysisApiUrl = ReadString(values, "AIAnalysisApiUrl", config.AIAnalysisApiUrl);
             config.AIAnalysisAuthHeaderName = ReadString(values, "AIAnalysisAuthHeaderName", config.AIAnalysisAuthHeaderName);
             config.AIAnalysisAuthHeaderPrefix = ReadString(values, "AIAnalysisAuthHeaderPrefix", config.AIAnalysisAuthHeaderPrefix);
             config.DetectEncodedCommandLines = ReadBool(values, "DetectEncodedCommandLines", config.DetectEncodedCommandLines);
@@ -613,38 +619,76 @@ namespace ArcaneEDR
             return provider.Trim();
         }
 
-        public string ActiveAiAnalysisProvider()
+        public List<string> GetAiAnalysisProviderNames()
         {
-            return CanonicalAiAnalysisProvider(AIAnalysisProvider);
+            List<string> result = new List<string>();
+            foreach (string provider in AIAnalysisProviders)
+            {
+                if (!String.IsNullOrWhiteSpace(provider)) result.Add(provider.Trim());
+            }
+
+            return result;
         }
 
-        public string ActiveAiAnalysisModel()
+        public AiAnalysisProviderSettings AiAnalysisSettingsFor(string providerName)
         {
-            return !String.IsNullOrWhiteSpace(AIAnalysisModel) ? AIAnalysisModel : OpenAIAnalysisModel;
+            string configuredName = String.IsNullOrWhiteSpace(providerName) ? "" : providerName.Trim();
+            bool singleProvider = GetAiAnalysisProviderNames().Count <= 1;
+            string providerType = ProviderMapValueOr(AIAnalysisProviderTypes, configuredName, "");
+            if (String.IsNullOrWhiteSpace(providerType)) providerType = configuredName;
+            providerType = CanonicalAiAnalysisProvider(providerType);
+
+            AiAnalysisProviderSettings settings = new AiAnalysisProviderSettings();
+            settings.ProviderName = configuredName;
+            settings.ProviderType = providerType;
+            settings.Model = ProviderMapValueOr(AIAnalysisProviderModels, configuredName, singleProvider ? AIAnalysisModel : "");
+            settings.ApiUrl = ProviderMapValueOr(AIAnalysisProviderApiUrls, configuredName, singleProvider ? AIAnalysisApiUrl : "");
+            settings.ApiKeyEnvironmentVariable = ProviderMapValueOr(AIAnalysisProviderApiKeyEnvironmentVariables, configuredName, singleProvider ? AIAnalysisApiKeyEnvironmentVariable : "");
+            settings.AuthHeaderName = ProviderMapValueOr(AIAnalysisProviderAuthHeaderNames, configuredName, singleProvider ? AIAnalysisAuthHeaderName : "");
+            settings.AuthHeaderPrefixConfigured = ProviderMapContains(AIAnalysisProviderAuthHeaderPrefixes, configuredName) ||
+                (singleProvider && !String.IsNullOrWhiteSpace(AIAnalysisAuthHeaderPrefix));
+            settings.AuthHeaderPrefix = ProviderMapValueOr(AIAnalysisProviderAuthHeaderPrefixes, configuredName, singleProvider ? AIAnalysisAuthHeaderPrefix : "");
+            settings.VersionHeaderName = ProviderMapValueOr(AIAnalysisProviderVersionHeaderNames, configuredName, "");
+            settings.VersionHeaderValue = ProviderMapValueOr(AIAnalysisProviderVersionHeaderValues, configuredName, "");
+
+            ApplyAiProviderDefaults(settings);
+            return settings;
         }
 
-        public string ActiveAiAnalysisApiKeyEnvironmentVariable()
+        private static void ApplyAiProviderDefaults(AiAnalysisProviderSettings settings)
         {
-            return !String.IsNullOrWhiteSpace(AIAnalysisApiKeyEnvironmentVariable)
-                ? AIAnalysisApiKeyEnvironmentVariable
-                : OpenAIApiKeyEnvironmentVariable;
+            if (settings.ProviderType.Equals("OpenAI", StringComparison.OrdinalIgnoreCase))
+            {
+                if (String.IsNullOrWhiteSpace(settings.ApiUrl)) settings.ApiUrl = "https://api.openai.com/v1/responses";
+                if (String.IsNullOrWhiteSpace(settings.ApiKeyEnvironmentVariable)) settings.ApiKeyEnvironmentVariable = "OPENAI_API_KEY";
+                if (String.IsNullOrWhiteSpace(settings.AuthHeaderName)) settings.AuthHeaderName = "Authorization";
+                settings.AuthHeaderPrefix = NormalizeAuthPrefix(settings.AuthHeaderPrefix, settings.AuthHeaderPrefixConfigured, "Bearer ");
+                return;
+            }
+
+            if (settings.ProviderType.Equals("OpenAICompatible", StringComparison.OrdinalIgnoreCase))
+            {
+                settings.AuthHeaderPrefix = NormalizeAuthPrefix(settings.AuthHeaderPrefix, settings.AuthHeaderPrefixConfigured, "Bearer ");
+                return;
+            }
+
+            if (settings.ProviderType.Equals("Anthropic", StringComparison.OrdinalIgnoreCase))
+            {
+                if (String.IsNullOrWhiteSpace(settings.ApiUrl)) settings.ApiUrl = "https://api.anthropic.com/v1/messages";
+                if (String.IsNullOrWhiteSpace(settings.ApiKeyEnvironmentVariable)) settings.ApiKeyEnvironmentVariable = "ANTHROPIC_API_KEY";
+                if (String.IsNullOrWhiteSpace(settings.AuthHeaderName)) settings.AuthHeaderName = "x-api-key";
+                if (String.IsNullOrWhiteSpace(settings.AuthHeaderPrefix)) settings.AuthHeaderPrefix = "";
+                if (String.IsNullOrWhiteSpace(settings.VersionHeaderName)) settings.VersionHeaderName = "anthropic-version";
+                if (String.IsNullOrWhiteSpace(settings.VersionHeaderValue)) settings.VersionHeaderValue = "2023-06-01";
+            }
         }
 
-        public string ActiveAiAnalysisApiUrl()
+        private static string NormalizeAuthPrefix(string value, bool configured, string fallback)
         {
-            return !String.IsNullOrWhiteSpace(AIAnalysisApiUrl) ? AIAnalysisApiUrl : OpenAIAnalysisApiUrl;
-        }
-
-        public string ActiveAiAnalysisAuthHeaderName()
-        {
-            return AIAnalysisAuthHeaderName ?? "Authorization";
-        }
-
-        public string ActiveAiAnalysisAuthHeaderPrefix()
-        {
-            if (AIAnalysisAuthHeaderPrefix == null) return "";
-            if (AIAnalysisAuthHeaderPrefix.Equals("Bearer", StringComparison.OrdinalIgnoreCase)) return "Bearer ";
-            return AIAnalysisAuthHeaderPrefix;
+            if (!configured && String.IsNullOrWhiteSpace(value)) return fallback;
+            if (value == null) return "";
+            if (value.Equals("Bearer", StringComparison.OrdinalIgnoreCase)) return "Bearer ";
+            return value;
         }
 
         public static string CanonicalAiAnalysisProvider(string provider)
@@ -654,6 +698,12 @@ namespace ArcaneEDR
                 provider.Equals("Off", StringComparison.OrdinalIgnoreCase))
             {
                 return "Disabled";
+            }
+
+            if (provider.Equals("Claude", StringComparison.OrdinalIgnoreCase) ||
+                provider.Equals("AnthropicClaude", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Anthropic";
             }
 
             if (provider.Equals("OpenAIResponses", StringComparison.OrdinalIgnoreCase) ||
@@ -830,6 +880,20 @@ namespace ArcaneEDR
             return result;
         }
 
+        private static List<string> ReadStringList(Dictionary<string, string> values, string key)
+        {
+            List<string> result = new List<string>();
+            string value;
+            if (!values.TryGetValue(key, out value)) return result;
+            foreach (string part in value.Split(','))
+            {
+                string trimmed = part.Trim();
+                if (trimmed.Length > 0) result.Add(trimmed);
+            }
+
+            return result;
+        }
+
         private static HashSet<string> DefaultLowValueRepeatDampeningCategories()
         {
             HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -851,7 +915,7 @@ namespace ArcaneEDR
             result.Add("FalsePositiveContext");
             result.Add("HighSignalDetails");
             result.Add("AutomationActivity");
-            result.Add("OpenAIReview");
+            result.Add("AIReview");
             result.Add("TuningNotes");
             return result;
         }
@@ -960,6 +1024,60 @@ namespace ArcaneEDR
             }
 
             return result;
+        }
+
+        private static Dictionary<string, string> ReadStringMap(Dictionary<string, string> values, string key)
+        {
+            Dictionary<string, string> result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            string value;
+            if (!values.TryGetValue(key, out value)) return result;
+
+            foreach (string part in value.Split(','))
+            {
+                string item = part.Trim();
+                if (item.Length == 0) continue;
+
+                int separator = item.IndexOf('=');
+                if (separator <= 0) separator = item.IndexOf(':');
+                if (separator <= 0) continue;
+
+                string name = item.Substring(0, separator).Trim();
+                string mapValue = item.Substring(separator + 1).Trim();
+                if (name.Length > 0) result[name] = mapValue;
+            }
+
+            return result;
+        }
+
+        private static string ProviderMapValueOr(Dictionary<string, string> values, string providerName, string fallback)
+        {
+            string value;
+            return TryMapValue(values, providerName, out value) ? value : (fallback ?? "");
+        }
+
+        private static bool ProviderMapContains(Dictionary<string, string> values, string providerName)
+        {
+            string value;
+            return TryMapValue(values, providerName, out value);
+        }
+
+        private static bool TryMapValue(Dictionary<string, string> values, string providerName, out string value)
+        {
+            value = "";
+            if (values == null || String.IsNullOrWhiteSpace(providerName)) return false;
+            if (values.TryGetValue(providerName, out value)) return true;
+
+            string canonical = CanonicalAiAnalysisProvider(providerName);
+            foreach (KeyValuePair<string, string> item in values)
+            {
+                if (CanonicalAiAnalysisProvider(item.Key).Equals(canonical, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = item.Value;
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static HashSet<string> NormalizePathIndicators(HashSet<string> values)

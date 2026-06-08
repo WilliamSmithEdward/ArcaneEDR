@@ -8,14 +8,14 @@ using System.Web.Script.Serialization;
 
 namespace ArcaneEDR
 {
-    internal sealed class OpenAiCompatibleAnalysisProvider : IAiAnalysisProvider
+    internal sealed class AnthropicAnalysisProvider : IAiAnalysisProvider
     {
         private readonly MonitorConfig config;
         private readonly FileLogger logger;
         private readonly ISecretProvider secretProvider;
         private readonly AiAnalysisProviderSettings settings;
 
-        public OpenAiCompatibleAnalysisProvider(MonitorConfig config, FileLogger logger, ISecretProvider secretProvider, AiAnalysisProviderSettings settings)
+        public AnthropicAnalysisProvider(MonitorConfig config, FileLogger logger, ISecretProvider secretProvider, AiAnalysisProviderSettings settings)
         {
             this.config = config;
             this.logger = logger;
@@ -32,9 +32,11 @@ namespace ArcaneEDR
         {
             get
             {
-                return (!RequiresApiKey() || !String.IsNullOrWhiteSpace(GetApiKey())) &&
-                    !String.IsNullOrWhiteSpace(settings.ApiUrl) &&
-                    !String.IsNullOrWhiteSpace(settings.Model);
+                return !String.IsNullOrWhiteSpace(settings.ApiUrl) &&
+                    !String.IsNullOrWhiteSpace(settings.Model) &&
+                    (!RequiresApiKey() || !String.IsNullOrWhiteSpace(GetApiKey())) &&
+                    !String.IsNullOrWhiteSpace(settings.VersionHeaderName) &&
+                    !String.IsNullOrWhiteSpace(settings.VersionHeaderValue);
             }
         }
 
@@ -45,54 +47,44 @@ namespace ArcaneEDR
                 if (String.IsNullOrWhiteSpace(settings.ApiUrl)) return ProviderName + " AI analysis API URL is missing.";
                 if (String.IsNullOrWhiteSpace(settings.Model)) return ProviderName + " AI analysis model is missing.";
                 if (RequiresApiKey() && String.IsNullOrWhiteSpace(GetApiKey())) return ProviderName + " AI analysis API key environment variable is not visible: " + settings.ApiKeyEnvironmentVariable;
+                if (String.IsNullOrWhiteSpace(settings.VersionHeaderName)) return ProviderName + " AI analysis version header name is missing.";
+                if (String.IsNullOrWhiteSpace(settings.VersionHeaderValue)) return ProviderName + " AI analysis version header value is missing.";
                 return "";
             }
         }
 
         public AiAnalysisResult Analyze(string compactLogPayload)
         {
-            string apiKey = GetApiKey();
-            if (RequiresApiKey() && String.IsNullOrWhiteSpace(apiKey))
-            {
-                throw new InvalidOperationException("AI analysis API key is missing.");
-            }
-
-            ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | (SecurityProtocolType)3072;
-
-            string requestJson = BuildRequestJson(compactLogPayload);
-            return SendRequestAndParse(requestJson, "compact_log");
+            return SendRequestAndParse(BuildRequestJson(AiAnalysisPrompts.CompactLogPrompt(compactLogPayload), 500), "compact_log");
         }
 
         public AiAnalysisResult AnalyzeDailyReport(string dailyReportPayload)
         {
-            string apiKey = GetApiKey();
-            if (RequiresApiKey() && String.IsNullOrWhiteSpace(apiKey))
-            {
-                throw new InvalidOperationException("AI analysis API key is missing.");
-            }
-
-            ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | (SecurityProtocolType)3072;
-
-            string requestJson = BuildDailyReportRequestJson(dailyReportPayload);
-            return SendRequestAndParse(requestJson, "daily_report");
+            return SendRequestAndParse(BuildRequestJson(AiAnalysisPrompts.DailyReportPrompt(dailyReportPayload), 700), "daily_report");
         }
 
         private AiAnalysisResult SendRequestAndParse(string requestJson, string analysisType)
         {
             string apiKey = GetApiKey();
+            if (RequiresApiKey() && String.IsNullOrWhiteSpace(apiKey))
+            {
+                throw new InvalidOperationException("AI analysis API key is missing for " + ProviderName + ".");
+            }
+
+            ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | (SecurityProtocolType)3072;
+
             byte[] body = Encoding.UTF8.GetBytes(requestJson);
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(settings.ApiUrl);
             request.Method = "POST";
             request.Accept = "application/json";
             request.ContentType = "application/json";
-            string headerName = settings.AuthHeaderName;
-            if (!String.IsNullOrWhiteSpace(headerName))
+            request.Headers[settings.VersionHeaderName] = settings.VersionHeaderValue;
+            if (!String.IsNullOrWhiteSpace(settings.AuthHeaderName))
             {
-                request.Headers[headerName] = (settings.AuthHeaderPrefix ?? "") + apiKey;
+                request.Headers[settings.AuthHeaderName] = (settings.AuthHeaderPrefix ?? "") + apiKey;
             }
 
             request.ContentLength = body.Length;
-
             using (Stream stream = request.GetRequestStream())
             {
                 stream.Write(body, 0, body.Length);
@@ -122,6 +114,15 @@ namespace ArcaneEDR
             return result;
         }
 
+        private string BuildRequestJson(string prompt, int maxTokens)
+        {
+            return "{" +
+                "\"model\":\"" + JsonEscape(settings.Model) + "\"," +
+                "\"max_tokens\":" + maxTokens.ToString(CultureInfo.InvariantCulture) + "," +
+                "\"messages\":[{\"role\":\"user\",\"content\":\"" + JsonEscape(prompt) + "\"}]" +
+                "}";
+        }
+
         private string GetApiKey()
         {
             return secretProvider.GetSecret(settings.ApiKeyEnvironmentVariable);
@@ -132,32 +133,6 @@ namespace ArcaneEDR
             return !String.IsNullOrWhiteSpace(settings.AuthHeaderName);
         }
 
-        private string BuildRequestJson(string compactLogPayload)
-        {
-            string prompt = AiAnalysisPrompts.CompactLogPrompt(compactLogPayload);
-
-            return "{" +
-                "\"model\":\"" + JsonEscape(settings.Model) + "\"," +
-                "\"input\":\"" + JsonEscape(prompt) + "\"," +
-                "\"max_output_tokens\":500," +
-                "\"reasoning\":{\"effort\":\"low\"}," +
-                "\"store\":false" +
-                "}";
-        }
-
-        private string BuildDailyReportRequestJson(string dailyReportPayload)
-        {
-            string prompt = AiAnalysisPrompts.DailyReportPrompt(dailyReportPayload);
-
-            return "{" +
-                "\"model\":\"" + JsonEscape(settings.Model) + "\"," +
-                "\"input\":\"" + JsonEscape(prompt) + "\"," +
-                "\"max_output_tokens\":700," +
-                "\"reasoning\":{\"effort\":\"low\"}," +
-                "\"store\":false" +
-                "}";
-        }
-
         private static string ExtractOutputText(string responseBody)
         {
             JavaScriptSerializer serializer = new JavaScriptSerializer();
@@ -165,26 +140,17 @@ namespace ArcaneEDR
             IDictionary root = parsed as IDictionary;
             if (root == null) return responseBody;
 
-            if (root.Contains("output_text")) return root["output_text"] == null ? "" : root["output_text"].ToString();
-
-            IList output = root["output"] as IList;
-            if (output == null) return responseBody;
+            IList content = root["content"] as IList;
+            if (content == null) return responseBody;
 
             StringBuilder builder = new StringBuilder();
-            foreach (object item in output)
+            foreach (object item in content)
             {
-                IDictionary outputItem = item as IDictionary;
-                if (outputItem == null) continue;
-                IList content = outputItem["content"] as IList;
-                if (content == null) continue;
-
-                foreach (object contentItem in content)
+                IDictionary contentItem = item as IDictionary;
+                if (contentItem == null) continue;
+                if (contentItem.Contains("text") && contentItem["text"] != null)
                 {
-                    IDictionary contentMap = contentItem as IDictionary;
-                    if (contentMap != null && contentMap.Contains("text") && contentMap["text"] != null)
-                    {
-                        builder.Append(contentMap["text"].ToString());
-                    }
+                    builder.Append(contentItem["text"].ToString());
                 }
             }
 

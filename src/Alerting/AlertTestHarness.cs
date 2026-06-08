@@ -74,15 +74,15 @@ namespace ArcaneEDR
                 0,
                 0);
             DailyReportSnapshot snapshot = reportBuilder.BuildSnapshot(now);
-            OpenAiAnalysisResult dailyAiResult = null;
+            AiAnalysisResult dailyAiResult = null;
             string dailyAiStatus = "disabled";
 
-            if (config.EnableOpenAiLogAnalysis && config.EnableDailySummaryOpenAiAnalysis)
+            if (config.EnableAIAnalysis && config.EnableDailySummaryAIAnalysis)
             {
                 dailyAiStatus = "not_configured";
                 if (aiAnalysisProvider.IsConfigured)
                 {
-                    string payload = reportBuilder.BuildOpenAiPayload(snapshot);
+                    string payload = reportBuilder.BuildAiPayload(snapshot);
                     dailyAiResult = aiAnalysisProvider.AnalyzeDailyReport(payload);
                     dailyAiStatus = "completed";
                 }
@@ -163,7 +163,7 @@ namespace ArcaneEDR
             return 0;
         }
 
-        public static void SendOpenAiAnalysisTest(string baseDirectory)
+        public static void SendAiAnalysisTest(string baseDirectory)
         {
             MonitorConfig config = MonitorConfig.Load(baseDirectory);
             FileLogger logger = new FileLogger(config.LogDirectory, config.MaxLogFileBytes);
@@ -174,10 +174,10 @@ namespace ArcaneEDR
             IAiAnalysisProvider aiAnalysisProvider = AiAnalysisProviderFactory.Create(config, logger, secretProvider);
             CompactLogSampler sampler = new CompactLogSampler(config);
             HealthMonitor healthMonitor = new HealthMonitor(config, logger, dispatcher, aiAnalysisProvider, sampler);
-            healthMonitor.ForceOpenAiAnalysis();
+            healthMonitor.ForceAiAnalysis();
         }
 
-        public static void PreviewOpenAiPayload(string baseDirectory)
+        public static void PreviewAiPayload(string baseDirectory)
         {
             MonitorConfig config = MonitorConfig.Load(baseDirectory);
             CompactLogSampler sampler = new CompactLogSampler(config);

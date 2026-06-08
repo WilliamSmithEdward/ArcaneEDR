@@ -5,7 +5,7 @@ namespace ArcaneEDR
         string ProviderName { get; }
         bool IsConfigured { get; }
         string MissingConfigurationReason { get; }
-        OpenAiAnalysisResult Analyze(string compactLogPayload);
-        OpenAiAnalysisResult AnalyzeDailyReport(string dailyReportPayload);
+        AiAnalysisResult Analyze(string compactLogPayload);
+        AiAnalysisResult AnalyzeDailyReport(string dailyReportPayload);
     }
 }

@@ -30,6 +30,14 @@ configuration changes while preserving the user's control of their machine.
   dampened.
 - Keep `ResponseMode=AlertOnly` unless the operator explicitly asks for active
   response testing or containment.
+- Prefer unified product surfaces over backwards-compatibility shims. Arcane is
+  still early enough that public config, docs, commands, and report language
+  should be refactored toward the clearest current model rather than preserving
+  old partial names.
+- Avoid partial implementations that appear supported but only work in narrow
+  cases. For provider integrations, do not present a provider as supported until
+  the direct request shape, auth model, validation, redacted payload handling,
+  logging, and documentation are all implemented.
 
 ## Repo Purpose
 
@@ -74,10 +82,10 @@ Copy-Item .\config\ArcaneEDR.example.config .\config\ArcaneEDR.config
 Copy-Item .\config\Deployment.example.config .\config\Deployment.config
 ```
 
-Do not put secrets in tracked files. For Brevo, OpenAI, SMTP, webhook, or other
-external providers, configure environment variable names in the local config and
-have the user set the secret values in the appropriate Windows environment
-scope.
+Do not put secrets in tracked files. For Brevo, AI providers, SMTP, webhook, or
+other external providers, configure environment variable names in the local
+config and have the user set the secret values in the appropriate Windows
+environment scope.
 
 Use a conservative first-run posture:
 
@@ -85,8 +93,8 @@ Use a conservative first-run posture:
 - baseline learning enabled
 - external alerting disabled until validation succeeds, unless the user is
   intentionally configuring email/webhook delivery
-- OpenAI analysis disabled until the user provides an API key and confirms they
-  want compact redacted log analysis
+- AI analysis disabled until the user provides provider API keys and confirms
+  they want compact redacted log analysis
 
 Build and validate before any live install:
 
@@ -162,7 +170,7 @@ Get-Content C:\Security\ArcaneEDR.log -Tail 60
 Get-Content C:\Security\ArcaneServiceHealth.state
 ```
 
-Separate current behavior from stale context. A one-hour or compact OpenAI
+Separate current behavior from stale context. A one-hour or compact AI
 window may include pre-fix investigation commands, publish/restart events, or
 known operator activity.
 
@@ -203,7 +211,7 @@ On a new machine, learn the local context:
   registries, OpenAI, Microsoft, browser sync, cloud storage, or update
   services?
 - What alert channels should be enabled: local only, Brevo email, SMTP, webhook,
-  Windows Event Log, OpenAI compact analysis?
+  Windows Event Log, AI compact analysis?
 
 Then inspect baseline evidence:
 
@@ -221,7 +229,7 @@ estimate whether disabling `BaselineLearningMode` would create a notification
 flood before recommending that change. Also review the compact current and
 baseline-off external candidate examples; they show time, score, rule, process,
 maintenance context, and title without exposing raw entities, paths, command
-lines, IPs, users, or alert bodies. Service health, daily report, and OpenAI
+lines, IPs, users, or alert bodies. Service health, daily report, and AI
 control notifications are direct notification-path records, so do not treat
 them as baseline-off detection flood.
 
@@ -234,7 +242,7 @@ Tune the ignored local config first:
 - per-rule or per-category external alert thresholds
 - trusted process/path/signer indicators where they match durable local reality
 - disabled rules only after the user accepts the visibility tradeoff
-- OpenAI compact-analysis thresholds and excluded rule IDs
+- AI compact-analysis thresholds, providers, and excluded rule IDs
 - agent activity ledger enablement and minimum score
 
 For `FILE-*` alerts, remember that Arcane is using narrow Sysmon FileCreate
@@ -262,7 +270,7 @@ machine likely compromised, or does this need review?" Tune language and
 notification behavior so the product is neither scary by default nor timid when
 evidence is strong.
 
-Use a confidence ladder when interpreting alerts, daily reports, or OpenAI
+Use a confidence ladder when interpreting alerts, daily reports, or AI
 analysis:
 
 - Confirmed or highly likely compromise: use direct language only when there is
@@ -298,7 +306,7 @@ For daily reports:
 
 - Put the high-level determination near the top.
 - Keep the high-level determination, compromise assessment, recommended next
-  step, and critical callouts deterministic from local telemetry. OpenAI output
+  step, and critical callouts deterministic from local telemetry. AI output
   belongs in a clearly labeled secondary review section.
 - Keep critical callouts concise, but include process/source context when
   available.
@@ -337,15 +345,15 @@ hard-coding:
   `AUTH-SPECIAL-PRIVILEGES` because it correlates privilege assignment with
   recent remote logon activity for the same account.
 
-## OpenAI Analysis
+## AI Analysis
 
-OpenAI compact analysis is a secondary triage signal, not final authority.
+AI compact analysis is a secondary triage signal, not final authority.
 
 - Payloads should remain compact, bounded, and redacted.
-- Use `--preview-openai-payload` to see what would be sent without making an API
+- Use `--preview-ai-payload` to see what would be sent without making an API
   call.
-- Use `--test-openai-analysis` only when the operator wants a fresh API call.
-- If OpenAI marks a sample alertable, inspect whether the aggregate window
+- Use `--test-ai-analysis` only when the operator wants a fresh API call.
+- If an AI provider marks a sample alertable, inspect whether the aggregate window
   includes stale or already-explained alerts.
 - Normal alert email behavior depends on configured score thresholds.
 

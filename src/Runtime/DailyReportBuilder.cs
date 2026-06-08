@@ -60,7 +60,7 @@ namespace ArcaneEDR
             return snapshot;
         }
 
-        public string BuildOpenAiPayload(DailyReportSnapshot snapshot)
+        public string BuildAiPayload(DailyReportSnapshot snapshot)
         {
             StringBuilder builder = new StringBuilder();
             DailyReportMetrics metrics = CalculateMetrics(snapshot);
@@ -76,10 +76,10 @@ namespace ArcaneEDR
             builder.AppendLine("generated_system_time=" + SanitizeText(FormatSystemLocalTime(snapshot.GeneratedUtc)));
             builder.AppendLine("analyzed_window_utc=" + Format(snapshot.WindowStartUtc) + " to " + Format(snapshot.GeneratedUtc));
             AppendCoreReport(builder, snapshot, false, metrics);
-            return Limit(builder.ToString(), config.OpenAIAnalysisMaxChars);
+            return Limit(builder.ToString(), config.AIAnalysisMaxChars);
         }
 
-        public string BuildReport(DailyReportSnapshot snapshot, OpenAiAnalysisResult aiResult, string aiStatus)
+        public string BuildReport(DailyReportSnapshot snapshot, AiAnalysisResult aiResult, string aiStatus)
         {
             StringBuilder builder = new StringBuilder();
             DailyReportMetrics metrics = CalculateMetrics(snapshot);
@@ -98,7 +98,7 @@ namespace ArcaneEDR
 
             AppendCoreReport(builder, snapshot, true, metrics);
 
-            if (DailyReportSectionEnabled("OpenAIReview"))
+            if (DailyReportSectionEnabled("AIReview"))
             {
                 builder.AppendLine();
                 builder.AppendLine("## AI Review");
@@ -108,11 +108,27 @@ namespace ArcaneEDR
                 builder.AppendLine("| Scope | Secondary redacted aggregate review only; the report determination and critical callouts are deterministic local telemetry. |");
                 if (aiResult != null)
                 {
+                    builder.AppendLine("| Providers | " + TableCell(Safe(aiResult.ProviderName)) + " |");
                     builder.AppendLine("| Flagged for review | " + (aiResult.Alertable ? "Yes" : "No") + " |");
                     builder.AppendLine("| Cautious score | " + aiResult.Score.ToString(CultureInfo.InvariantCulture) + " |");
                     builder.AppendLine("| Read | " + TableCell(Safe(aiResult.Title)) + " |");
                     builder.AppendLine("| Summary | " + TableCell(Safe(aiResult.Summary)) + " |");
                     builder.AppendLine("| Suggested action | " + TableCell(Safe(aiResult.RecommendedAction)) + " |");
+
+                    if (aiResult.ProviderOutcomes.Count > 1)
+                    {
+                        builder.AppendLine();
+                        builder.AppendLine("| Provider | Status | Flagged | Score | Read |");
+                        builder.AppendLine("| --- | --- | --- | --- | --- |");
+                        foreach (AiProviderAnalysisOutcome outcome in aiResult.ProviderOutcomes)
+                        {
+                            builder.AppendLine("| " + TableCell(Safe(outcome.ProviderName)) +
+                                " | " + TableCell(Safe(outcome.Status)) +
+                                " | " + (outcome.Alertable ? "Yes" : "No") +
+                                " | " + outcome.Score.ToString(CultureInfo.InvariantCulture) +
+                                " | " + TableCell(Safe(outcome.Title)) + " |");
+                        }
+                    }
                 }
                 else
                 {
@@ -130,7 +146,7 @@ namespace ArcaneEDR
             return builder.ToString();
         }
 
-        public string BuildArchiveJson(DailyReportSnapshot snapshot, OpenAiAnalysisResult aiResult, string aiStatus)
+        public string BuildArchiveJson(DailyReportSnapshot snapshot, AiAnalysisResult aiResult, string aiStatus)
         {
             DailyReportMetrics metrics = CalculateMetrics(snapshot);
             Dictionary<string, object> root = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
@@ -155,7 +171,7 @@ namespace ArcaneEDR
             root["top_rules"] = BuildBucketObjects(BuildAlertBuckets(snapshot.Alerts, "rule"), config.DailyReportBucketRows);
             root["high_signal"] = BuildSignalObjects(BuildHighSignalSummaries(snapshot.Alerts, 75), config.DailyReportHighSignalRows);
             root["automation_activity"] = BuildAgentActivityObject(snapshot.AgentActivities);
-            root["openai_review"] = BuildOpenAiObject(aiResult, aiStatus);
+            root["ai_review"] = BuildAiObject(aiResult, aiStatus);
 
             JavaScriptSerializer serializer = new JavaScriptSerializer();
             return serializer.Serialize(root);
@@ -791,21 +807,45 @@ namespace ArcaneEDR
             return result;
         }
 
-        private Dictionary<string, object> BuildOpenAiObject(OpenAiAnalysisResult aiResult, string aiStatus)
+        private Dictionary<string, object> BuildAiObject(AiAnalysisResult aiResult, string aiStatus)
         {
             Dictionary<string, object> result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
             result["status"] = Safe(aiStatus);
             result["scope"] = "secondary_redacted_aggregate_review_only";
             if (aiResult != null)
             {
+                result["providers"] = Safe(aiResult.ProviderName);
                 result["flagged_for_review"] = aiResult.Alertable;
                 result["cautious_score"] = aiResult.Score;
                 result["read"] = Safe(aiResult.Title);
                 result["summary"] = Safe(aiResult.Summary);
                 result["suggested_action"] = Safe(aiResult.RecommendedAction);
+                result["provider_results"] = BuildAiProviderObjects(aiResult);
             }
 
             return result;
+        }
+
+        private List<Dictionary<string, object>> BuildAiProviderObjects(AiAnalysisResult aiResult)
+        {
+            List<Dictionary<string, object>> results = new List<Dictionary<string, object>>();
+            if (aiResult == null) return results;
+
+            foreach (AiProviderAnalysisOutcome outcome in aiResult.ProviderOutcomes)
+            {
+                Dictionary<string, object> item = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                item["provider"] = Safe(outcome.ProviderName);
+                item["status"] = Safe(outcome.Status);
+                item["flagged_for_review"] = outcome.Alertable;
+                item["cautious_score"] = outcome.Score;
+                item["read"] = Safe(outcome.Title);
+                item["summary"] = Safe(outcome.Summary);
+                item["suggested_action"] = Safe(outcome.RecommendedAction);
+                item["error"] = Safe(outcome.Error);
+                results.Add(item);
+            }
+
+            return results;
         }
 
         private List<DailyAlertRecord> LoadAlerts(DateTime cutoffUtc)
@@ -1023,7 +1063,7 @@ namespace ArcaneEDR
         {
             if (ruleId == null) return false;
             return ruleId.StartsWith("SERVICE-", StringComparison.OrdinalIgnoreCase) ||
-                ruleId.StartsWith("OPENAI-LOG-ANALYSIS-", StringComparison.OrdinalIgnoreCase);
+                ruleId.StartsWith("AI-LOG-ANALYSIS-", StringComparison.OrdinalIgnoreCase);
         }
 
         private string Assess(DailyReportSnapshot snapshot)
@@ -1047,7 +1087,7 @@ namespace ArcaneEDR
         private bool IsReportExcludedRule(string ruleId)
         {
             if (String.IsNullOrWhiteSpace(ruleId)) return false;
-            if (config.OpenAIAnalysisExcludedRuleIds.Contains(ruleId)) return true;
+            if (config.AIAnalysisExcludedRuleIds.Contains(ruleId)) return true;
             return ruleId.Equals("SERVICE-DAILY-SUMMARY", StringComparison.OrdinalIgnoreCase);
         }
 
