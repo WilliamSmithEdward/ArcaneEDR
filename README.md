@@ -336,9 +336,9 @@ Generate a privacy-first local support bundle:
 
 The bundle is written under `LogDirectory` and includes version, redacted
 config, service health state, collector/sink/runtime checks, recent alert
-summaries, recent warning/error lines, and recent incident summaries. It does
-not copy raw alert bodies, entities, command lines, script blocks, AI
-payloads, or secret values.
+summaries, recent warning/error lines, recent incident summaries, and active
+external sink/AI provider metadata. It does not copy raw alert bodies, entities,
+command lines, script blocks, AI payloads, or secret values.
 
 Run one monitor poll and exit without starting the Windows service or writing
 service lifecycle health state:

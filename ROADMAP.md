@@ -542,6 +542,8 @@ Progress:
 - Added an `IAiAnalysisProvider` foundation with OpenAI-compatible
   Responses-style endpoint support and generic `AIAnalysis*` config aliases.
   Full adapters for non-compatible provider APIs remain Phase 7 work.
+- Added active AI provider metadata to support bundles without exposing API
+  keys or endpoint URLs.
 
 Reporting should be separate from alerting where useful:
 

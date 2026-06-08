@@ -58,6 +58,10 @@ namespace ArcaneEDR
             lines.Add("ResponseMode=" + config.ResponseMode);
             lines.Add("BaselineEnabled=" + config.BaselineEnabled);
             lines.Add("BaselineLearningMode=" + config.BaselineLearningMode);
+            lines.Add("AIAnalysisEnabled=" + config.EnableOpenAiLogAnalysis);
+            lines.Add("AIAnalysisProvider=" + config.ActiveAiAnalysisProvider());
+            lines.Add("AIAnalysisModel=" + RedactSensitiveText(config.ActiveAiAnalysisModel()));
+            lines.Add("AIAnalysisAuthHeaderConfigured=" + (!String.IsNullOrWhiteSpace(config.ActiveAiAnalysisAuthHeaderName())));
             lines.Add("OpenAiLogAnalysisEnabled=" + config.EnableOpenAiLogAnalysis);
             lines.Add("IncidentGroupingEnabled=" + config.EnableIncidentGrouping);
             lines.Add("AgentActivityLedgerEnabled=" + config.EnableAgentActivityLedger);
