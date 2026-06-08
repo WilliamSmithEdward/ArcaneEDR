@@ -11,7 +11,7 @@ namespace ArcaneEDR
 
         public string ToBody()
         {
-            return "OpenAI compact log analysis" + System.Environment.NewLine +
+            return "AI compact log analysis" + System.Environment.NewLine +
                 "Alertable: " + Alertable + System.Environment.NewLine +
                 "Score: " + Score + System.Environment.NewLine +
                 "Title: " + Safe(Title) + System.Environment.NewLine +

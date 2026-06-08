@@ -68,7 +68,8 @@ false positives, and safe tests.
   and some event-log validation checks.
 - Optional: Sysmon for richer process, network, DNS, and narrow file-create telemetry.
 - Optional: Brevo transactional email for external alert delivery.
-- Optional: OpenAI API key for compact secondary log analysis.
+- Optional: AI provider API key for compact secondary log analysis; OpenAI is
+  the default supported provider.
 
 ## Quick Start
 
@@ -102,6 +103,12 @@ Validate configuration and host prerequisites:
 .\bin\ArcaneEDR.exe --validate-config
 ```
 
+Validate a specific config file while tuning a clone or staged deployment:
+
+```powershell
+.\bin\ArcaneEDR.exe --validate-config .\config\ArcaneEDR.config
+```
+
 Print the executable version:
 
 ```powershell
@@ -124,7 +131,7 @@ Local files are intentionally ignored by Git:
 
 Keep machine-specific values, recipient addresses, local paths, and environment
 variable names in the ignored local files. The example runtime config disables
-external alerting and OpenAI analysis by default.
+external alerting and AI analysis by default.
 
 ## Project Layout
 
@@ -288,9 +295,10 @@ Test service-health notification delivery:
 .\bin\ArcaneEDR.exe --test-health
 ```
 
-Force compact OpenAI log analysis:
+Force compact AI log analysis:
 
 ```powershell
+.\bin\ArcaneEDR.exe --test-ai-analysis
 .\bin\ArcaneEDR.exe --test-openai-analysis
 ```
 
@@ -300,10 +308,23 @@ Generate and send a daily report on demand:
 .\bin\ArcaneEDR.exe --test-daily-report
 ```
 
-Preview the exact redacted payload that would be sent to OpenAI without making
-an API call:
+Preview a daily report without sending an external notification or making an
+AI API call:
 
 ```powershell
+.\bin\ArcaneEDR.exe --preview-daily-report
+.\bin\ArcaneEDR.exe --preview-daily-report --json
+.\bin\ArcaneEDR.exe --preview-daily-report --archive
+```
+
+Use `--validate-config <config-path>` to check a staged report configuration
+without copying it into the runtime `config` directory first.
+
+Preview the exact redacted payload that would be sent to the AI provider without
+making an API call:
+
+```powershell
+.\bin\ArcaneEDR.exe --preview-ai-payload
 .\bin\ArcaneEDR.exe --preview-openai-payload
 ```
 
@@ -316,7 +337,7 @@ Generate a privacy-first local support bundle:
 The bundle is written under `LogDirectory` and includes version, redacted
 config, service health state, collector/sink/runtime checks, recent alert
 summaries, recent warning/error lines, and recent incident summaries. It does
-not copy raw alert bodies, entities, command lines, script blocks, OpenAI
+not copy raw alert bodies, entities, command lines, script blocks, AI
 payloads, or secret values.
 
 Run one monitor poll and exit without starting the Windows service or writing
@@ -536,7 +557,7 @@ config. When records would qualify for current or baseline-off external
 delivery, the command also prints compact candidate examples with time, score,
 rule, process, maintenance context, and title only. It intentionally avoids raw
 entities, paths, command lines, IPs, users, and alert bodies. Service health,
-daily report, and OpenAI control notifications are counted as current external
+daily report, and AI control notifications are counted as current external
 candidates when they are present because those records use the direct
 notification path rather than the normal detection threshold path.
 Run `--poll-once` first when you want a fresh one-poll sample without leaving
@@ -551,6 +572,7 @@ External delivery is controlled by config:
 ExternalAlertProvider=Brevo
 RequireExternalAlerting=true
 MinimumEmailScore=60
+ExternalAlertProviderMinimumScores=
 ExternalAlertMaxPerDispatch=3
 ExternalAlertMaxPerHour=12
 BrevoApiKeyEnvironmentVariable=<configured env var>
@@ -574,11 +596,18 @@ Log:
 
 ```ini
 ExternalAlertProvider=Brevo,LocalJsonl,WindowsEventLog
+ExternalAlertProviderMinimumScores=Brevo=90,LocalJsonl=60,WindowsEventLog=75
 LocalJsonlAlertSinkFile=ArcaneExternalAlerts.jsonl
 WindowsEventLogAlertSource=ArcaneEDR
 WindowsEventLogAlertLogName=Application
 WindowsEventLogAlertEventId=9100
 ```
+
+`ExternalAlertProviderMinimumScores` adds provider-specific routing floors after
+the global, rule, and category external thresholds. This is useful when one sink
+should receive broader telemetry, while email or webhook destinations receive
+only higher-confidence alerts. A skipped provider does not remove the local
+alert log, incident grouping, or daily report context.
 
 SMTP:
 
@@ -640,6 +669,7 @@ DailySummaryLocalTime=08:00
 DailySummaryTimeZoneId=<configured Windows time zone ID>
 DailySummaryScore=60
 EnableDailySummaryOpenAiAnalysis=true
+DailyReportDestinations=ExternalAlertSinks,LocalArchive
 HealthHeartbeatSeconds=60
 ```
 
@@ -648,26 +678,70 @@ template. It starts with a compact metadata header containing the high-level
 determination, compromise assessment, confidence, analyzed system-time window,
 generated system time, basis, and recommended next step, then uses compact
 tables for critical callouts, health, signal summary, false-positive context,
-high-signal details, automation activity, tuning notes, and optional OpenAI
+high-signal details, automation activity, tuning notes, and optional AI
 daily analysis. Critical and high-signal tables include process/source context
 when the source telemetry provides it. The top-level determination,
 compromise assessment, recommended next step, and critical callouts are
-deterministic local-telemetry sections; optional OpenAI daily analysis is kept
-inside the labeled OpenAI review section as a secondary opinion. The OpenAI
+deterministic local-telemetry sections; optional AI daily analysis is kept
+inside the labeled AI review section as a secondary opinion. The AI
 daily prompt is tuned for customer-facing 24-hour review and explicitly treats
 alert volume, baseline learning, maintenance context, automation context, and
 telemetry gaps as false-positive context rather than proof of compromise.
-Future reporting work should move these sections toward a configurable
-reporting engine with selectable sections, formats, and destinations.
+Daily report structure and local archive output are configurable:
 
-## OpenAI Log Analysis
+```ini
+DailyReportDestinations=ExternalAlertSinks,LocalArchive
+DailyReportSections=QuickVerdict,CriticalCallouts,AtAGlance,SignalSummary,FalsePositiveContext,HighSignalDetails,AutomationActivity,OpenAIReview,TuningNotes
+DailyReportCriticalCalloutRows=5
+DailyReportHighSignalRows=7
+DailyReportBucketRows=6
+DailyReportAgentBucketRows=3
+EnableDailyReportArchive=true
+DailyReportArchiveDirectory=reports
+DailyReportArchiveFormats=Markdown,Json
+```
 
-Arcane EDR can send a compact log sample to the OpenAI Responses API for
-secondary analysis. It uses the environment variable configured as
-`OpenAIApiKeyEnvironmentVariable` from Process, User, then Machine scope.
+`DailyReportDestinations` separates daily reporting from normal alert routing.
+`ExternalAlertSinks` sends the daily report through the configured external
+alert sinks. `LocalArchive` writes the configured archive formats. Use
+`DailyReportDestinations=LocalArchive` for archive-only reporting while keeping
+real-time alerts enabled.
+
+Archived reports are written under `LogDirectory` when
+`DailyReportArchiveDirectory` is relative. The Markdown archive mirrors the
+delivered report body; the JSON archive stores redacted report metadata,
+metrics, bucket summaries, high-signal summaries, and AI review metadata
+without raw alert bodies, entities, command lines, paths, users, IPs, URLs,
+emails, or secrets.
+
+Use `--preview-daily-report` while tuning `DailyReportSections` and row limits.
+The preview command does not send external notifications and does not call
+the AI provider; add `--archive` only when you want the preview written to the configured
+archive directory.
+
+Future reporting work should keep moving these sections toward a configurable
+reporting engine with additional destinations, schedules, and audience-specific
+detail levels.
+
+## AI Log Analysis
+
+Arcane EDR can send a compact log sample to an AI analysis provider for
+secondary analysis. `v0.4` supports OpenAI and OpenAI-compatible Responses-style
+HTTP endpoints through the same redacted payload and parser. Full provider
+adapters for APIs with different request/response shapes remain future work.
+
+Existing `OpenAIAnalysis*` settings remain supported. New `AIAnalysis*` aliases
+let users configure an OpenAI-compatible endpoint without treating OpenAI as the
+only provider.
 
 ```ini
 EnableOpenAiLogAnalysis=true
+AIAnalysisProvider=OpenAI
+AIAnalysisModel=
+AIAnalysisApiKeyEnvironmentVariable=
+AIAnalysisApiUrl=
+AIAnalysisAuthHeaderName=Authorization
+AIAnalysisAuthHeaderPrefix=Bearer
 OpenAIAnalysisIntervalMinutes=60
 OpenAIAnalysisScoreThreshold=95
 OpenAIAnalysisBaselineEmailMinimumScore=95
@@ -676,11 +750,18 @@ OpenAIAnalysisBaselineMinimumIncludedAlertScore=95
 OpenAIAnalysisExcludedRuleIds=OPENAI-LOG-ANALYSIS-ALERT,OPENAI-LOG-ANALYSIS-TEST,SERVICE-STARTED,SERVICE-STOPPED,SERVICE-DAILY-SUMMARY,SERVICE-HEALTH-TEST,TEST-ALERT-DELIVERY
 OpenAIAnalysisModel=gpt-5.5
 OpenAIApiKeyEnvironmentVariable=<configured env var>
+OpenAIAnalysisApiUrl=https://api.openai.com/v1/responses
 OpenAIAnalysisMaxLogLines=80
 OpenAIAnalysisMaxAlertLines=80
 OpenAIAnalysisMaxChars=12000
 EnableDailySummaryOpenAiAnalysis=true
 ```
+
+If `AIAnalysisModel`, `AIAnalysisApiKeyEnvironmentVariable`, or
+`AIAnalysisApiUrl` are empty, Arcane falls back to the matching
+`OpenAIAnalysis*` setting. Set `AIAnalysisProvider=OpenAICompatible` for a
+generic Responses-style endpoint. Set `AIAnalysisAuthHeaderName=` only for a
+trusted no-auth local endpoint.
 
 The payload is intentionally compact and redacted. It includes health counters,
 recent event summaries, alert metadata, and sanitized aggregate context. The
@@ -703,9 +784,9 @@ Results are written to:
 Hourly compact analysis records use `analysis_type=compact_log`; daily report
 analysis records use `analysis_type=daily_report`.
 
-If OpenAI returns `alertable=true` with a score at or above
-`OpenAIAnalysisScoreThreshold`, Arcane EDR sends a Brevo email with the model's
-summary and recommended action.
+If the configured AI provider returns `alertable=true` with a score at or above
+`OpenAIAnalysisScoreThreshold`, Arcane EDR sends the model's summary and
+recommended action through the configured external alert sinks.
 
 ## Baseline Learning
 

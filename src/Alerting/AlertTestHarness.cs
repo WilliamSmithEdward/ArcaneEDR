@@ -50,7 +50,7 @@ namespace ArcaneEDR
             ResponseManager responseManager = new ResponseManager(config, logger);
             AlertDispatcher dispatcher = new AlertDispatcher(config, logger, alertSink, responseManager);
             ISecretProvider secretProvider = new EnvironmentSecretProvider();
-            OpenAiSecurityAnalyzer openAiAnalyzer = new OpenAiSecurityAnalyzer(config, logger, secretProvider);
+            IAiAnalysisProvider aiAnalysisProvider = AiAnalysisProviderFactory.Create(config, logger, secretProvider);
 
             HealthState state = HealthState.Load(Path.Combine(config.LogDirectory, "ArcaneServiceHealth.state"));
             DateTime now = DateTime.UtcNow;
@@ -69,21 +69,66 @@ namespace ArcaneEDR
             if (config.EnableOpenAiLogAnalysis && config.EnableDailySummaryOpenAiAnalysis)
             {
                 dailyAiStatus = "not_configured";
-                if (openAiAnalyzer.IsConfigured)
+                if (aiAnalysisProvider.IsConfigured)
                 {
                     string payload = reportBuilder.BuildOpenAiPayload(snapshot);
-                    dailyAiResult = openAiAnalyzer.AnalyzeDailyReport(payload);
+                    dailyAiResult = aiAnalysisProvider.AnalyzeDailyReport(payload);
                     dailyAiStatus = "completed";
                 }
             }
 
-            dispatcher.SendExternal(Alert.SystemAlert(
-                "SERVICE-DAILY-SUMMARY",
-                "Daily Arcane EDR report test",
-                config.DailySummaryScore,
-                reportBuilder.BuildReport(snapshot, dailyAiResult, dailyAiStatus),
-                "No action required if you intentionally ran the daily report test.",
-                "service=" + config.ServiceName));
+            string body = reportBuilder.BuildReport(snapshot, dailyAiResult, dailyAiStatus);
+            if (config.DailyReportDestinationEnabled("LocalArchive"))
+            {
+                DailyReportArchive archive = new DailyReportArchive(config, logger);
+                archive.Save(snapshot, body, reportBuilder.BuildArchiveJson(snapshot, dailyAiResult, dailyAiStatus));
+            }
+
+            if (config.DailyReportDestinationEnabled("ExternalAlertSinks"))
+            {
+                dispatcher.SendExternal(Alert.SystemAlert(
+                    "SERVICE-DAILY-SUMMARY",
+                    "Daily Arcane EDR report test",
+                    config.DailySummaryScore,
+                    body,
+                    "No action required if you intentionally ran the daily report test.",
+                    "service=" + config.ServiceName));
+            }
+            else
+            {
+                logger.Info("Daily report test external delivery skipped by DailyReportDestinations.");
+            }
+        }
+
+        public static int PreviewDailyReport(string baseDirectory, string[] args)
+        {
+            bool json = HasArg(args, "--json");
+            bool archive = HasArg(args, "--archive");
+
+            MonitorConfig config = MonitorConfig.Load(baseDirectory);
+            HealthState state = HealthState.Load(Path.Combine(config.LogDirectory, "ArcaneServiceHealth.state"));
+            DateTime now = DateTime.UtcNow;
+            DailyReportBuilder reportBuilder = new DailyReportBuilder(
+                config,
+                state,
+                "daily-report-preview",
+                now,
+                0,
+                0,
+                0);
+            DailyReportSnapshot snapshot = reportBuilder.BuildSnapshot(now);
+            string aiStatus = "disabled: preview mode";
+            string body = reportBuilder.BuildReport(snapshot, null, aiStatus);
+            string archiveJson = reportBuilder.BuildArchiveJson(snapshot, null, aiStatus);
+
+            if (archive)
+            {
+                DailyReportArchive reportArchive = new DailyReportArchive(config, null);
+                reportArchive.Save(snapshot, body, archiveJson);
+            }
+
+            Console.WriteLine(json ? archiveJson : body);
+            return 0;
         }
 
         public static void SendOpenAiAnalysisTest(string baseDirectory)
@@ -94,9 +139,9 @@ namespace ArcaneEDR
             ResponseManager responseManager = new ResponseManager(config, logger);
             AlertDispatcher dispatcher = new AlertDispatcher(config, logger, alertSink, responseManager);
             ISecretProvider secretProvider = new EnvironmentSecretProvider();
-            OpenAiSecurityAnalyzer openAiAnalyzer = new OpenAiSecurityAnalyzer(config, logger, secretProvider);
+            IAiAnalysisProvider aiAnalysisProvider = AiAnalysisProviderFactory.Create(config, logger, secretProvider);
             CompactLogSampler sampler = new CompactLogSampler(config);
-            HealthMonitor healthMonitor = new HealthMonitor(config, logger, dispatcher, openAiAnalyzer, sampler);
+            HealthMonitor healthMonitor = new HealthMonitor(config, logger, dispatcher, aiAnalysisProvider, sampler);
             healthMonitor.ForceOpenAiAnalysis();
         }
 
@@ -106,6 +151,20 @@ namespace ArcaneEDR
             CompactLogSampler sampler = new CompactLogSampler(config);
             HealthState state = HealthState.Load(Path.Combine(config.LogDirectory, "ArcaneServiceHealth.state"));
             Console.WriteLine(sampler.BuildPayload(state));
+        }
+
+        private static bool HasArg(string[] args, string name)
+        {
+            if (args == null || String.IsNullOrWhiteSpace(name)) return false;
+            foreach (string arg in args)
+            {
+                if (arg != null && arg.Equals(name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

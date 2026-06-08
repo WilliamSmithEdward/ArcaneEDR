@@ -10,7 +10,7 @@ namespace ArcaneEDR
         private readonly MonitorConfig config;
         private readonly FileLogger logger;
         private readonly AlertDispatcher dispatcher;
-        private readonly OpenAiSecurityAnalyzer openAiAnalyzer;
+        private readonly IAiAnalysisProvider aiAnalysisProvider;
         private readonly CompactLogSampler compactLogSampler;
         private readonly string statePath;
         private readonly string runId;
@@ -25,13 +25,13 @@ namespace ArcaneEDR
             MonitorConfig config,
             FileLogger logger,
             AlertDispatcher dispatcher,
-            OpenAiSecurityAnalyzer openAiAnalyzer,
+            IAiAnalysisProvider aiAnalysisProvider,
             CompactLogSampler compactLogSampler)
         {
             this.config = config;
             this.logger = logger;
             this.dispatcher = dispatcher;
-            this.openAiAnalyzer = openAiAnalyzer;
+            this.aiAnalysisProvider = aiAnalysisProvider;
             this.compactLogSampler = compactLogSampler;
             statePath = Path.Combine(config.LogDirectory, "ArcaneServiceHealth.state");
             runId = Guid.NewGuid().ToString("N");
@@ -152,14 +152,15 @@ namespace ArcaneEDR
             if (config.EnableOpenAiLogAnalysis && config.EnableDailySummaryOpenAiAnalysis)
             {
                 dailyAiStatus = "not_configured";
-                if (openAiAnalyzer.IsConfigured)
+                if (aiAnalysisProvider.IsConfigured)
                 {
                     try
                     {
                         string payload = reportBuilder.BuildOpenAiPayload(snapshot);
-                        dailyAiResult = openAiAnalyzer.AnalyzeDailyReport(payload);
+                        dailyAiResult = aiAnalysisProvider.AnalyzeDailyReport(payload);
                         dailyAiStatus = "completed";
-                        logger.Info("OpenAI daily report analysis completed alertable=" +
+                        logger.Info("AI daily report analysis completed provider=" + aiAnalysisProvider.ProviderName +
+                            " alertable=" +
                             dailyAiResult.Alertable +
                             " score=" + dailyAiResult.Score.ToString(CultureInfo.InvariantCulture) +
                             " title=" + dailyAiResult.Title);
@@ -167,20 +168,32 @@ namespace ArcaneEDR
                     catch (Exception ex)
                     {
                         dailyAiStatus = "failed: " + ex.Message;
-                        logger.Error("OpenAI daily report analysis failed: " + ex.Message);
+                        logger.Error("AI daily report analysis failed: " + ex.Message);
                     }
                 }
             }
 
             string body = reportBuilder.BuildReport(snapshot, dailyAiResult, dailyAiStatus);
+            if (config.DailyReportDestinationEnabled("LocalArchive"))
+            {
+                DailyReportArchive archive = new DailyReportArchive(config, logger);
+                archive.Save(snapshot, body, reportBuilder.BuildArchiveJson(snapshot, dailyAiResult, dailyAiStatus));
+            }
 
-            dispatcher.SendExternal(Alert.SystemAlert(
-                "SERVICE-DAILY-SUMMARY",
-                "Daily Arcane EDR report",
-                config.DailySummaryScore,
-                body,
-                "Review the daily report sections for high-signal activity, collector health, agent activity, and tuning notes.",
-                ServiceEntity()));
+            if (config.DailyReportDestinationEnabled("ExternalAlertSinks"))
+            {
+                dispatcher.SendExternal(Alert.SystemAlert(
+                    "SERVICE-DAILY-SUMMARY",
+                    "Daily Arcane EDR report",
+                    config.DailySummaryScore,
+                    body,
+                    "Review the daily report sections for high-signal activity, collector health, agent activity, and tuning notes.",
+                    ServiceEntity()));
+            }
+            else
+            {
+                logger.Info("Daily report external delivery skipped by DailyReportDestinations.");
+            }
         }
 
         public void ForceOpenAiAnalysis()
@@ -209,36 +222,36 @@ namespace ArcaneEDR
 
             try
             {
-                if (!openAiAnalyzer.IsConfigured)
+                if (!aiAnalysisProvider.IsConfigured)
                 {
-                    logger.Warn("OpenAI analysis skipped: API key environment variable is not visible: " + config.OpenAIApiKeyEnvironmentVariable);
+                    logger.Warn("AI analysis skipped: " + aiAnalysisProvider.MissingConfigurationReason);
                     state.LastOpenAiAnalysisUtc = DateTime.UtcNow;
                     Save();
                     return;
                 }
 
                 string payload = compactLogSampler.BuildPayload(state);
-                OpenAiAnalysisResult result = openAiAnalyzer.Analyze(payload);
+                OpenAiAnalysisResult result = aiAnalysisProvider.Analyze(payload);
                 state.LastOpenAiAnalysisUtc = DateTime.UtcNow;
                 Save();
 
-                logger.Info("OpenAI analysis completed alertable=" + result.Alertable + " score=" + result.Score.ToString(CultureInfo.InvariantCulture) + " title=" + result.Title);
+                logger.Info("AI analysis completed provider=" + aiAnalysisProvider.ProviderName + " alertable=" + result.Alertable + " score=" + result.Score.ToString(CultureInfo.InvariantCulture) + " title=" + result.Title);
 
                 if (forced)
                 {
                     dispatcher.SendExternal(Alert.SystemAlert(
                         "OPENAI-LOG-ANALYSIS-TEST",
-                        "OpenAI log analysis test result",
+                        "AI log analysis test result",
                         Math.Max(config.MinimumEmailScore, result.Score),
                         result.ToBody(),
-                        "No action required if you intentionally ran the OpenAI analysis test.",
+                        "No action required if you intentionally ran the AI analysis test.",
                         ServiceEntity()));
                 }
                 else if (result.Alertable && result.Score >= config.OpenAIAnalysisScoreThreshold)
                 {
                     if (config.BaselineLearningMode && result.Score < config.OpenAIAnalysisBaselineEmailMinimumScore)
                     {
-                        logger.Warn("OpenAI alert suppressed during baseline learning score=" + result.Score.ToString(CultureInfo.InvariantCulture) +
+                        logger.Warn("AI analysis alert suppressed during baseline learning score=" + result.Score.ToString(CultureInfo.InvariantCulture) +
                             " baseline_email_minimum=" + config.OpenAIAnalysisBaselineEmailMinimumScore.ToString(CultureInfo.InvariantCulture) +
                             " title=" + result.Title);
                         return;
@@ -246,7 +259,7 @@ namespace ArcaneEDR
 
                     dispatcher.SendExternal(Alert.SystemAlert(
                         "OPENAI-LOG-ANALYSIS-ALERT",
-                        "OpenAI flagged security-relevant log activity",
+                        "AI analysis flagged security-relevant log activity",
                         Math.Max(result.Score, config.MinimumEmailScore),
                         result.ToBody(),
                         result.RecommendedAction,
@@ -261,7 +274,7 @@ namespace ArcaneEDR
                     Save();
                 }
 
-                logger.Error("OpenAI analysis failed: " + ex.Message);
+                logger.Error("AI analysis failed: " + ex.Message);
             }
         }
 

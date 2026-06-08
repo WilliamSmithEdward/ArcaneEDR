@@ -162,6 +162,12 @@ namespace ArcaneEDR
             int minimumExternalScore = AlertRulePolicy.MinimumExternalScore(config, alert);
             if (alert.Score < minimumExternalScore) return false;
 
+            if (!config.HasExternalAlertProviderEligibleForScore(alert.Score))
+            {
+                WarnThrottled("no configured alert sink eligible for alert score");
+                return false;
+            }
+
             if (alert.MaintenanceContext &&
                 alert.Score < config.MaintenanceContextExternalAlertMinimumScore)
             {
@@ -222,7 +228,7 @@ namespace ArcaneEDR
             DateTime now = DateTime.UtcNow;
             if ((now - lastThrottleWarningUtc).TotalMinutes < 5) return;
             lastThrottleWarningUtc = now;
-            logger.Warn("External alert email suppressed: " + reason + ".");
+            logger.Warn("External alert delivery suppressed: " + reason + ".");
         }
 
         private static string AlertText(Alert alert)

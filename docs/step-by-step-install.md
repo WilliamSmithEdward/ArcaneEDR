@@ -27,7 +27,8 @@ Optional:
 
 - Sysmon from Microsoft Sysinternals.
 - A Brevo API key if you want email alerts through Brevo.
-- An OpenAI API key if you want compact AI-assisted log analysis.
+- An AI provider API key if you want compact AI-assisted log analysis; OpenAI
+  is the default provider.
 
 Secrets should go in environment variables, not in config files.
 
@@ -140,9 +141,11 @@ Use a Brevo sender address that is verified in Brevo.
 
 Save and close Notepad.
 
-## 7. Optional: Configure OpenAI Analysis
+## 7. Optional: Configure AI Analysis
 
-You can skip this section. Arcane EDR does not require OpenAI.
+You can skip this section. Arcane EDR does not require AI analysis. The default
+provider is OpenAI, and v0.4 also supports OpenAI-compatible Responses-style
+endpoints through `AIAnalysisProvider=OpenAICompatible`.
 
 Put the API key in a machine environment variable:
 
@@ -160,6 +163,7 @@ Set:
 
 ```ini
 EnableOpenAiLogAnalysis=true
+AIAnalysisProvider=OpenAI
 OpenAIApiKeyEnvironmentVariable=OpenAIAPIKeyArcaneEDR
 OpenAIAnalysisIntervalMinutes=60
 ```
@@ -175,6 +179,12 @@ Run:
 
 ```powershell
 .\bin\ArcaneEDR.exe --validate-config
+```
+
+To validate a specific staged config file, pass its path:
+
+```powershell
+.\bin\ArcaneEDR.exe --validate-config .\config\ArcaneEDR.config
 ```
 
 Good output ends with:

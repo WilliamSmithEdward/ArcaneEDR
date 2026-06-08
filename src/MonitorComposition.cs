@@ -28,9 +28,9 @@ namespace ArcaneEDR
             ConfigIntegrityMonitor integrityMonitor = new ConfigIntegrityMonitor(config, logger);
             AlertDispatcher alertDispatcher = new AlertDispatcher(config, logger, alertSink, responseManager);
             ISecretProvider secretProvider = new EnvironmentSecretProvider();
-            OpenAiSecurityAnalyzer openAiAnalyzer = new OpenAiSecurityAnalyzer(config, logger, secretProvider);
+            IAiAnalysisProvider aiAnalysisProvider = AiAnalysisProviderFactory.Create(config, logger, secretProvider);
             CompactLogSampler compactLogSampler = new CompactLogSampler(config);
-            HealthMonitor healthMonitor = new HealthMonitor(config, logger, alertDispatcher, openAiAnalyzer, compactLogSampler);
+            HealthMonitor healthMonitor = new HealthMonitor(config, logger, alertDispatcher, aiAnalysisProvider, compactLogSampler);
 
             return new MonitorEngine(config, logger, collector, analyzer, hostAnalyzer, alertDispatcher, integrityMonitor, healthMonitor);
         }

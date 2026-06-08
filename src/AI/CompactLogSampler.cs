@@ -239,7 +239,8 @@ namespace ArcaneEDR
             }
 
             if (level.Equals("INFO", StringComparison.OrdinalIgnoreCase) &&
-                message.StartsWith("OpenAI analysis completed", StringComparison.OrdinalIgnoreCase))
+                (message.StartsWith("OpenAI analysis completed", StringComparison.OrdinalIgnoreCase) ||
+                 message.StartsWith("AI analysis completed", StringComparison.OrdinalIgnoreCase)))
             {
                 return "";
             }

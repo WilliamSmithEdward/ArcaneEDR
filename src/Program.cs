@@ -17,6 +17,15 @@ namespace ArcaneEDR
                 return;
             }
 
+            if (args.Length > 0 &&
+                (args[0].Equals("--help", StringComparison.OrdinalIgnoreCase) ||
+                 args[0].Equals("-h", StringComparison.OrdinalIgnoreCase) ||
+                 args[0].Equals("/?", StringComparison.OrdinalIgnoreCase)))
+            {
+                PrintUsage();
+                return;
+            }
+
             if (args.Length > 0 && args[0].Equals("--test-alert", StringComparison.OrdinalIgnoreCase))
             {
                 AlertTestHarness.SendTestAlert(AppDomain.CurrentDomain.BaseDirectory);
@@ -35,13 +44,23 @@ namespace ArcaneEDR
                 return;
             }
 
-            if (args.Length > 0 && args[0].Equals("--test-openai-analysis", StringComparison.OrdinalIgnoreCase))
+            if (args.Length > 0 && args[0].Equals("--preview-daily-report", StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.ExitCode = AlertTestHarness.PreviewDailyReport(AppDomain.CurrentDomain.BaseDirectory, args);
+                return;
+            }
+
+            if (args.Length > 0 &&
+                (args[0].Equals("--test-openai-analysis", StringComparison.OrdinalIgnoreCase) ||
+                 args[0].Equals("--test-ai-analysis", StringComparison.OrdinalIgnoreCase)))
             {
                 AlertTestHarness.SendOpenAiAnalysisTest(AppDomain.CurrentDomain.BaseDirectory);
                 return;
             }
 
-            if (args.Length > 0 && args[0].Equals("--preview-openai-payload", StringComparison.OrdinalIgnoreCase))
+            if (args.Length > 0 &&
+                (args[0].Equals("--preview-openai-payload", StringComparison.OrdinalIgnoreCase) ||
+                 args[0].Equals("--preview-ai-payload", StringComparison.OrdinalIgnoreCase)))
             {
                 AlertTestHarness.PreviewOpenAiPayload(AppDomain.CurrentDomain.BaseDirectory);
                 return;
@@ -81,7 +100,9 @@ namespace ArcaneEDR
 
             if (args.Length > 0 && args[0].Equals("--validate-config", StringComparison.OrdinalIgnoreCase))
             {
-                Environment.ExitCode = ConfigValidator.Run(AppDomain.CurrentDomain.BaseDirectory);
+                Environment.ExitCode = ConfigValidator.Run(
+                    AppDomain.CurrentDomain.BaseDirectory,
+                    args.Length > 1 ? args[1] : "");
                 return;
             }
 
@@ -111,7 +132,40 @@ namespace ArcaneEDR
                 return;
             }
 
+            if (args.Length > 0)
+            {
+                Console.Error.WriteLine("Unknown command: " + args[0]);
+                Console.Error.WriteLine("Run ArcaneEDR.exe --help for available commands.");
+                Environment.ExitCode = 1;
+                return;
+            }
+
             ServiceBase.Run(new ArcaneEdrWindowsService());
+        }
+
+        private static void PrintUsage()
+        {
+            Console.WriteLine(VersionInfo.DisplayVersion);
+            Console.WriteLine(VersionInfo.RepositoryUrl);
+            Console.WriteLine();
+            Console.WriteLine("Usage:");
+            Console.WriteLine("  ArcaneEDR.exe --version");
+            Console.WriteLine("  ArcaneEDR.exe --validate-config [config-path]");
+            Console.WriteLine("  ArcaneEDR.exe --console");
+            Console.WriteLine("  ArcaneEDR.exe --poll-once");
+            Console.WriteLine("  ArcaneEDR.exe --test-alert");
+            Console.WriteLine("  ArcaneEDR.exe --test-health");
+            Console.WriteLine("  ArcaneEDR.exe --test-daily-report");
+            Console.WriteLine("  ArcaneEDR.exe --preview-daily-report [--json] [--archive]");
+            Console.WriteLine("  ArcaneEDR.exe --test-openai-analysis");
+            Console.WriteLine("  ArcaneEDR.exe --test-ai-analysis");
+            Console.WriteLine("  ArcaneEDR.exe --preview-openai-payload");
+            Console.WriteLine("  ArcaneEDR.exe --preview-ai-payload");
+            Console.WriteLine("  ArcaneEDR.exe --alert-volume --last <duration>");
+            Console.WriteLine("  ArcaneEDR.exe --agent-activity --last <duration>");
+            Console.WriteLine("  ArcaneEDR.exe --incidents --last <duration>");
+            Console.WriteLine("  ArcaneEDR.exe --timeline <incident-id>");
+            Console.WriteLine("  ArcaneEDR.exe --support-bundle");
         }
     }
 }

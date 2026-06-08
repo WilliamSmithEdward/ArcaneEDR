@@ -21,18 +21,18 @@ namespace ArcaneEDR
                 if (provider.Equals("Brevo", StringComparison.OrdinalIgnoreCase))
                 {
                     BrevoTransactionalEmailClient client = new BrevoTransactionalEmailClient(config, secretProvider);
-                    sinks.Add(new BrevoEmailAlertSink(config, logger, client));
+                    sinks.Add(ApplyProviderMinimum(config, logger, provider, new BrevoEmailAlertSink(config, logger, client)));
                 }
                 else if (provider.Equals("Smtp", StringComparison.OrdinalIgnoreCase) ||
                     provider.Equals("SmtpEmail", StringComparison.OrdinalIgnoreCase) ||
                     provider.Equals("SmtpEmailAlertSink", StringComparison.OrdinalIgnoreCase))
                 {
-                    sinks.Add(new SmtpEmailAlertSink(config, logger, secretProvider));
+                    sinks.Add(ApplyProviderMinimum(config, logger, provider, new SmtpEmailAlertSink(config, logger, secretProvider)));
                 }
                 else if (provider.Equals("Webhook", StringComparison.OrdinalIgnoreCase) ||
                     provider.Equals("WebhookAlertSink", StringComparison.OrdinalIgnoreCase))
                 {
-                    sinks.Add(new HttpJsonAlertSink(
+                    sinks.Add(ApplyProviderMinimum(config, logger, provider, new HttpJsonAlertSink(
                         "Webhook",
                         config.WebhookAlertUrl,
                         config.WebhookSecretEnvironmentVariable,
@@ -40,13 +40,13 @@ namespace ArcaneEDR
                         config.WebhookSecretPrefix,
                         config.WebhookTimeoutSeconds,
                         logger,
-                        secretProvider));
+                        secretProvider)));
                 }
                 else if (provider.Equals("GenericHttpApi", StringComparison.OrdinalIgnoreCase) ||
                     provider.Equals("GenericHttpApiAlertSink", StringComparison.OrdinalIgnoreCase) ||
                     provider.Equals("HttpApi", StringComparison.OrdinalIgnoreCase))
                 {
-                    sinks.Add(new HttpJsonAlertSink(
+                    sinks.Add(ApplyProviderMinimum(config, logger, provider, new HttpJsonAlertSink(
                         "Generic HTTP API",
                         config.GenericHttpApiAlertUrl,
                         config.GenericHttpApiSecretEnvironmentVariable,
@@ -54,18 +54,18 @@ namespace ArcaneEDR
                         config.GenericHttpApiSecretPrefix,
                         config.GenericHttpApiTimeoutSeconds,
                         logger,
-                        secretProvider));
+                        secretProvider)));
                 }
                 else if (provider.Equals("LocalJsonl", StringComparison.OrdinalIgnoreCase) ||
                     provider.Equals("LocalJsonlAlertSink", StringComparison.OrdinalIgnoreCase))
                 {
-                    sinks.Add(new LocalJsonlAlertSink(config, logger));
+                    sinks.Add(ApplyProviderMinimum(config, logger, provider, new LocalJsonlAlertSink(config, logger)));
                 }
                 else if (provider.Equals("WindowsEventLog", StringComparison.OrdinalIgnoreCase) ||
                     provider.Equals("EventLog", StringComparison.OrdinalIgnoreCase) ||
                     provider.Equals("WindowsEventLogAlertSink", StringComparison.OrdinalIgnoreCase))
                 {
-                    sinks.Add(new WindowsEventLogAlertSink(config, logger));
+                    sinks.Add(ApplyProviderMinimum(config, logger, provider, new WindowsEventLogAlertSink(config, logger)));
                 }
                 else
                 {
@@ -84,6 +84,18 @@ namespace ArcaneEDR
             }
 
             return new CompositeAlertSink(sinks, logger);
+        }
+
+        private static IAlertSink ApplyProviderMinimum(MonitorConfig config, FileLogger logger, string provider, IAlertSink sink)
+        {
+            int minimumScore = config.ExternalAlertProviderMinimumScore(provider);
+            if (minimumScore <= 0) return sink;
+
+            return new MinimumScoreAlertSink(
+                MonitorConfig.CanonicalExternalAlertProvider(provider),
+                minimumScore,
+                sink,
+                logger);
         }
     }
 }

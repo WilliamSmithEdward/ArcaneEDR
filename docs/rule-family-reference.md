@@ -260,21 +260,21 @@ Rule IDs include `SERVICE-*`, `APP-*`, and `OPENAI-*`.
 
 - Detects: service start/stop/recovery, daily reports, config/executable
   integrity changes, optional compact AI log analysis verdicts, and optional
-  OpenAI daily report analysis.
+  AI daily report analysis.
 - Required telemetry: local health state, config integrity monitor, local logs,
   and optional AI analysis configuration.
 - Why it matters: service recovery, monitor tampering, and AI-flagged patterns
   can explain why host monitoring changed or why multiple weak signals became
   alert-worthy.
 - Common false positives: expected upgrades, publish/restart operations,
-  validation tests, and manually requested OpenAI test analysis.
+  validation tests, and manually requested AI test analysis.
 - Tuning knobs: `NotifyOnServiceStart`, `NotifyOnServiceStop`,
   `NotifyOnCrashRecovery`, `EnableDailySummary`,
   `EnableDailySummaryOpenAiAnalysis`, `EnableOpenAiLogAnalysis`,
   `OpenAIAnalysisScoreThreshold`, and `OpenAIAnalysisExcludedRuleIds`.
 - Safe test: `ArcaneEDR.exe --test-health`, `ArcaneEDR.exe --test-alert`,
-  `ArcaneEDR.exe --test-daily-report`, and `ArcaneEDR.exe
-  --test-openai-analysis` if configured.
+  `ArcaneEDR.exe --test-daily-report`, `ArcaneEDR.exe --preview-daily-report`,
+  and `ArcaneEDR.exe --test-ai-analysis` if configured.
 - Expected alert shape: `why` explains service lifecycle, integrity, compact AI
   analysis context, or daily report generation. Daily reports use a dedicated
   report layout with near-top critical-priority local signal callouts rather

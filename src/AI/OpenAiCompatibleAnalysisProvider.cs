@@ -8,30 +8,53 @@ using System.Web.Script.Serialization;
 
 namespace ArcaneEDR
 {
-    internal sealed class OpenAiSecurityAnalyzer
+    internal sealed class OpenAiCompatibleAnalysisProvider : IAiAnalysisProvider
     {
         private readonly MonitorConfig config;
         private readonly FileLogger logger;
         private readonly ISecretProvider secretProvider;
+        private readonly string providerName;
 
-        public OpenAiSecurityAnalyzer(MonitorConfig config, FileLogger logger, ISecretProvider secretProvider)
+        public OpenAiCompatibleAnalysisProvider(MonitorConfig config, FileLogger logger, ISecretProvider secretProvider, string providerName)
         {
             this.config = config;
             this.logger = logger;
             this.secretProvider = secretProvider;
+            this.providerName = String.IsNullOrWhiteSpace(providerName) ? "OpenAICompatible" : providerName;
+        }
+
+        public string ProviderName
+        {
+            get { return providerName; }
         }
 
         public bool IsConfigured
         {
-            get { return !String.IsNullOrWhiteSpace(GetApiKey()); }
+            get
+            {
+                return (!RequiresApiKey() || !String.IsNullOrWhiteSpace(GetApiKey())) &&
+                    !String.IsNullOrWhiteSpace(config.ActiveAiAnalysisApiUrl()) &&
+                    !String.IsNullOrWhiteSpace(config.ActiveAiAnalysisModel());
+            }
+        }
+
+        public string MissingConfigurationReason
+        {
+            get
+            {
+                if (String.IsNullOrWhiteSpace(config.ActiveAiAnalysisApiUrl())) return "AI analysis API URL is missing.";
+                if (String.IsNullOrWhiteSpace(config.ActiveAiAnalysisModel())) return "AI analysis model is missing.";
+                if (RequiresApiKey() && String.IsNullOrWhiteSpace(GetApiKey())) return "AI analysis API key environment variable is not visible: " + config.ActiveAiAnalysisApiKeyEnvironmentVariable();
+                return "";
+            }
         }
 
         public OpenAiAnalysisResult Analyze(string compactLogPayload)
         {
             string apiKey = GetApiKey();
-            if (String.IsNullOrWhiteSpace(apiKey))
+            if (RequiresApiKey() && String.IsNullOrWhiteSpace(apiKey))
             {
-                throw new InvalidOperationException("OpenAI API key is missing.");
+                throw new InvalidOperationException("AI analysis API key is missing.");
             }
 
             ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | (SecurityProtocolType)3072;
@@ -43,9 +66,9 @@ namespace ArcaneEDR
         public OpenAiAnalysisResult AnalyzeDailyReport(string dailyReportPayload)
         {
             string apiKey = GetApiKey();
-            if (String.IsNullOrWhiteSpace(apiKey))
+            if (RequiresApiKey() && String.IsNullOrWhiteSpace(apiKey))
             {
-                throw new InvalidOperationException("OpenAI API key is missing.");
+                throw new InvalidOperationException("AI analysis API key is missing.");
             }
 
             ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | (SecurityProtocolType)3072;
@@ -58,11 +81,16 @@ namespace ArcaneEDR
         {
             string apiKey = GetApiKey();
             byte[] body = Encoding.UTF8.GetBytes(requestJson);
-            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(config.OpenAIAnalysisApiUrl);
+            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(config.ActiveAiAnalysisApiUrl());
             request.Method = "POST";
             request.Accept = "application/json";
             request.ContentType = "application/json";
-            request.Headers["Authorization"] = "Bearer " + apiKey;
+            string headerName = config.ActiveAiAnalysisAuthHeaderName();
+            if (!String.IsNullOrWhiteSpace(headerName))
+            {
+                request.Headers[headerName] = config.ActiveAiAnalysisAuthHeaderPrefix() + apiKey;
+            }
+
             request.ContentLength = body.Length;
 
             using (Stream stream = request.GetRequestStream())
@@ -82,7 +110,7 @@ namespace ArcaneEDR
             {
                 HttpWebResponse response = ex.Response as HttpWebResponse;
                 if (response == null) throw;
-                throw new InvalidOperationException("OpenAI API returned HTTP " + ((int)response.StatusCode).ToString(CultureInfo.InvariantCulture) + ": " + ReadResponse(response));
+                throw new InvalidOperationException(providerName + " API returned HTTP " + ((int)response.StatusCode).ToString(CultureInfo.InvariantCulture) + ": " + ReadResponse(response));
             }
 
             string text = ExtractOutputText(responseBody);
@@ -94,7 +122,12 @@ namespace ArcaneEDR
 
         private string GetApiKey()
         {
-            return secretProvider.GetSecret(config.OpenAIApiKeyEnvironmentVariable);
+            return secretProvider.GetSecret(config.ActiveAiAnalysisApiKeyEnvironmentVariable());
+        }
+
+        private bool RequiresApiKey()
+        {
+            return !String.IsNullOrWhiteSpace(config.ActiveAiAnalysisAuthHeaderName());
         }
 
         private string BuildRequestJson(string compactLogPayload)
@@ -109,7 +142,7 @@ namespace ArcaneEDR
                 compactLogPayload;
 
             return "{" +
-                "\"model\":\"" + JsonEscape(config.OpenAIAnalysisModel) + "\"," +
+                "\"model\":\"" + JsonEscape(config.ActiveAiAnalysisModel()) + "\"," +
                 "\"input\":\"" + JsonEscape(prompt) + "\"," +
                 "\"max_output_tokens\":500," +
                 "\"reasoning\":{\"effort\":\"low\"}," +
@@ -120,7 +153,7 @@ namespace ArcaneEDR
         private string BuildDailyReportRequestJson(string dailyReportPayload)
         {
             string prompt =
-                "You are a cautious security analyst writing the OpenAI section of a daily Arcane EDR host-security report. " +
+                "You are a cautious security analyst writing the AI review section of a daily Arcane EDR host-security report. " +
                 "The recipient's main question is: is compromise confirmed, is review recommended, or are there no immediate findings from the available evidence? " +
                 "Review the redacted aggregate 24-hour report payload and make a high-level, human-readable judgment. " +
                 "Do not invent source-event fields such as paths, IPs, users, domains, or command lines because the payload intentionally omits them. " +
@@ -133,7 +166,7 @@ namespace ArcaneEDR
                 dailyReportPayload;
 
             return "{" +
-                "\"model\":\"" + JsonEscape(config.OpenAIAnalysisModel) + "\"," +
+                "\"model\":\"" + JsonEscape(config.ActiveAiAnalysisModel()) + "\"," +
                 "\"input\":\"" + JsonEscape(prompt) + "\"," +
                 "\"max_output_tokens\":700," +
                 "\"reasoning\":{\"effort\":\"low\"}," +
@@ -196,9 +229,9 @@ namespace ArcaneEDR
             {
                 result.Alertable = false;
                 result.Score = 0;
-                result.Title = "OpenAI analysis parse failure";
+                result.Title = "AI analysis parse failure";
                 result.Summary = text;
-                result.RecommendedAction = "Review the OpenAI analysis output.";
+                result.RecommendedAction = "Review the AI analysis output.";
             }
 
             return result;
@@ -222,7 +255,7 @@ namespace ArcaneEDR
             }
             catch (Exception ex)
             {
-                logger.Warn("OpenAI analysis record write failed: " + ex.Message);
+                logger.Warn("AI analysis record write failed: " + ex.Message);
             }
         }
 

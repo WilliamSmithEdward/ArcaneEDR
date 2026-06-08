@@ -19,7 +19,8 @@ deployment.
 - `v0.2.0`: install, upgrade, validation, and packaging hardening.
 - `v0.3.0`: detection quality, false-positive reduction, and per-rule tuning.
 - `v0.4.0`: modular notification and reporting framework.
-- `v0.5.0`: investigation MVP, rule explanations, and safe simulations.
+- `v0.5.0`: investigation MVP, rule explanations, safe simulations, and
+  user-friendly granular detection policy.
 - `v0.6.0`: agentic workstation guardrails MVP and active-response dry-run.
 - `v0.7.0`: collector/rule interface cleanup and privacy hardening.
 - `v1.0.0`: documented stable release with tested install, upgrade, alerting,
@@ -33,19 +34,17 @@ whenever that is practical. A later milestone may be touched early only when it
 unblocks the active milestone, prevents avoidable rework, fixes an urgent
 operational issue, or is a very small adjacent change with low risk.
 
-Current active milestone: `v0.3.0`.
+Current active milestone: `v0.4.0`.
 
-Definition of done before moving focus to `v0.4.0`:
+Definition of done before moving focus to `v0.5.0`:
 
-- Per-rule enable/disable and per-rule external alert thresholds exist.
-- Rule categories are assigned consistently and included in alert metadata.
-- Maintenance/session labeling or suppression covers expected build, publish,
-  install, validation, and admin-bridge workflows without hiding unrelated
-  suspicious behavior.
-- Microsoft-signed scheduled-task and service trust handling is improved enough
-  to reduce known Windows noise.
-- Alert-volume tuning produces manageable local and external alert volume.
-- Remaining `v0.3.0` gaps are either completed or explicitly deferred with a
+- Required alert sinks are implemented, validated, and documented.
+- Multi-sink fan-out isolates individual sink failures.
+- Brevo-specific behavior is isolated from the notification architecture.
+- Daily reporting can be routed independently from real-time alert sinks.
+- Local Markdown/JSON daily report archive output is configurable and redacted.
+- Preview and validation commands support safe report tuning before delivery.
+- Remaining configurable reporting-engine gaps are explicitly deferred with a
   reason.
 
 ## Milestone Status
@@ -57,15 +56,16 @@ phase sections below.
 | --- | --- | --- | --- |
 | `v0.1.x-preview` | Done | Complete | Functional preview: service, local logging, Brevo alerting, Sysmon ingestion, OpenAI compact analysis, baseline learning, and daily summaries. |
 | `v0.2.0-beta` | Done | Complete | Tagged beta with install, upgrade, validation, package-release script, config preservation, and scheduled-task admin bridge. |
-| `v0.3.0` | Release candidate | Locally complete | Detection-quality work is implemented, locally published, validated, and packaged. Remaining work is operator-approved push/tag plus any soak-window empirical tuning from fresh post-publish data. |
-| `v0.4.0` | Mostly done | Substantial | Modular alert sinks are implemented for Brevo, SMTP, webhook, generic HTTP/API, Windows Event Log, and local JSONL. Reporting-specific sinks remain future work. |
-| `v0.5.0` | Mostly done | Substantial | `why` explanations, incident grouping, timeline command, support bundle, simulations, and rule-family docs are implemented. Remaining work is polishing expected alert shapes and demo flow. |
-| `v0.6.0` | Started | Partial | Agent Profile labeling exists. Remaining work includes agent write/elevation guardrails, compact activity ledger, maintenance/session markers, and active-response dry-run. |
+| `v0.3.0` | Done | Complete | Detection-quality work is released as `v0.3.0`; further empirical tuning feeds later milestones. |
+| `v0.4.0` | In progress | Near complete | Modular alert sinks are implemented for Brevo, SMTP, webhook, generic HTTP/API, Windows Event Log, and local JSONL. Daily report preview, local archive, selectable sections, row limits, and independent report destinations are implemented; additional report destinations remain future work. |
+| `v0.5.0` | Mostly done | Substantial | `why` explanations, incident grouping, timeline command, support bundle, simulations, and rule-family docs are implemented. Remaining work is polishing expected alert shapes, demo flow, and user-friendly granular allow/block detection policy. |
+| `v0.6.0` | Started | Partial | Agent Profile labeling exists. Remaining work includes agent write/elevation guardrails, compact activity ledger, maintenance/session markers, response policy, and active-response dry-run. |
 | `v0.7.0` | Not started | Planned | Collector/rule interface cleanup, privacy hardening, and AI provider abstraction remain planned. |
 | `v1.0.0` | Not ready | Planned | Requires completed docs, tuned alert volume, tested install/upgrade/release flow, dry-run/manual response safety, and stable privacy/operations posture. |
 
-Current milestone focus: complete operator-approved `v0.3.0` push/tag steps,
-then move into `v0.4.0` modular notification/reporting polish.
+Current milestone focus: finish `v0.4.0` modular notification/reporting polish,
+then move into `v0.5.0` investigation, simulation, and user-friendly policy
+polish.
 
 ## `v1.0.0` Scope Boundary
 
@@ -522,21 +522,48 @@ Progress:
   generic HTTP/API JSON POST, Windows Event Log, and local JSONL.
 - Added config loading and validation for supported sink providers and
   provider-specific secrets.
+- Added `ExternalAlertProviderMinimumScores` so each configured sink can have
+  its own score floor after global, rule, and category external thresholds.
+- Added a daily report archive path with configurable Markdown/JSON output,
+  selectable report sections, and row limits for critical callouts,
+  high-signal details, bucket summaries, and automation summaries. The JSON
+  archive stores redacted aggregate report metadata rather than raw alert
+  bodies or entities.
+- Added `ArcaneEDR.exe --preview-daily-report` with Markdown output by default,
+  `--json` for redacted archive payload preview, and `--archive` for explicit
+  local archive writes without sending external notifications or calling
+  the AI provider.
+- Added `DailyReportDestinations` so scheduled and test daily reports can be
+  routed to `ExternalAlertSinks`, `LocalArchive`, or archive-only reporting
+  without changing normal real-time alert sinks.
+- Added `ArcaneEDR.exe --validate-config <config-path>` so cloned or staged
+  deployments can validate a specific machine-tuned config without copying it
+  into the runtime config directory first.
+- Added an `IAiAnalysisProvider` foundation with OpenAI-compatible
+  Responses-style endpoint support and generic `AIAnalysis*` config aliases.
+  Full adapters for non-compatible provider APIs remain Phase 7 work.
 
 Reporting should be separate from alerting where useful:
 
-- Daily summary report sink.
-- Markdown or JSON report sink.
+- Daily summary report sink. Initial local archive completed; other report
+  destinations remain future work.
+- Markdown or JSON report sink. Local archive completed.
 - Webhook report sink.
-- Local report archive.
+- Local report archive. Completed.
 - Configurable reporting engine with selectable sections, output formats,
-  destinations, schedules, and audience-specific tone/detail levels.
+  destinations, schedules, and audience-specific tone/detail levels. Initial
+  selectable sections, local formats, row limits, and no-send preview command
+  completed.
 
 Exit criteria:
 
 - Multiple sinks can be enabled at once.
 - One failed sink does not prevent another sink from receiving an alert.
 - Brevo-specific settings are isolated to the Brevo sink.
+- Daily reports can be delivered, archived, or previewed independently from
+  real-time alert delivery.
+- Archived daily reports include a human-readable Markdown report and a
+  redacted aggregate JSON payload.
 
 ## Phase 5: Modular Collectors, Enrichers, And Rules
 
@@ -571,11 +598,36 @@ Rule modules:
 - `IDnsRule`
 - `IAuthRule`
 
+User-friendly granular detection policy:
+
+- Add a structured policy file, for example `config\policy-rules.json`, for
+  machine-specific allow/block tuning without hardcoding local software into
+  the product.
+- Keep normal cases field-based rather than regex-based. Supported match fields
+  should include process name, parent process, signer, path prefix, command
+  term group, user/account, rule ID, category, destination domain, IP/CIDR,
+  port, and hash.
+- Support plain-language actions such as `trusted_context`, `lower_score`,
+  `suppress_external`, `raise_score`, `force_alert`, and `tag_only`.
+- Preserve local logging, incident grouping, and report context by default even
+  when a policy suppresses external delivery.
+- Require user-friendly metadata on policy entries where practical: `reason`,
+  optional `owner`, and optional `expires_utc`.
+- Validate policy files with plain-English warnings for unknown fields,
+  unsupported actions, invalid CIDRs, expired entries, and risky broad matches.
+- Add a preview/test command that explains which policy entries would match a
+  sample or recent alert and what action Arcane would take.
+- Document examples for common tuning tasks so another LLM agent can help a
+  user configure Arcane for their own machine without needing to fork or modify
+  source code.
+
 Exit criteria:
 
 - Collectors are independently enableable and fail-isolated.
 - Rules have IDs, categories, defaults, tests, and per-rule config.
 - Optional enrichment can be added without changing detection flow broadly.
+- Granular allow/block detection policy is understandable, validated, previewable,
+  and preserves local evidence by default.
 
 ## Phase 6: Active Response Safety
 
@@ -594,6 +646,8 @@ audit.
 - Add dry-run mode for response actions.
 - Re-check process identity before killing a PID.
 - Add protected process and trusted signer allowlists.
+- Build response eligibility from the v0.5 detection policy only after policy
+  matches are explainable, validated, and auditable.
 - De-duplicate firewall rules.
 - Maintain a response ledger for rollback.
 - Add commands to list and remove Arcane EDR firewall blocks.

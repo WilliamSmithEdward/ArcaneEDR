@@ -22,6 +22,7 @@ namespace ArcaneEDR
         public HashSet<string> DisabledRuleCategories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> RuleMinimumEmailScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> CategoryMinimumEmailScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, int> ExternalAlertProviderMinimumScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public int ExternalAlertMaxPerDispatch = 3;
         public int ExternalAlertMaxPerHour = 12;
         public HashSet<string> ExternalAlertSuppressionTermGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -52,6 +53,15 @@ namespace ArcaneEDR
         public string DailySummaryTimeZoneId = "";
         public int DailySummaryScore = 60;
         public bool EnableDailySummaryOpenAiAnalysis = true;
+        public HashSet<string> DailyReportDestinations = DefaultDailyReportDestinations();
+        public HashSet<string> DailyReportSections = DefaultDailyReportSections();
+        public int DailyReportCriticalCalloutRows = 5;
+        public int DailyReportHighSignalRows = 7;
+        public int DailyReportBucketRows = 6;
+        public int DailyReportAgentBucketRows = 3;
+        public bool EnableDailyReportArchive = true;
+        public string DailyReportArchiveDirectory = "reports";
+        public HashSet<string> DailyReportArchiveFormats = DefaultDailyReportArchiveFormats();
         public int HealthHeartbeatSeconds = 60;
         public bool EnableOpenAiLogAnalysis = true;
         public int OpenAIAnalysisIntervalMinutes = 60;
@@ -60,6 +70,12 @@ namespace ArcaneEDR
         public int OpenAIAnalysisMinimumIncludedAlertScore = 60;
         public int OpenAIAnalysisBaselineMinimumIncludedAlertScore = 90;
         public HashSet<string> OpenAIAnalysisExcludedRuleIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        public string AIAnalysisProvider = "OpenAI";
+        public string AIAnalysisModel = "";
+        public string AIAnalysisApiKeyEnvironmentVariable = "";
+        public string AIAnalysisApiUrl = "";
+        public string AIAnalysisAuthHeaderName = "Authorization";
+        public string AIAnalysisAuthHeaderPrefix = "Bearer ";
         public string OpenAIAnalysisModel = "gpt-5.5";
         public string OpenAIApiKeyEnvironmentVariable = "OPENAI_API_KEY";
         public int OpenAIAnalysisMaxLogLines = 80;
@@ -198,7 +214,14 @@ namespace ArcaneEDR
 
         public static MonitorConfig Load(string baseDirectory)
         {
-            string configPath = ResolveConfigPath(baseDirectory);
+            return Load(baseDirectory, "");
+        }
+
+        public static MonitorConfig Load(string baseDirectory, string explicitConfigPath)
+        {
+            string configPath = String.IsNullOrWhiteSpace(explicitConfigPath)
+                ? ResolveConfigPath(baseDirectory)
+                : ResolvePath(Directory.GetCurrentDirectory(), explicitConfigPath);
             Dictionary<string, string> values = ReadConfigFile(configPath);
 
             MonitorConfig config = new MonitorConfig();
@@ -214,6 +237,7 @@ namespace ArcaneEDR
             config.DisabledRuleCategories = ReadStringSet(values, "DisabledRuleCategories");
             config.RuleMinimumEmailScores = ReadStringIntMap(values, "RuleMinimumEmailScores");
             config.CategoryMinimumEmailScores = ReadStringIntMap(values, "CategoryMinimumEmailScores");
+            config.ExternalAlertProviderMinimumScores = ReadStringIntMap(values, "ExternalAlertProviderMinimumScores");
             config.ExternalAlertMaxPerDispatch = ReadInt(values, "ExternalAlertMaxPerDispatch", config.ExternalAlertMaxPerDispatch);
             config.ExternalAlertMaxPerHour = ReadInt(values, "ExternalAlertMaxPerHour", config.ExternalAlertMaxPerHour);
             config.ExternalAlertSuppressionTermGroups = ReadStringSet(values, "ExternalAlertSuppressionTermGroups");
@@ -246,21 +270,49 @@ namespace ArcaneEDR
             config.DailySummaryLocalTime = ReadString(values, "DailySummaryLocalTime", config.DailySummaryLocalTime);
             config.DailySummaryTimeZoneId = ReadString(values, "DailySummaryTimeZoneId", config.DailySummaryTimeZoneId);
             config.DailySummaryScore = ReadInt(values, "DailySummaryScore", config.DailySummaryScore);
-            config.EnableDailySummaryOpenAiAnalysis = ReadBool(values, "EnableDailySummaryOpenAiAnalysis", config.EnableDailySummaryOpenAiAnalysis);
+            config.EnableDailySummaryOpenAiAnalysis = values.ContainsKey("EnableDailySummaryAIAnalysis")
+                ? ReadBool(values, "EnableDailySummaryAIAnalysis", config.EnableDailySummaryOpenAiAnalysis)
+                : ReadBool(values, "EnableDailySummaryOpenAiAnalysis", config.EnableDailySummaryOpenAiAnalysis);
+            config.DailyReportDestinations = values.ContainsKey("DailyReportDestinations")
+                ? ReadStringSet(values, "DailyReportDestinations")
+                : DefaultDailyReportDestinations();
+            if (config.DailyReportDestinations.Count == 0) config.DailyReportDestinations = DefaultDailyReportDestinations();
+            config.DailyReportSections = values.ContainsKey("DailyReportSections")
+                ? ReadStringSet(values, "DailyReportSections")
+                : DefaultDailyReportSections();
+            if (config.DailyReportSections.Count == 0) config.DailyReportSections = DefaultDailyReportSections();
+            config.DailyReportCriticalCalloutRows = ReadInt(values, "DailyReportCriticalCalloutRows", config.DailyReportCriticalCalloutRows);
+            config.DailyReportHighSignalRows = ReadInt(values, "DailyReportHighSignalRows", config.DailyReportHighSignalRows);
+            config.DailyReportBucketRows = ReadInt(values, "DailyReportBucketRows", config.DailyReportBucketRows);
+            config.DailyReportAgentBucketRows = ReadInt(values, "DailyReportAgentBucketRows", config.DailyReportAgentBucketRows);
+            config.EnableDailyReportArchive = ReadBool(values, "EnableDailyReportArchive", config.EnableDailyReportArchive);
+            config.DailyReportArchiveDirectory = ResolvePath(config.LogDirectory, ReadString(values, "DailyReportArchiveDirectory", config.DailyReportArchiveDirectory));
+            config.DailyReportArchiveFormats = values.ContainsKey("DailyReportArchiveFormats")
+                ? ReadStringSet(values, "DailyReportArchiveFormats")
+                : DefaultDailyReportArchiveFormats();
+            if (config.DailyReportArchiveFormats.Count == 0) config.DailyReportArchiveFormats = DefaultDailyReportArchiveFormats();
             config.HealthHeartbeatSeconds = ReadInt(values, "HealthHeartbeatSeconds", config.HealthHeartbeatSeconds);
-            config.EnableOpenAiLogAnalysis = ReadBool(values, "EnableOpenAiLogAnalysis", config.EnableOpenAiLogAnalysis);
+            config.EnableOpenAiLogAnalysis = values.ContainsKey("EnableAIAnalysis")
+                ? ReadBool(values, "EnableAIAnalysis", config.EnableOpenAiLogAnalysis)
+                : ReadBool(values, "EnableOpenAiLogAnalysis", config.EnableOpenAiLogAnalysis);
             config.OpenAIAnalysisIntervalMinutes = ReadInt(values, "OpenAIAnalysisIntervalMinutes", config.OpenAIAnalysisIntervalMinutes);
             config.OpenAIAnalysisScoreThreshold = ReadInt(values, "OpenAIAnalysisScoreThreshold", config.OpenAIAnalysisScoreThreshold);
             config.OpenAIAnalysisBaselineEmailMinimumScore = ReadInt(values, "OpenAIAnalysisBaselineEmailMinimumScore", config.OpenAIAnalysisBaselineEmailMinimumScore);
             config.OpenAIAnalysisMinimumIncludedAlertScore = ReadInt(values, "OpenAIAnalysisMinimumIncludedAlertScore", config.OpenAIAnalysisMinimumIncludedAlertScore);
             config.OpenAIAnalysisBaselineMinimumIncludedAlertScore = ReadInt(values, "OpenAIAnalysisBaselineMinimumIncludedAlertScore", config.OpenAIAnalysisBaselineMinimumIncludedAlertScore);
             config.OpenAIAnalysisExcludedRuleIds = ReadStringSet(values, "OpenAIAnalysisExcludedRuleIds");
+            config.AIAnalysisProvider = ReadString(values, "AIAnalysisProvider", config.AIAnalysisProvider);
             config.OpenAIAnalysisModel = ReadString(values, "OpenAIAnalysisModel", config.OpenAIAnalysisModel);
             config.OpenAIApiKeyEnvironmentVariable = ReadString(values, "OpenAIApiKeyEnvironmentVariable", config.OpenAIApiKeyEnvironmentVariable);
             config.OpenAIAnalysisMaxLogLines = ReadInt(values, "OpenAIAnalysisMaxLogLines", config.OpenAIAnalysisMaxLogLines);
             config.OpenAIAnalysisMaxAlertLines = ReadInt(values, "OpenAIAnalysisMaxAlertLines", config.OpenAIAnalysisMaxAlertLines);
             config.OpenAIAnalysisMaxChars = ReadInt(values, "OpenAIAnalysisMaxChars", config.OpenAIAnalysisMaxChars);
             config.OpenAIAnalysisApiUrl = ReadString(values, "OpenAIAnalysisApiUrl", config.OpenAIAnalysisApiUrl);
+            config.AIAnalysisModel = ReadString(values, "AIAnalysisModel", config.OpenAIAnalysisModel);
+            config.AIAnalysisApiKeyEnvironmentVariable = ReadString(values, "AIAnalysisApiKeyEnvironmentVariable", config.OpenAIApiKeyEnvironmentVariable);
+            config.AIAnalysisApiUrl = ReadString(values, "AIAnalysisApiUrl", config.OpenAIAnalysisApiUrl);
+            config.AIAnalysisAuthHeaderName = ReadString(values, "AIAnalysisAuthHeaderName", config.AIAnalysisAuthHeaderName);
+            config.AIAnalysisAuthHeaderPrefix = ReadString(values, "AIAnalysisAuthHeaderPrefix", config.AIAnalysisAuthHeaderPrefix);
             config.DetectEncodedCommandLines = ReadBool(values, "DetectEncodedCommandLines", config.DetectEncodedCommandLines);
             config.EncodedCommandMinimumLength = ReadInt(values, "EncodedCommandMinimumLength", config.EncodedCommandMinimumLength);
             config.ExternalAlertProvider = ReadString(values, "ExternalAlertProvider", config.ExternalAlertProvider);
@@ -430,6 +482,158 @@ namespace ArcaneEDR
                 string provider = raw.Trim();
                 if (provider.Length > 0) yield return provider;
             }
+        }
+
+        public int ExternalAlertProviderMinimumScore(string provider)
+        {
+            if (ExternalAlertProviderMinimumScores == null || ExternalAlertProviderMinimumScores.Count == 0) return 0;
+
+            string expected = CanonicalExternalAlertProvider(provider);
+            foreach (KeyValuePair<string, int> item in ExternalAlertProviderMinimumScores)
+            {
+                if (CanonicalExternalAlertProvider(item.Key).Equals(expected, StringComparison.OrdinalIgnoreCase))
+                {
+                    return item.Value;
+                }
+            }
+
+            return 0;
+        }
+
+        public bool HasExternalAlertProviderEligibleForScore(int score)
+        {
+            foreach (string provider in GetExternalAlertProviders())
+            {
+                string canonical = CanonicalExternalAlertProvider(provider);
+                if (canonical.Equals("Disabled", StringComparison.OrdinalIgnoreCase)) continue;
+                if (ExternalAlertProviderMinimumScore(provider) <= score) return true;
+            }
+
+            return false;
+        }
+
+        public bool DailyReportDestinationEnabled(string destination)
+        {
+            if (String.IsNullOrWhiteSpace(destination)) return false;
+            if (DailyReportDestinations == null || DailyReportDestinations.Count == 0) return false;
+            foreach (string configured in DailyReportDestinations)
+            {
+                if (ReportDestinationMatches(configured, destination)) return true;
+            }
+
+            return false;
+        }
+
+        private static bool ReportDestinationMatches(string configured, string destination)
+        {
+            if (String.IsNullOrWhiteSpace(configured) || String.IsNullOrWhiteSpace(destination)) return false;
+            string left = NormalizeReportDestination(configured);
+            string right = NormalizeReportDestination(destination);
+            return left.Equals(right, StringComparison.OrdinalIgnoreCase) ||
+                (left.Equals("externalalerts", StringComparison.OrdinalIgnoreCase) && right.Equals("externalalertsinks", StringComparison.OrdinalIgnoreCase)) ||
+                (left.Equals("alertsinks", StringComparison.OrdinalIgnoreCase) && right.Equals("externalalertsinks", StringComparison.OrdinalIgnoreCase)) ||
+                (left.Equals("archive", StringComparison.OrdinalIgnoreCase) && right.Equals("localarchive", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static string NormalizeReportDestination(string value)
+        {
+            return value.Trim()
+                .Replace("-", "")
+                .Replace("_", "")
+                .Replace(" ", "");
+        }
+
+        public static string CanonicalExternalAlertProvider(string provider)
+        {
+            if (provider == null) return "";
+            if (provider.Equals("None", StringComparison.OrdinalIgnoreCase) ||
+                provider.Equals("Off", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Disabled";
+            }
+
+            if (provider.Equals("SmtpEmail", StringComparison.OrdinalIgnoreCase) ||
+                provider.Equals("SmtpEmailAlertSink", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Smtp";
+            }
+
+            if (provider.Equals("WebhookAlertSink", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Webhook";
+            }
+
+            if (provider.Equals("GenericHttpApiAlertSink", StringComparison.OrdinalIgnoreCase) ||
+                provider.Equals("HttpApi", StringComparison.OrdinalIgnoreCase))
+            {
+                return "GenericHttpApi";
+            }
+
+            if (provider.Equals("LocalJsonlAlertSink", StringComparison.OrdinalIgnoreCase))
+            {
+                return "LocalJsonl";
+            }
+
+            if (provider.Equals("EventLog", StringComparison.OrdinalIgnoreCase) ||
+                provider.Equals("WindowsEventLogAlertSink", StringComparison.OrdinalIgnoreCase))
+            {
+                return "WindowsEventLog";
+            }
+
+            return provider.Trim();
+        }
+
+        public string ActiveAiAnalysisProvider()
+        {
+            return CanonicalAiAnalysisProvider(AIAnalysisProvider);
+        }
+
+        public string ActiveAiAnalysisModel()
+        {
+            return !String.IsNullOrWhiteSpace(AIAnalysisModel) ? AIAnalysisModel : OpenAIAnalysisModel;
+        }
+
+        public string ActiveAiAnalysisApiKeyEnvironmentVariable()
+        {
+            return !String.IsNullOrWhiteSpace(AIAnalysisApiKeyEnvironmentVariable)
+                ? AIAnalysisApiKeyEnvironmentVariable
+                : OpenAIApiKeyEnvironmentVariable;
+        }
+
+        public string ActiveAiAnalysisApiUrl()
+        {
+            return !String.IsNullOrWhiteSpace(AIAnalysisApiUrl) ? AIAnalysisApiUrl : OpenAIAnalysisApiUrl;
+        }
+
+        public string ActiveAiAnalysisAuthHeaderName()
+        {
+            return AIAnalysisAuthHeaderName ?? "Authorization";
+        }
+
+        public string ActiveAiAnalysisAuthHeaderPrefix()
+        {
+            if (AIAnalysisAuthHeaderPrefix == null) return "";
+            if (AIAnalysisAuthHeaderPrefix.Equals("Bearer", StringComparison.OrdinalIgnoreCase)) return "Bearer ";
+            return AIAnalysisAuthHeaderPrefix;
+        }
+
+        public static string CanonicalAiAnalysisProvider(string provider)
+        {
+            if (provider == null) return "";
+            if (provider.Equals("None", StringComparison.OrdinalIgnoreCase) ||
+                provider.Equals("Off", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Disabled";
+            }
+
+            if (provider.Equals("OpenAIResponses", StringComparison.OrdinalIgnoreCase) ||
+                provider.Equals("OpenAICompatibleResponses", StringComparison.OrdinalIgnoreCase) ||
+                provider.Equals("Responses", StringComparison.OrdinalIgnoreCase))
+            {
+                return "OpenAICompatible";
+            }
+
+            return provider.Trim();
         }
 
         private static bool Contains(List<CidrRange> ranges, IPAddress address)
@@ -604,6 +808,37 @@ namespace ArcaneEDR
             result.Add("Baseline");
             result.Add("Reputation");
             result.Add("Process");
+            return result;
+        }
+
+        private static HashSet<string> DefaultDailyReportSections()
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            result.Add("QuickVerdict");
+            result.Add("CriticalCallouts");
+            result.Add("AtAGlance");
+            result.Add("SignalSummary");
+            result.Add("FalsePositiveContext");
+            result.Add("HighSignalDetails");
+            result.Add("AutomationActivity");
+            result.Add("OpenAIReview");
+            result.Add("TuningNotes");
+            return result;
+        }
+
+        private static HashSet<string> DefaultDailyReportDestinations()
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            result.Add("ExternalAlertSinks");
+            result.Add("LocalArchive");
+            return result;
+        }
+
+        private static HashSet<string> DefaultDailyReportArchiveFormats()
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            result.Add("Markdown");
+            result.Add("Json");
             return result;
         }
 

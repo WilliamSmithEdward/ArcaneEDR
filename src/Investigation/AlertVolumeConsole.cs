@@ -148,8 +148,9 @@ namespace ArcaneEDR
 
         private static bool WouldQualifyForExternal(MonitorConfig config, Alert alert, bool assumeBaselineLearningOff)
         {
-            if (UsesDirectExternalPath(alert)) return true;
+            if (UsesDirectExternalPath(alert)) return config.HasExternalAlertProviderEligibleForScore(alert.Score);
             if (alert.Score < AlertRulePolicy.MinimumExternalScore(config, alert)) return false;
+            if (!config.HasExternalAlertProviderEligibleForScore(alert.Score)) return false;
             if (alert.MaintenanceContext && alert.Score < config.MaintenanceContextExternalAlertMinimumScore) return false;
             if (!assumeBaselineLearningOff &&
                 config.BaselineLearningMode &&

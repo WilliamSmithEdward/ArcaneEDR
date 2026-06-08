@@ -11,13 +11,18 @@ namespace ArcaneEDR
     {
         public static int Run(string baseDirectory)
         {
+            return Run(baseDirectory, "");
+        }
+
+        public static int Run(string baseDirectory, string explicitConfigPath)
+        {
             List<string> errors = new List<string>();
             List<string> warnings = new List<string>();
             MonitorConfig config = null;
 
             try
             {
-                config = MonitorConfig.Load(baseDirectory);
+                config = MonitorConfig.Load(baseDirectory, explicitConfigPath);
                 Pass("Loaded config: " + config.ConfigPath);
             }
             catch (Exception ex)
@@ -60,7 +65,9 @@ namespace ArcaneEDR
             if (config.OpenAIAnalysisBaselineEmailMinimumScore < 0 || config.OpenAIAnalysisBaselineEmailMinimumScore > 100) Warn(warnings, "OpenAIAnalysisBaselineEmailMinimumScore is outside the usual 0-100 range.");
             if (config.OpenAIAnalysisMinimumIncludedAlertScore < 0 || config.OpenAIAnalysisMinimumIncludedAlertScore > 100) Warn(warnings, "OpenAIAnalysisMinimumIncludedAlertScore is outside the usual 0-100 range.");
             if (config.OpenAIAnalysisBaselineMinimumIncludedAlertScore < 0 || config.OpenAIAnalysisBaselineMinimumIncludedAlertScore > 100) Warn(warnings, "OpenAIAnalysisBaselineMinimumIncludedAlertScore is outside the usual 0-100 range.");
+            ValidateAiAnalysisProvider(config, errors, warnings);
             ValidateDailySummarySchedule(config, errors, warnings);
+            ValidateDailyReportConfig(config, errors, warnings);
             if (config.MinimumEmailScore < 0 || config.MinimumEmailScore > 100) Warn(warnings, "MinimumEmailScore is outside the usual 0-100 range.");
             ValidateRulePolicy(config, warnings);
             if (config.OpenAIAnalysisMaxChars > 20000) Warn(warnings, "OpenAIAnalysisMaxChars is above 20000; compact analysis may use more tokens than intended.");
@@ -155,6 +162,112 @@ namespace ArcaneEDR
             }
         }
 
+        private static void ValidateAiAnalysisProvider(MonitorConfig config, List<string> errors, List<string> warnings)
+        {
+            string provider = MonitorConfig.CanonicalAiAnalysisProvider(config.AIAnalysisProvider);
+            if (!IsAiAnalysisProvider(provider))
+            {
+                Fail(errors, "AIAnalysisProvider must be OpenAI, OpenAICompatible, Disabled, None, or Off.");
+                return;
+            }
+
+            if (!config.EnableOpenAiLogAnalysis) return;
+
+            if (provider.Equals("Disabled", StringComparison.OrdinalIgnoreCase))
+            {
+                Warn(warnings, "EnableAIAnalysis/EnableOpenAiLogAnalysis is true but AIAnalysisProvider is disabled.");
+                return;
+            }
+
+            if (String.IsNullOrWhiteSpace(config.ActiveAiAnalysisModel()))
+            {
+                Fail(errors, "AI analysis model must be configured using AIAnalysisModel or OpenAIAnalysisModel.");
+            }
+
+            if (String.IsNullOrWhiteSpace(config.ActiveAiAnalysisApiUrl()))
+            {
+                Fail(errors, "AI analysis API URL must be configured using AIAnalysisApiUrl or OpenAIAnalysisApiUrl.");
+            }
+
+            if (!String.IsNullOrWhiteSpace(config.ActiveAiAnalysisAuthHeaderName()) &&
+                String.IsNullOrWhiteSpace(config.ActiveAiAnalysisApiKeyEnvironmentVariable()))
+            {
+                Fail(errors, "AI analysis API key environment variable must be configured when AIAnalysisAuthHeaderName is not empty.");
+            }
+        }
+
+        private static void ValidateDailyReportConfig(MonitorConfig config, List<string> errors, List<string> warnings)
+        {
+            foreach (string destination in config.DailyReportDestinations)
+            {
+                if (!IsDailyReportDestination(destination))
+                {
+                    Warn(warnings, "DailyReportDestinations contains an unknown destination: " + destination);
+                }
+            }
+
+            if (config.DailyReportCriticalCalloutRows <= 0) Fail(errors, "DailyReportCriticalCalloutRows must be greater than zero.");
+            if (config.DailyReportHighSignalRows <= 0) Fail(errors, "DailyReportHighSignalRows must be greater than zero.");
+            if (config.DailyReportBucketRows <= 0) Fail(errors, "DailyReportBucketRows must be greater than zero.");
+            if (config.DailyReportAgentBucketRows <= 0) Fail(errors, "DailyReportAgentBucketRows must be greater than zero.");
+
+            foreach (string section in config.DailyReportSections)
+            {
+                if (!IsDailyReportSection(section))
+                {
+                    Warn(warnings, "DailyReportSections contains an unknown section: " + section);
+                }
+            }
+
+            if (!config.EnableDailyReportArchive) return;
+
+            if (!config.DailyReportDestinationEnabled("LocalArchive"))
+            {
+                Warn(warnings, "EnableDailyReportArchive is true but DailyReportDestinations does not include LocalArchive.");
+            }
+
+            if (String.IsNullOrWhiteSpace(config.DailyReportArchiveDirectory))
+            {
+                Fail(errors, "DailyReportArchiveDirectory must be configured when EnableDailyReportArchive is enabled.");
+            }
+
+            foreach (string format in config.DailyReportArchiveFormats)
+            {
+                if (!IsDailyReportArchiveFormat(format))
+                {
+                    Warn(warnings, "DailyReportArchiveFormats contains an unknown format: " + format);
+                }
+            }
+        }
+
+        private static bool IsDailyReportSection(string section)
+        {
+            return ProviderMatches(section, "QuickVerdict") ||
+                ProviderMatches(section, "CriticalCallouts") ||
+                ProviderMatches(section, "AtAGlance") ||
+                ProviderMatches(section, "SignalSummary") ||
+                ProviderMatches(section, "FalsePositiveContext") ||
+                ProviderMatches(section, "HighSignalDetails") ||
+                ProviderMatches(section, "AutomationActivity") ||
+                ProviderMatches(section, "OpenAIReview") ||
+                ProviderMatches(section, "TuningNotes");
+        }
+
+        private static bool IsDailyReportDestination(string destination)
+        {
+            return ProviderMatches(destination, "ExternalAlertSinks") ||
+                ProviderMatches(destination, "ExternalAlerts") ||
+                ProviderMatches(destination, "AlertSinks") ||
+                ProviderMatches(destination, "LocalArchive") ||
+                ProviderMatches(destination, "Archive");
+        }
+
+        private static bool IsDailyReportArchiveFormat(string format)
+        {
+            return ProviderMatches(format, "Markdown") ||
+                ProviderMatches(format, "Json");
+        }
+
         private static void ValidateLowValueRepeatDampening(MonitorConfig config, List<string> errors, List<string> warnings)
         {
             if (!config.EnableLowValueRepeatDampening) return;
@@ -222,6 +335,27 @@ namespace ArcaneEDR
             if (!sawProvider)
             {
                 Warn(warnings, "ExternalAlertProvider is empty; external alerts are disabled.");
+            }
+
+            foreach (KeyValuePair<string, int> item in config.ExternalAlertProviderMinimumScores)
+            {
+                if (!IsExternalAlertProvider(item.Key))
+                {
+                    Warn(warnings, "ExternalAlertProviderMinimumScores contains an unknown provider: " + item.Key);
+                }
+                else if (ProviderMatches(item.Key, "Disabled"))
+                {
+                    Warn(warnings, "ExternalAlertProviderMinimumScores should not target disabled provider alias: " + item.Key);
+                }
+                else if (!ProviderEnabled(config, item.Key))
+                {
+                    Warn(warnings, "ExternalAlertProviderMinimumScores targets provider that is not enabled: " + item.Key);
+                }
+
+                if (item.Value < 0 || item.Value > 100)
+                {
+                    Warn(warnings, "ExternalAlertProviderMinimumScores entry is outside the usual 0-100 range: " + item.Key + "=" + item.Value);
+                }
             }
 
             if (ProviderEnabled(config, "LocalJsonl") && String.IsNullOrWhiteSpace(config.LocalJsonlAlertSinkFile))
@@ -445,13 +579,17 @@ namespace ArcaneEDR
 
             if (config.EnableOpenAiLogAnalysis)
             {
-                if (String.IsNullOrWhiteSpace(secrets.GetSecret(config.OpenAIApiKeyEnvironmentVariable)))
+                if (String.IsNullOrWhiteSpace(config.ActiveAiAnalysisAuthHeaderName()))
                 {
-                    Warn(warnings, "OpenAI API key environment variable is not visible: " + config.OpenAIApiKeyEnvironmentVariable);
+                    Pass("AI analysis auth header disabled by config.");
+                }
+                else if (String.IsNullOrWhiteSpace(secrets.GetSecret(config.ActiveAiAnalysisApiKeyEnvironmentVariable())))
+                {
+                    Warn(warnings, "AI analysis API key environment variable is not visible: " + config.ActiveAiAnalysisApiKeyEnvironmentVariable());
                 }
                 else
                 {
-                    Pass("OpenAI API key is visible via environment variable: " + config.OpenAIApiKeyEnvironmentVariable);
+                    Pass("AI analysis API key is visible via environment variable: " + config.ActiveAiAnalysisApiKeyEnvironmentVariable());
                 }
             }
         }
@@ -567,6 +705,18 @@ namespace ArcaneEDR
                 ProviderMatches(provider, "WindowsEventLogAlertSink");
         }
 
+        private static bool IsAiAnalysisProvider(string provider)
+        {
+            return ProviderMatches(provider, "Disabled") ||
+                ProviderMatches(provider, "None") ||
+                ProviderMatches(provider, "Off") ||
+                ProviderMatches(provider, "OpenAI") ||
+                ProviderMatches(provider, "OpenAICompatible") ||
+                ProviderMatches(provider, "OpenAIResponses") ||
+                ProviderMatches(provider, "OpenAICompatibleResponses") ||
+                ProviderMatches(provider, "Responses");
+        }
+
         private static bool ProviderMatches(string provider, string expected)
         {
             return CanonicalProvider(provider).Equals(CanonicalProvider(expected), StringComparison.OrdinalIgnoreCase);
@@ -574,42 +724,7 @@ namespace ArcaneEDR
 
         private static string CanonicalProvider(string provider)
         {
-            if (provider == null) return "";
-            if (provider.Equals("None", StringComparison.OrdinalIgnoreCase) ||
-                provider.Equals("Off", StringComparison.OrdinalIgnoreCase))
-            {
-                return "Disabled";
-            }
-
-            if (provider.Equals("SmtpEmail", StringComparison.OrdinalIgnoreCase) ||
-                provider.Equals("SmtpEmailAlertSink", StringComparison.OrdinalIgnoreCase))
-            {
-                return "Smtp";
-            }
-
-            if (provider.Equals("WebhookAlertSink", StringComparison.OrdinalIgnoreCase))
-            {
-                return "Webhook";
-            }
-
-            if (provider.Equals("GenericHttpApiAlertSink", StringComparison.OrdinalIgnoreCase) ||
-                provider.Equals("HttpApi", StringComparison.OrdinalIgnoreCase))
-            {
-                return "GenericHttpApi";
-            }
-
-            if (provider.Equals("LocalJsonlAlertSink", StringComparison.OrdinalIgnoreCase))
-            {
-                return "LocalJsonl";
-            }
-
-            if (provider.Equals("EventLog", StringComparison.OrdinalIgnoreCase) ||
-                provider.Equals("WindowsEventLogAlertSink", StringComparison.OrdinalIgnoreCase))
-            {
-                return "WindowsEventLog";
-            }
-
-            return provider;
+            return MonitorConfig.CanonicalExternalAlertProvider(provider);
         }
 
         private static int Finish(List<string> errors, List<string> warnings)

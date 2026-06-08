@@ -83,37 +83,82 @@ namespace ArcaneEDR
         {
             StringBuilder builder = new StringBuilder();
             DailyReportMetrics metrics = CalculateMetrics(snapshot);
-            AppendQuickVerdict(builder, snapshot, metrics);
-            builder.AppendLine();
+            if (DailyReportSectionEnabled("QuickVerdict"))
+            {
+                AppendQuickVerdict(builder, snapshot, metrics);
+                builder.AppendLine();
+            }
 
-            builder.AppendLine("## Critical Callouts");
-            AppendCriticalCallouts(builder, snapshot, metrics);
-            builder.AppendLine();
+            if (DailyReportSectionEnabled("CriticalCallouts"))
+            {
+                builder.AppendLine("## Critical Callouts");
+                AppendCriticalCallouts(builder, snapshot, metrics);
+                builder.AppendLine();
+            }
 
             AppendCoreReport(builder, snapshot, true, metrics);
-            builder.AppendLine();
-            builder.AppendLine("## OpenAI Review");
-            builder.AppendLine("| Field | Value |");
-            builder.AppendLine("| --- | --- |");
-            builder.AppendLine("| Status | " + TableCell(Safe(aiStatus)) + " |");
-            builder.AppendLine("| Scope | Secondary redacted aggregate review only; the report determination and critical callouts are deterministic local telemetry. |");
-            if (aiResult != null)
+
+            if (DailyReportSectionEnabled("OpenAIReview"))
             {
-                builder.AppendLine("| Flagged for review | " + (aiResult.Alertable ? "Yes" : "No") + " |");
-                builder.AppendLine("| Cautious score | " + aiResult.Score.ToString(CultureInfo.InvariantCulture) + " |");
-                builder.AppendLine("| Read | " + TableCell(Safe(aiResult.Title)) + " |");
-                builder.AppendLine("| Summary | " + TableCell(Safe(aiResult.Summary)) + " |");
-                builder.AppendLine("| Suggested action | " + TableCell(Safe(aiResult.RecommendedAction)) + " |");
-            }
-            else
-            {
-                builder.AppendLine("| Summary | No OpenAI daily analysis was included. |");
+                builder.AppendLine();
+                builder.AppendLine("## AI Review");
+                builder.AppendLine("| Field | Value |");
+                builder.AppendLine("| --- | --- |");
+                builder.AppendLine("| Status | " + TableCell(Safe(aiStatus)) + " |");
+                builder.AppendLine("| Scope | Secondary redacted aggregate review only; the report determination and critical callouts are deterministic local telemetry. |");
+                if (aiResult != null)
+                {
+                    builder.AppendLine("| Flagged for review | " + (aiResult.Alertable ? "Yes" : "No") + " |");
+                    builder.AppendLine("| Cautious score | " + aiResult.Score.ToString(CultureInfo.InvariantCulture) + " |");
+                    builder.AppendLine("| Read | " + TableCell(Safe(aiResult.Title)) + " |");
+                    builder.AppendLine("| Summary | " + TableCell(Safe(aiResult.Summary)) + " |");
+                    builder.AppendLine("| Suggested action | " + TableCell(Safe(aiResult.RecommendedAction)) + " |");
+                }
+                else
+                {
+                    builder.AppendLine("| Summary | No AI daily analysis was included. |");
+                }
             }
 
-            builder.AppendLine();
-            builder.AppendLine("## Tuning Notes");
-            AppendTuningNotes(builder, snapshot, metrics);
+            if (DailyReportSectionEnabled("TuningNotes"))
+            {
+                builder.AppendLine();
+                builder.AppendLine("## Tuning Notes");
+                AppendTuningNotes(builder, snapshot, metrics);
+            }
+
             return builder.ToString();
+        }
+
+        public string BuildArchiveJson(DailyReportSnapshot snapshot, OpenAiAnalysisResult aiResult, string aiStatus)
+        {
+            DailyReportMetrics metrics = CalculateMetrics(snapshot);
+            Dictionary<string, object> root = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            root["schema"] = "arcane_daily_report_v1";
+            root["generated_utc"] = Format(snapshot.GeneratedUtc);
+            root["window_start_utc"] = Format(snapshot.WindowStartUtc);
+            root["window_end_utc"] = Format(snapshot.GeneratedUtc);
+            root["generated_system_time"] = FormatSystemLocalTime(snapshot.GeneratedUtc);
+            root["window_system_time"] = FormatSystemLocalTime(snapshot.WindowStartUtc) + " to " + FormatSystemLocalTime(snapshot.GeneratedUtc);
+            root["scheduled_local_time"] = snapshot.ScheduledLocalTime;
+            root["run_id"] = snapshot.RunId;
+            root["assessment"] = snapshot.Assessment;
+            root["determination"] = BuildOperatorVerdict(snapshot, metrics);
+            root["compromise_assessment"] = BuildCompromiseAssessment(snapshot, metrics);
+            root["confidence"] = BuildConfidence(snapshot);
+            root["recommended_next_step"] = BuildNextAction(metrics);
+            root["sections"] = new List<string>(config.DailyReportSections);
+            root["metrics"] = BuildMetricsObject(metrics);
+            root["health"] = BuildHealthObject(snapshot);
+            root["top_severities"] = BuildBucketObjects(BuildAlertBuckets(snapshot.Alerts, "severity"), config.DailyReportBucketRows);
+            root["top_categories"] = BuildBucketObjects(BuildAlertBuckets(snapshot.Alerts, "category"), config.DailyReportBucketRows);
+            root["top_rules"] = BuildBucketObjects(BuildAlertBuckets(snapshot.Alerts, "rule"), config.DailyReportBucketRows);
+            root["high_signal"] = BuildSignalObjects(BuildHighSignalSummaries(snapshot.Alerts, 75), config.DailyReportHighSignalRows);
+            root["automation_activity"] = BuildAgentActivityObject(snapshot.AgentActivities);
+            root["openai_review"] = BuildOpenAiObject(aiResult, aiStatus);
+
+            JavaScriptSerializer serializer = new JavaScriptSerializer();
+            return serializer.Serialize(root);
         }
 
         private void AppendQuickVerdict(StringBuilder builder, DailyReportSnapshot snapshot, DailyReportMetrics metrics)
@@ -141,7 +186,7 @@ namespace ArcaneEDR
             builder.AppendLine("| Source / latest local time | Signal | Process / source | Count | Score | Assessment |");
             builder.AppendLine("| --- | --- | --- | --- | --- | --- |");
 
-            int limit = Math.Min(5, critical.Count);
+            int limit = Math.Min(config.DailyReportCriticalCalloutRows, critical.Count);
             for (int index = 0; index < limit; index++)
             {
                 DailySignalSummary signal = critical[index];
@@ -168,36 +213,51 @@ namespace ArcaneEDR
 
             if (pretty)
             {
-                builder.AppendLine("## At A Glance");
-                builder.AppendLine("| Item | Value |");
-                builder.AppendLine("| --- | --- |");
-                builder.AppendLine("| 24h alerts | " + metrics.WindowAlerts.ToString(CultureInfo.InvariantCulture) + " |");
-                builder.AppendLine("| Critical / high priority | " + metrics.CriticalCount.ToString(CultureInfo.InvariantCulture) + " critical-priority, " + metrics.HighCount.ToString(CultureInfo.InvariantCulture) + " high-priority |");
-                builder.AppendLine("| External-qualified before rate limits | " + metrics.ExternalQualified.ToString(CultureInfo.InvariantCulture) + " |");
-                builder.AppendLine("| Health | " + TableCell(BuildHealthRead(snapshot)) + " |");
-                builder.AppendLine("| Baseline learning | " + (snapshot.BaselineLearningMode ? "On" : "Off") + " |");
-                builder.AppendLine("| Automation-context alerts | " + metrics.AgentContext.ToString(CultureInfo.InvariantCulture) + " |");
-                builder.AppendLine("| Maintenance-context alerts | " + metrics.MaintenanceContext.ToString(CultureInfo.InvariantCulture) + " |");
-                builder.AppendLine();
+                if (DailyReportSectionEnabled("AtAGlance"))
+                {
+                    builder.AppendLine("## At A Glance");
+                    builder.AppendLine("| Item | Value |");
+                    builder.AppendLine("| --- | --- |");
+                    builder.AppendLine("| 24h alerts | " + metrics.WindowAlerts.ToString(CultureInfo.InvariantCulture) + " |");
+                    builder.AppendLine("| Critical / high priority | " + metrics.CriticalCount.ToString(CultureInfo.InvariantCulture) + " critical-priority, " + metrics.HighCount.ToString(CultureInfo.InvariantCulture) + " high-priority |");
+                    builder.AppendLine("| External-qualified before rate limits | " + metrics.ExternalQualified.ToString(CultureInfo.InvariantCulture) + " |");
+                    builder.AppendLine("| Health | " + TableCell(BuildHealthRead(snapshot)) + " |");
+                    builder.AppendLine("| Baseline learning | " + (snapshot.BaselineLearningMode ? "On" : "Off") + " |");
+                    builder.AppendLine("| Automation-context alerts | " + metrics.AgentContext.ToString(CultureInfo.InvariantCulture) + " |");
+                    builder.AppendLine("| Maintenance-context alerts | " + metrics.MaintenanceContext.ToString(CultureInfo.InvariantCulture) + " |");
+                    builder.AppendLine();
+                }
 
-                builder.AppendLine("## Signal Summary");
-                AppendBucketTable(builder, "Severity", BuildAlertBuckets(alerts, "severity"), 6);
-                builder.AppendLine();
-                AppendBucketTable(builder, "Top Categories", BuildAlertBuckets(alerts, "category"), 6);
-                builder.AppendLine();
-                AppendBucketTable(builder, "Top Rules", BuildAlertBuckets(alerts, "rule"), 6);
-                builder.AppendLine();
+                if (DailyReportSectionEnabled("SignalSummary"))
+                {
+                    builder.AppendLine("## Signal Summary");
+                    AppendBucketTable(builder, "Severity", BuildAlertBuckets(alerts, "severity"), config.DailyReportBucketRows);
+                    builder.AppendLine();
+                    AppendBucketTable(builder, "Top Categories", BuildAlertBuckets(alerts, "category"), config.DailyReportBucketRows);
+                    builder.AppendLine();
+                    AppendBucketTable(builder, "Top Rules", BuildAlertBuckets(alerts, "rule"), config.DailyReportBucketRows);
+                    builder.AppendLine();
+                }
 
-                builder.AppendLine("## False Positive Context");
-                AppendFalsePositiveContext(builder, snapshot, metrics);
-                builder.AppendLine();
+                if (DailyReportSectionEnabled("FalsePositiveContext"))
+                {
+                    builder.AppendLine("## False Positive Context");
+                    AppendFalsePositiveContext(builder, snapshot, metrics);
+                    builder.AppendLine();
+                }
 
-                builder.AppendLine("## High-Signal Details");
-                AppendHighSignal(builder, alerts, 7);
-                builder.AppendLine();
+                if (DailyReportSectionEnabled("HighSignalDetails"))
+                {
+                    builder.AppendLine("## High-Signal Details");
+                    AppendHighSignal(builder, alerts, config.DailyReportHighSignalRows);
+                    builder.AppendLine();
+                }
 
-                builder.AppendLine("## Automation Activity");
-                AppendAgentActivity(builder, agentActivities);
+                if (DailyReportSectionEnabled("AutomationActivity"))
+                {
+                    builder.AppendLine("## Automation Activity");
+                    AppendAgentActivity(builder, agentActivities);
+                }
                 return;
             }
 
@@ -507,9 +567,9 @@ namespace ArcaneEDR
             builder.AppendLine("| Item | Value |");
             builder.AppendLine("| --- | --- |");
             builder.AppendLine("| Automation activity records | " + agentActivities.Count.ToString(CultureInfo.InvariantCulture) + " |");
-            builder.AppendLine("| Command categories | " + TableCell(JoinBucketSummary(BuildAgentBuckets(agentActivities, "command"), 3)) + " |");
-            builder.AppendLine("| Endpoint categories | " + TableCell(JoinBucketSummary(BuildAgentBuckets(agentActivities, "endpoint"), 3)) + " |");
-            builder.AppendLine("| File categories | " + TableCell(JoinBucketSummary(BuildAgentBuckets(agentActivities, "file"), 3)) + " |");
+            builder.AppendLine("| Command categories | " + TableCell(JoinBucketSummary(BuildAgentBuckets(agentActivities, "command"), config.DailyReportAgentBucketRows)) + " |");
+            builder.AppendLine("| Endpoint categories | " + TableCell(JoinBucketSummary(BuildAgentBuckets(agentActivities, "endpoint"), config.DailyReportAgentBucketRows)) + " |");
+            builder.AppendLine("| File categories | " + TableCell(JoinBucketSummary(BuildAgentBuckets(agentActivities, "file"), config.DailyReportAgentBucketRows)) + " |");
         }
 
         private string BuildCompromiseAssessment(DailyReportSnapshot snapshot, DailyReportMetrics metrics)
@@ -639,6 +699,113 @@ namespace ArcaneEDR
             }
 
             return String.Join(", ", parts.ToArray());
+        }
+
+        private bool DailyReportSectionEnabled(string section)
+        {
+            return config.DailyReportSections == null ||
+                config.DailyReportSections.Count == 0 ||
+                config.DailyReportSections.Contains(section);
+        }
+
+        private Dictionary<string, object> BuildMetricsObject(DailyReportMetrics metrics)
+        {
+            Dictionary<string, object> result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            result["window_alerts"] = metrics.WindowAlerts;
+            result["critical_count"] = metrics.CriticalCount;
+            result["high_count"] = metrics.HighCount;
+            result["medium_count"] = metrics.MediumCount;
+            result["low_count"] = metrics.LowCount;
+            result["external_qualified_before_rate_limits"] = metrics.ExternalQualified;
+            result["maintenance_context"] = metrics.MaintenanceContext;
+            result["agent_context"] = metrics.AgentContext;
+            result["highest_score"] = metrics.HighestScore;
+            result["high_signal_count"] = metrics.HighSignalCount;
+            return result;
+        }
+
+        private Dictionary<string, object> BuildHealthObject(DailyReportSnapshot snapshot)
+        {
+            Dictionary<string, object> result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            result["current_run_uptime_hours"] = snapshot.CurrentRunUptimeHours.ToString("0.00", CultureInfo.InvariantCulture);
+            result["current_run_polls"] = snapshot.CurrentRunPolls;
+            result["current_run_alerts"] = snapshot.CurrentRunAlerts;
+            result["current_run_poll_failures"] = snapshot.CurrentRunPollFailures;
+            result["total_polls"] = snapshot.TotalPolls;
+            result["total_alerts"] = snapshot.TotalAlerts;
+            result["total_poll_failures"] = snapshot.TotalPollFailures;
+            result["external_send_failures"] = snapshot.ExternalSendFailures;
+            result["last_clean_stop_utc"] = Format(snapshot.LastCleanStopUtc);
+            result["baseline_learning_mode"] = snapshot.BaselineLearningMode;
+            result["read"] = BuildHealthRead(snapshot);
+            return result;
+        }
+
+        private static List<Dictionary<string, object>> BuildBucketObjects(List<DailyReportBucket> buckets, int limit)
+        {
+            List<Dictionary<string, object>> result = new List<Dictionary<string, object>>();
+            int count = Math.Min(limit, buckets.Count);
+            for (int index = 0; index < count; index++)
+            {
+                DailyReportBucket bucket = buckets[index];
+                Dictionary<string, object> item = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                item["name"] = bucket.Name;
+                item["count"] = bucket.Count;
+                item["max_score"] = bucket.MaxScore;
+                item["maintenance_context"] = bucket.MaintenanceContext;
+                item["agent_context"] = bucket.AgentContext;
+                result.Add(item);
+            }
+
+            return result;
+        }
+
+        private static List<Dictionary<string, object>> BuildSignalObjects(List<DailySignalSummary> signals, int limit)
+        {
+            List<Dictionary<string, object>> result = new List<Dictionary<string, object>>();
+            int count = Math.Min(limit, signals.Count);
+            for (int index = 0; index < count; index++)
+            {
+                DailySignalSummary signal = signals[index];
+                Dictionary<string, object> item = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                item["latest_utc"] = Format(signal.LatestTimestampUtc);
+                item["rule_id"] = signal.RuleId;
+                item["title"] = signal.Title;
+                item["count"] = signal.Count;
+                item["max_score"] = signal.MaxScore;
+                item["process_summary"] = ProcessSummary(signal);
+                item["assessment"] = ExplainAlert(signal.SampleAlert);
+                result.Add(item);
+            }
+
+            return result;
+        }
+
+        private Dictionary<string, object> BuildAgentActivityObject(List<DailyAgentActivityRecord> agentActivities)
+        {
+            Dictionary<string, object> result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            result["records"] = agentActivities.Count;
+            result["command_categories"] = BuildBucketObjects(BuildAgentBuckets(agentActivities, "command"), config.DailyReportAgentBucketRows);
+            result["endpoint_categories"] = BuildBucketObjects(BuildAgentBuckets(agentActivities, "endpoint"), config.DailyReportAgentBucketRows);
+            result["file_categories"] = BuildBucketObjects(BuildAgentBuckets(agentActivities, "file"), config.DailyReportAgentBucketRows);
+            return result;
+        }
+
+        private Dictionary<string, object> BuildOpenAiObject(OpenAiAnalysisResult aiResult, string aiStatus)
+        {
+            Dictionary<string, object> result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            result["status"] = Safe(aiStatus);
+            result["scope"] = "secondary_redacted_aggregate_review_only";
+            if (aiResult != null)
+            {
+                result["flagged_for_review"] = aiResult.Alertable;
+                result["cautious_score"] = aiResult.Score;
+                result["read"] = Safe(aiResult.Title);
+                result["summary"] = Safe(aiResult.Summary);
+                result["suggested_action"] = Safe(aiResult.RecommendedAction);
+            }
+
+            return result;
         }
 
         private List<DailyAlertRecord> LoadAlerts(DateTime cutoffUtc)
@@ -835,10 +1002,28 @@ namespace ArcaneEDR
 
         private bool WouldQualifyForExternal(DailyAlertRecord record)
         {
-            if (record.Score < config.MinimumEmailScore) return false;
-            if (record.MaintenanceContext && record.Score < config.MaintenanceContextExternalAlertMinimumScore) return false;
-            if (config.BaselineLearningMode && record.Score < config.BaselineLearningEmailMinimumScore) return false;
+            if (record == null) return false;
+            if (IsDirectExternalRule(record.RuleId)) return config.HasExternalAlertProviderEligibleForScore(record.Score);
+
+            Alert alert = new Alert();
+            alert.RuleId = record.RuleId;
+            alert.Category = record.Category;
+            alert.Score = record.Score;
+            alert.Title = record.Title;
+            alert.MaintenanceContext = record.MaintenanceContext;
+
+            if (alert.Score < AlertRulePolicy.MinimumExternalScore(config, alert)) return false;
+            if (!config.HasExternalAlertProviderEligibleForScore(alert.Score)) return false;
+            if (alert.MaintenanceContext && alert.Score < config.MaintenanceContextExternalAlertMinimumScore) return false;
+            if (config.BaselineLearningMode && alert.Score < config.BaselineLearningEmailMinimumScore) return false;
             return true;
+        }
+
+        private static bool IsDirectExternalRule(string ruleId)
+        {
+            if (ruleId == null) return false;
+            return ruleId.StartsWith("SERVICE-", StringComparison.OrdinalIgnoreCase) ||
+                ruleId.StartsWith("OPENAI-LOG-ANALYSIS-", StringComparison.OrdinalIgnoreCase);
         }
 
         private string Assess(DailyReportSnapshot snapshot)
