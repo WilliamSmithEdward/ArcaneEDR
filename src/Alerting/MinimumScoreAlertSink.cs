@@ -27,17 +27,17 @@ namespace ArcaneEDR
             get { return inner.MissingConfigurationReason; }
         }
 
-        public void Send(Alert alert)
+        public bool Send(Alert alert)
         {
             if (alert != null && alert.Score < minimumScore)
             {
                 logger.Info("Skipping alert sink " + providerName +
                     " because alert score " + alert.Score.ToString(CultureInfo.InvariantCulture) +
                     " is below provider minimum " + minimumScore.ToString(CultureInfo.InvariantCulture) + ".");
-                return;
+                return false;
             }
 
-            inner.Send(alert);
+            return inner.Send(alert);
         }
     }
 }

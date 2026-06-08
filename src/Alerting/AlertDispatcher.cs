@@ -125,8 +125,14 @@ namespace ArcaneEDR
             {
                 try
                 {
-                    alertSink.Send(alert);
-                    return true;
+                    if (alertSink.Send(alert))
+                    {
+                        return true;
+                    }
+
+                    failureReason = "";
+                    logger.Info("External alert delivery skipped by sink routing: " + alert.RuleId + ".");
+                    return false;
                 }
                 catch (Exception ex)
                 {
@@ -148,6 +154,7 @@ namespace ArcaneEDR
         {
             if (!config.ExternalAlertRetryEnabled) return;
             if (!alertSink.IsConfigured) return;
+            if (String.IsNullOrWhiteSpace(failureReason)) return;
 
             retryQueue.Enqueue(alert, failureReason);
         }

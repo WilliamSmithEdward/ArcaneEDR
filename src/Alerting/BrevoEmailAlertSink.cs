@@ -39,7 +39,7 @@ namespace ArcaneEDR
             }
         }
 
-        public void Send(Alert alert)
+        public bool Send(Alert alert)
         {
             BrevoEmailMessage message = new BrevoEmailMessage
             {
@@ -56,6 +56,7 @@ namespace ArcaneEDR
                 " score=" + alert.Score.ToString(CultureInfo.InvariantCulture) +
                 " status=" + result.StatusCode.ToString(CultureInfo.InvariantCulture) +
                 " response=" + AlertMessageFormatter.Compact(result.ResponseBody, 300));
+            return true;
         }
     }
 }

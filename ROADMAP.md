@@ -524,6 +524,8 @@ Progress:
   provider-specific secrets.
 - Added `ExternalAlertProviderMinimumScores` so each configured sink can have
   its own score floor after global, rule, and category external thresholds.
+- Added `ExternalAlertProviderMaxPerHour` so each configured sink can have an
+  optional hourly delivery cap in addition to the global alert rate limits.
 - Added a daily report archive path with configurable Markdown/JSON output,
   selectable report sections, and row limits for critical callouts,
   high-signal details, bucket summaries, and automation summaries. The JSON

@@ -44,7 +44,7 @@ namespace ArcaneEDR
             }
         }
 
-        public void Send(Alert alert)
+        public bool Send(Alert alert)
         {
             int configured = 0;
             int sent = 0;
@@ -61,8 +61,10 @@ namespace ArcaneEDR
                 configured++;
                 try
                 {
-                    sink.Send(alert);
-                    sent++;
+                    if (sink.Send(alert))
+                    {
+                        sent++;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -79,12 +81,18 @@ namespace ArcaneEDR
                     logger.Warn("Alert delivered to " + sent + " of " + configured + " configured sink(s); failures: " + String.Join("; ", failures.ToArray()));
                 }
 
-                return;
+                return true;
             }
 
             if (configured == 0)
             {
                 throw new InvalidOperationException(MissingConfigurationReason);
+            }
+
+            if (failures.Count == 0)
+            {
+                logger.Info("No configured alert sink accepted alert " + (alert == null ? "" : alert.RuleId) + ".");
+                return false;
             }
 
             throw new InvalidOperationException("All configured alert sinks failed: " + String.Join("; ", failures.ToArray()));

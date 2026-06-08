@@ -26,7 +26,7 @@ namespace ArcaneEDR
             get { return IsConfigured ? "" : "LocalJsonlAlertSinkFile is empty."; }
         }
 
-        public void Send(Alert alert)
+        public bool Send(Alert alert)
         {
             string path = config.LocalJsonlAlertSinkFile;
             string directory = Path.GetDirectoryName(path);
@@ -43,6 +43,7 @@ namespace ArcaneEDR
             logger.Info("Wrote local JSONL alert sink record for " + alert.RuleId +
                 " score=" + alert.Score.ToString(CultureInfo.InvariantCulture) +
                 " path=" + path);
+            return true;
         }
     }
 }

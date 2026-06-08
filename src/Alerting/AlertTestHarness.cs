@@ -8,21 +8,32 @@ namespace ArcaneEDR
     {
         public static void SendTestAlert(string baseDirectory)
         {
+            SendTestAlert(baseDirectory, new string[0]);
+        }
+
+        public static void SendTestAlert(string baseDirectory, string[] args)
+        {
             MonitorConfig config = MonitorConfig.Load(baseDirectory);
             FileLogger logger = new FileLogger(config.LogDirectory, config.MaxLogFileBytes);
             IAlertSink alertSink = AlertSinkFactory.Create(config, logger);
             ResponseManager responseManager = new ResponseManager(config, logger);
             AlertDispatcher dispatcher = new AlertDispatcher(config, logger, alertSink, responseManager);
 
-            Alert alert = Alert.Create(
-                "TEST-ALERT-DELIVERY",
-                "Alert delivery test",
-                100,
-                "This is a manual test alert from " + config.ProductName + ".",
-                "No action required if you intentionally ran the test.",
-                "test-alert|delivery");
+            int count = ParseCount(args, 1);
+            List<Alert> alerts = new List<Alert>();
+            for (int index = 0; index < count; index++)
+            {
+                string suffix = count == 1 ? "" : " " + (index + 1).ToString(System.Globalization.CultureInfo.InvariantCulture) + " of " + count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                alerts.Add(Alert.Create(
+                    "TEST-ALERT-DELIVERY",
+                    "Alert delivery test" + suffix,
+                    100,
+                    "This is a manual test alert from " + config.ProductName + ".",
+                    "No action required if you intentionally ran the test.",
+                    "test-alert|delivery|" + index.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            }
 
-            dispatcher.Dispatch(new List<Alert> { alert });
+            dispatcher.Dispatch(alerts);
         }
 
         public static void SendHealthTest(string baseDirectory)
@@ -186,6 +197,24 @@ namespace ArcaneEDR
             }
 
             return false;
+        }
+
+        private static int ParseCount(string[] args, int fallback)
+        {
+            if (args == null) return fallback;
+            for (int index = 0; index < args.Length - 1; index++)
+            {
+                if (args[index] != null && args[index].Equals("--count", StringComparison.OrdinalIgnoreCase))
+                {
+                    int parsed;
+                    if (Int32.TryParse(args[index + 1], out parsed) && parsed > 0)
+                    {
+                        return Math.Min(parsed, 20);
+                    }
+                }
+            }
+
+            return fallback;
         }
     }
 }

@@ -34,7 +34,7 @@ namespace ArcaneEDR
             }
         }
 
-        public void Send(Alert alert)
+        public bool Send(Alert alert)
         {
             EnsureSource();
             EventLogEntryType entryType = EntryTypeFor(alert);
@@ -56,6 +56,7 @@ namespace ArcaneEDR
             logger.Info("Wrote Windows Event Log alert for " + alert.RuleId +
                 " source=" + config.WindowsEventLogAlertSource +
                 " event_id=" + config.WindowsEventLogAlertEventId.ToString(CultureInfo.InvariantCulture));
+            return true;
         }
 
         private void EnsureSource()

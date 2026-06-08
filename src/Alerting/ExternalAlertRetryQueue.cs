@@ -77,6 +77,15 @@ namespace ArcaneEDR
                     continue;
                 }
 
+                if (String.IsNullOrWhiteSpace(failureReason))
+                {
+                    item.NextAttemptUtc = now.AddSeconds(NextDelaySeconds(item.Attempts));
+                    changed = true;
+                    index++;
+                    logger.Info("Deferred queued external alert for " + item.Alert.RuleId + " because sink routing did not accept it.");
+                    continue;
+                }
+
                 item.Attempts++;
                 item.LastFailureReason = failureReason ?? "";
                 if (item.Attempts >= config.ExternalAlertRetryMaxAttempts)

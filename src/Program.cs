@@ -28,7 +28,7 @@ namespace ArcaneEDR
 
             if (args.Length > 0 && args[0].Equals("--test-alert", StringComparison.OrdinalIgnoreCase))
             {
-                AlertTestHarness.SendTestAlert(AppDomain.CurrentDomain.BaseDirectory);
+                AlertTestHarness.SendTestAlert(AppDomain.CurrentDomain.BaseDirectory, args);
                 return;
             }
 
@@ -153,7 +153,7 @@ namespace ArcaneEDR
             Console.WriteLine("  ArcaneEDR.exe --validate-config [config-path]");
             Console.WriteLine("  ArcaneEDR.exe --console");
             Console.WriteLine("  ArcaneEDR.exe --poll-once");
-            Console.WriteLine("  ArcaneEDR.exe --test-alert");
+            Console.WriteLine("  ArcaneEDR.exe --test-alert [--count <n>]");
             Console.WriteLine("  ArcaneEDR.exe --test-health");
             Console.WriteLine("  ArcaneEDR.exe --test-daily-report");
             Console.WriteLine("  ArcaneEDR.exe --preview-daily-report [--json] [--archive]");

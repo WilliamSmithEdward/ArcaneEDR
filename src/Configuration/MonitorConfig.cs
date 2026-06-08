@@ -23,6 +23,7 @@ namespace ArcaneEDR
         public Dictionary<string, int> RuleMinimumEmailScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> CategoryMinimumEmailScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> ExternalAlertProviderMinimumScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, int> ExternalAlertProviderMaxPerHour = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public int ExternalAlertMaxPerDispatch = 3;
         public int ExternalAlertMaxPerHour = 12;
         public HashSet<string> ExternalAlertSuppressionTermGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -243,6 +244,7 @@ namespace ArcaneEDR
             config.RuleMinimumEmailScores = ReadStringIntMap(values, "RuleMinimumEmailScores");
             config.CategoryMinimumEmailScores = ReadStringIntMap(values, "CategoryMinimumEmailScores");
             config.ExternalAlertProviderMinimumScores = ReadStringIntMap(values, "ExternalAlertProviderMinimumScores");
+            config.ExternalAlertProviderMaxPerHour = ReadStringIntMap(values, "ExternalAlertProviderMaxPerHour");
             config.ExternalAlertMaxPerDispatch = ReadInt(values, "ExternalAlertMaxPerDispatch", config.ExternalAlertMaxPerDispatch);
             config.ExternalAlertMaxPerHour = ReadInt(values, "ExternalAlertMaxPerHour", config.ExternalAlertMaxPerHour);
             config.ExternalAlertSuppressionTermGroups = ReadStringSet(values, "ExternalAlertSuppressionTermGroups");
@@ -500,6 +502,22 @@ namespace ArcaneEDR
 
             string expected = CanonicalExternalAlertProvider(provider);
             foreach (KeyValuePair<string, int> item in ExternalAlertProviderMinimumScores)
+            {
+                if (CanonicalExternalAlertProvider(item.Key).Equals(expected, StringComparison.OrdinalIgnoreCase))
+                {
+                    return item.Value;
+                }
+            }
+
+            return 0;
+        }
+
+        public int ExternalAlertProviderHourlyLimit(string provider)
+        {
+            if (ExternalAlertProviderMaxPerHour == null || ExternalAlertProviderMaxPerHour.Count == 0) return 0;
+
+            string expected = CanonicalExternalAlertProvider(provider);
+            foreach (KeyValuePair<string, int> item in ExternalAlertProviderMaxPerHour)
             {
                 if (CanonicalExternalAlertProvider(item.Key).Equals(expected, StringComparison.OrdinalIgnoreCase))
                 {

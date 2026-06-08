@@ -62,7 +62,7 @@ namespace ArcaneEDR
             }
         }
 
-        public void Send(Alert alert)
+        public bool Send(Alert alert)
         {
             byte[] body = Encoding.UTF8.GetBytes(alert.ToJson());
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
@@ -86,6 +86,8 @@ namespace ArcaneEDR
                     " status=" + ((int)response.StatusCode).ToString(CultureInfo.InvariantCulture) +
                     " response=" + AlertMessageFormatter.Compact(ReadResponse(response), 300));
             }
+
+            return true;
         }
 
         private void AddSecretHeader(HttpWebRequest request)

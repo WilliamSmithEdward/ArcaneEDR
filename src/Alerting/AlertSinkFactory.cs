@@ -89,11 +89,23 @@ namespace ArcaneEDR
         private static IAlertSink ApplyProviderMinimum(MonitorConfig config, FileLogger logger, string provider, IAlertSink sink)
         {
             int minimumScore = config.ExternalAlertProviderMinimumScore(provider);
-            if (minimumScore <= 0) return sink;
+            if (minimumScore <= 0) return ApplyProviderRateLimit(config, logger, provider, sink);
 
-            return new MinimumScoreAlertSink(
+            return ApplyProviderRateLimit(config, logger, provider, new MinimumScoreAlertSink(
                 MonitorConfig.CanonicalExternalAlertProvider(provider),
                 minimumScore,
+                sink,
+                logger));
+        }
+
+        private static IAlertSink ApplyProviderRateLimit(MonitorConfig config, FileLogger logger, string provider, IAlertSink sink)
+        {
+            int maxPerHour = config.ExternalAlertProviderHourlyLimit(provider);
+            if (maxPerHour <= 0) return sink;
+
+            return new RateLimitedAlertSink(
+                MonitorConfig.CanonicalExternalAlertProvider(provider),
+                maxPerHour,
                 sink,
                 logger);
         }

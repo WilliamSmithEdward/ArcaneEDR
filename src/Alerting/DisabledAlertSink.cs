@@ -14,8 +14,9 @@ namespace ArcaneEDR
 
         public string MissingConfigurationReason { get; private set; }
 
-        public void Send(Alert alert)
+        public bool Send(Alert alert)
         {
+            return false;
         }
     }
 }

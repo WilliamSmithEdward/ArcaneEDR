@@ -47,7 +47,7 @@ namespace ArcaneEDR
             }
         }
 
-        public void Send(Alert alert)
+        public bool Send(Alert alert)
         {
             using (MailMessage message = new MailMessage())
             {
@@ -70,6 +70,7 @@ namespace ArcaneEDR
                 " score=" + alert.Score.ToString(CultureInfo.InvariantCulture) +
                 " host=" + config.SmtpHost +
                 " port=" + config.SmtpPort.ToString(CultureInfo.InvariantCulture));
+            return true;
         }
 
         private void ConfigureCredentials(SmtpClient client)

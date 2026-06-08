@@ -287,6 +287,7 @@ Test alert delivery:
 
 ```powershell
 .\bin\ArcaneEDR.exe --test-alert
+.\bin\ArcaneEDR.exe --test-alert --count 2
 ```
 
 Test service-health notification delivery:
@@ -573,6 +574,7 @@ ExternalAlertProvider=Brevo
 RequireExternalAlerting=true
 MinimumEmailScore=60
 ExternalAlertProviderMinimumScores=
+ExternalAlertProviderMaxPerHour=
 ExternalAlertMaxPerDispatch=3
 ExternalAlertMaxPerHour=12
 BrevoApiKeyEnvironmentVariable=<configured env var>
@@ -597,6 +599,7 @@ Log:
 ```ini
 ExternalAlertProvider=Brevo,LocalJsonl,WindowsEventLog
 ExternalAlertProviderMinimumScores=Brevo=90,LocalJsonl=60,WindowsEventLog=75
+ExternalAlertProviderMaxPerHour=Brevo=6,WindowsEventLog=12
 LocalJsonlAlertSinkFile=ArcaneExternalAlerts.jsonl
 WindowsEventLogAlertSource=ArcaneEDR
 WindowsEventLogAlertLogName=Application
@@ -608,6 +611,10 @@ the global, rule, and category external thresholds. This is useful when one sink
 should receive broader telemetry, while email or webhook destinations receive
 only higher-confidence alerts. A skipped provider does not remove the local
 alert log, incident grouping, or daily report context.
+
+`ExternalAlertProviderMaxPerHour` adds optional per-provider hourly caps after
+global rate limits. Use it to keep a noisy provider quiet while still allowing
+another configured sink to receive eligible alerts.
 
 SMTP:
 

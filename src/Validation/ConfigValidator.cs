@@ -375,6 +375,27 @@ namespace ArcaneEDR
                 }
             }
 
+            foreach (KeyValuePair<string, int> item in config.ExternalAlertProviderMaxPerHour)
+            {
+                if (!IsExternalAlertProvider(item.Key))
+                {
+                    Warn(warnings, "ExternalAlertProviderMaxPerHour contains an unknown provider: " + item.Key);
+                }
+                else if (ProviderMatches(item.Key, "Disabled"))
+                {
+                    Warn(warnings, "ExternalAlertProviderMaxPerHour should not target disabled provider alias: " + item.Key);
+                }
+                else if (!ProviderEnabled(config, item.Key))
+                {
+                    Warn(warnings, "ExternalAlertProviderMaxPerHour targets provider that is not enabled: " + item.Key);
+                }
+
+                if (item.Value < 0)
+                {
+                    Warn(warnings, "ExternalAlertProviderMaxPerHour entry must not be negative: " + item.Key + "=" + item.Value);
+                }
+            }
+
             if (ProviderEnabled(config, "LocalJsonl") && String.IsNullOrWhiteSpace(config.LocalJsonlAlertSinkFile))
             {
                 Fail(errors, "LocalJsonl provider is enabled but LocalJsonlAlertSinkFile is empty.");

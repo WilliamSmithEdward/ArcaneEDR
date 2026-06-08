@@ -4,6 +4,6 @@ namespace ArcaneEDR
     {
         bool IsConfigured { get; }
         string MissingConfigurationReason { get; }
-        void Send(Alert alert);
+        bool Send(Alert alert);
     }
 }
