@@ -323,7 +323,7 @@ namespace ArcaneEDR
                 }
             }
 
-            if (config.DailyReportDestinationEnabled("ReportWebhook"))
+            if (config.DailyReportDestinationEnabled("Webhook"))
             {
                 if (String.IsNullOrWhiteSpace(config.DailyReportWebhookUrl))
                 {
@@ -373,14 +373,10 @@ namespace ArcaneEDR
 
         private static bool IsDailyReportDestination(string destination)
         {
-            return ProviderMatches(destination, "ExternalAlertSinks") ||
-                ProviderMatches(destination, "ExternalAlerts") ||
-                ProviderMatches(destination, "AlertSinks") ||
-                ProviderMatches(destination, "LocalArchive") ||
-                ProviderMatches(destination, "Archive") ||
-                ProviderMatches(destination, "Webhook") ||
-                ProviderMatches(destination, "ReportWebhook") ||
-                ProviderMatches(destination, "DailyReportWebhook");
+            string canonical = MonitorConfig.CanonicalDailyReportDestination(destination);
+            return canonical.Equals("ExternalAlertSinks", StringComparison.OrdinalIgnoreCase) ||
+                canonical.Equals("LocalArchive", StringComparison.OrdinalIgnoreCase) ||
+                canonical.Equals("Webhook", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsDailyReportArchiveFormat(string format)
@@ -719,7 +715,7 @@ namespace ArcaneEDR
                 }
             }
 
-            if (config.DailyReportDestinationEnabled("ReportWebhook") &&
+            if (config.DailyReportDestinationEnabled("Webhook") &&
                 !String.IsNullOrWhiteSpace(config.DailyReportWebhookSecretEnvironmentVariable))
             {
                 if (String.IsNullOrWhiteSpace(secrets.GetSecret(config.DailyReportWebhookSecretEnvironmentVariable)))

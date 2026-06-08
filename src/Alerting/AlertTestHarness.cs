@@ -96,7 +96,7 @@ namespace ArcaneEDR
                 archive.Save(snapshot, body, archiveJson);
             }
 
-            if (config.DailyReportDestinationEnabled("ReportWebhook"))
+            if (config.DailyReportDestinationEnabled("Webhook"))
             {
                 DailyReportHttpSink reportSink = new DailyReportHttpSink(config, logger, secretProvider);
                 if (reportSink.IsConfigured)

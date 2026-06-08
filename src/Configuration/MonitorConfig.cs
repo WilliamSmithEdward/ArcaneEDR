@@ -550,33 +550,22 @@ namespace ArcaneEDR
         {
             if (String.IsNullOrWhiteSpace(destination)) return false;
             if (DailyReportDestinations == null || DailyReportDestinations.Count == 0) return false;
+            string expected = CanonicalDailyReportDestination(destination);
             foreach (string configured in DailyReportDestinations)
             {
-                if (ReportDestinationMatches(configured, destination)) return true;
+                if (CanonicalDailyReportDestination(configured).Equals(expected, StringComparison.OrdinalIgnoreCase)) return true;
             }
 
             return false;
         }
 
-        private static bool ReportDestinationMatches(string configured, string destination)
+        public static string CanonicalDailyReportDestination(string destination)
         {
-            if (String.IsNullOrWhiteSpace(configured) || String.IsNullOrWhiteSpace(destination)) return false;
-            string left = NormalizeReportDestination(configured);
-            string right = NormalizeReportDestination(destination);
-            return left.Equals(right, StringComparison.OrdinalIgnoreCase) ||
-                (left.Equals("externalalerts", StringComparison.OrdinalIgnoreCase) && right.Equals("externalalertsinks", StringComparison.OrdinalIgnoreCase)) ||
-                (left.Equals("alertsinks", StringComparison.OrdinalIgnoreCase) && right.Equals("externalalertsinks", StringComparison.OrdinalIgnoreCase)) ||
-                (left.Equals("archive", StringComparison.OrdinalIgnoreCase) && right.Equals("localarchive", StringComparison.OrdinalIgnoreCase)) ||
-                (left.Equals("webhook", StringComparison.OrdinalIgnoreCase) && right.Equals("reportwebhook", StringComparison.OrdinalIgnoreCase)) ||
-                (left.Equals("dailyreportwebhook", StringComparison.OrdinalIgnoreCase) && right.Equals("reportwebhook", StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static string NormalizeReportDestination(string value)
-        {
-            return value.Trim()
-                .Replace("-", "")
-                .Replace("_", "")
-                .Replace(" ", "");
+            if (destination == null) return "";
+            if (destination.Equals("ExternalAlertSinks", StringComparison.OrdinalIgnoreCase)) return "ExternalAlertSinks";
+            if (destination.Equals("LocalArchive", StringComparison.OrdinalIgnoreCase)) return "LocalArchive";
+            if (destination.Equals("Webhook", StringComparison.OrdinalIgnoreCase)) return "Webhook";
+            return destination.Trim();
         }
 
         public static string CanonicalExternalAlertProvider(string provider)

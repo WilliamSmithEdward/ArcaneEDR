@@ -546,6 +546,9 @@ Progress:
   without changing normal real-time alert sinks.
 - Added a report-specific webhook destination that posts the redacted daily
   report JSON payload without reusing normal alert webhook schema.
+- Collapsed daily report destination matching to the canonical
+  `ExternalAlertSinks`, `LocalArchive`, and `Webhook` names so the public
+  reporting surface does not depend on compatibility aliases.
 - Added `ArcaneEDR.exe --validate-config <config-path>` so cloned or staged
   deployments can validate a specific machine-tuned config without copying it
   into the runtime config directory first.

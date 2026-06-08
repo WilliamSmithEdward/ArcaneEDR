@@ -717,6 +717,8 @@ posts the redacted JSON report payload to `DailyReportWebhookUrl`. Use
 `DailyReportDestinations=LocalArchive` for archive-only reporting while keeping
 real-time alerts enabled, or `DailyReportDestinations=LocalArchive,Webhook` for
 archive plus report-specific webhook delivery.
+Supported destination names are `ExternalAlertSinks`, `LocalArchive`, and
+`Webhook`.
 
 Archived reports are written under `LogDirectory` when
 `DailyReportArchiveDirectory` is relative. The Markdown archive mirrors the
