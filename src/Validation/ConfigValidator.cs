@@ -173,6 +173,8 @@ namespace ArcaneEDR
                 return;
             }
 
+            ValidateAiAnalysisProviderMaps(config, providers, errors, warnings);
+
             foreach (string providerName in providers)
             {
                 AiAnalysisProviderSettings settings = config.AiAnalysisSettingsFor(providerName);
@@ -217,6 +219,85 @@ namespace ArcaneEDR
                     }
                 }
             }
+        }
+
+        private static void ValidateAiAnalysisProviderMaps(MonitorConfig config, List<string> providers, List<string> errors, List<string> warnings)
+        {
+            ValidateAiAnalysisProviderMapKeys(config.AIAnalysisProviderTypes, "AIAnalysisProviderTypes", providers, warnings);
+            ValidateAiAnalysisProviderMapKeys(config.AIAnalysisProviderModels, "AIAnalysisProviderModels", providers, warnings);
+            ValidateAiAnalysisProviderMapKeys(config.AIAnalysisProviderApiUrls, "AIAnalysisProviderApiUrls", providers, warnings);
+            ValidateAiAnalysisProviderMapKeys(config.AIAnalysisProviderApiKeyEnvironmentVariables, "AIAnalysisProviderApiKeyEnvironmentVariables", providers, warnings);
+            ValidateAiAnalysisProviderMapKeys(config.AIAnalysisProviderAuthHeaderNames, "AIAnalysisProviderAuthHeaderNames", providers, warnings);
+            ValidateAiAnalysisProviderMapKeys(config.AIAnalysisProviderAuthHeaderPrefixes, "AIAnalysisProviderAuthHeaderPrefixes", providers, warnings);
+            ValidateAiAnalysisProviderMapKeys(config.AIAnalysisProviderVersionHeaderNames, "AIAnalysisProviderVersionHeaderNames", providers, warnings);
+            ValidateAiAnalysisProviderMapKeys(config.AIAnalysisProviderVersionHeaderValues, "AIAnalysisProviderVersionHeaderValues", providers, warnings);
+            ValidateAiAnalysisProviderTypeValues(config.AIAnalysisProviderTypes, providers, errors, warnings);
+            ValidateDuplicateAiAnalysisProviders(providers, warnings);
+
+            if (providers.Count <= 1) return;
+
+            WarnIfMultiProviderGlobalConfigured(config.AIAnalysisModel, "AIAnalysisModel", "AIAnalysisProviderModels", warnings);
+            WarnIfMultiProviderGlobalConfigured(config.AIAnalysisApiUrl, "AIAnalysisApiUrl", "AIAnalysisProviderApiUrls", warnings);
+            WarnIfMultiProviderGlobalConfigured(config.AIAnalysisApiKeyEnvironmentVariable, "AIAnalysisApiKeyEnvironmentVariable", "AIAnalysisProviderApiKeyEnvironmentVariables", warnings);
+            WarnIfMultiProviderGlobalConfigured(config.AIAnalysisAuthHeaderName, "AIAnalysisAuthHeaderName", "AIAnalysisProviderAuthHeaderNames", warnings);
+            WarnIfMultiProviderGlobalConfigured(config.AIAnalysisAuthHeaderPrefix, "AIAnalysisAuthHeaderPrefix", "AIAnalysisProviderAuthHeaderPrefixes", warnings);
+        }
+
+        private static void ValidateAiAnalysisProviderMapKeys(Dictionary<string, string> map, string configKey, List<string> providers, List<string> warnings)
+        {
+            if (map == null) return;
+
+            foreach (KeyValuePair<string, string> item in map)
+            {
+                if (String.IsNullOrWhiteSpace(item.Key)) continue;
+                if (!AiAnalysisProviderConfigured(providers, item.Key))
+                {
+                    Warn(warnings, configKey + " targets provider that is not enabled in AIAnalysisProviders: " + item.Key);
+                }
+            }
+        }
+
+        private static void ValidateAiAnalysisProviderTypeValues(Dictionary<string, string> providerTypes, List<string> providers, List<string> errors, List<string> warnings)
+        {
+            if (providerTypes == null) return;
+
+            foreach (KeyValuePair<string, string> item in providerTypes)
+            {
+                if (!AiAnalysisProviderConfigured(providers, item.Key)) continue;
+
+                if (String.IsNullOrWhiteSpace(item.Value))
+                {
+                    Warn(warnings, "AIAnalysisProviderTypes entry is empty; provider name will be used as the type: " + item.Key);
+                }
+                else if (!IsAiAnalysisProvider(item.Value))
+                {
+                    Fail(errors, "AIAnalysisProviderTypes contains unsupported provider type: " + item.Key + "=" + item.Value);
+                }
+            }
+        }
+
+        private static void ValidateDuplicateAiAnalysisProviders(List<string> providers, List<string> warnings)
+        {
+            HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string provider in providers)
+            {
+                string canonical = MonitorConfig.CanonicalAiAnalysisProvider(provider);
+                if (String.IsNullOrWhiteSpace(canonical)) continue;
+                if (seen.Contains(canonical))
+                {
+                    Warn(warnings, "AIAnalysisProviders contains multiple entries with the same provider identity: " + provider);
+                }
+                else
+                {
+                    seen.Add(canonical);
+                }
+            }
+        }
+
+        private static void WarnIfMultiProviderGlobalConfigured(string value, string globalKey, string mapKey, List<string> warnings)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return;
+            Warn(warnings, globalKey + " is ignored when multiple AIAnalysisProviders are configured; use " + mapKey + " instead.");
         }
 
         private static void ValidateDailyReportConfig(MonitorConfig config, List<string> errors, List<string> warnings)
@@ -757,6 +838,17 @@ namespace ArcaneEDR
             foreach (string provider in config.GetExternalAlertProviders())
             {
                 if (ProviderMatches(provider, expectedProvider)) return true;
+            }
+
+            return false;
+        }
+
+        private static bool AiAnalysisProviderConfigured(List<string> providers, string expectedProvider)
+        {
+            foreach (string provider in providers)
+            {
+                if (provider.Equals(expectedProvider, StringComparison.OrdinalIgnoreCase)) return true;
+                if (AiProviderMatches(provider, expectedProvider)) return true;
             }
 
             return false;

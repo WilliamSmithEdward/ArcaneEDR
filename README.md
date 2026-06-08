@@ -797,6 +797,9 @@ provider is recorded in the provider breakdown without blocking a successful
 provider. The aggregate AI review uses the strongest alertable provider result,
 or the highest-scored completed result when no provider flags the sample, and
 keeps each provider's score, flag, and read visible in the daily report.
+Use the provider-specific maps for multi-provider setups; `--validate-config`
+warns about unused map entries and single-provider fields that are ignored when
+more than one `AIAnalysisProviders` entry is configured.
 Set `AIAnalysisAuthHeaderName=` only for a trusted no-auth local endpoint.
 
 The payload is intentionally compact and redacted. It includes health counters,
