@@ -40,7 +40,7 @@ partial implementations that look supported but only work through aliases or
 proxy behavior; a feature should be called supported when config, validation,
 runtime behavior, logging, reports, and docs all share the same model.
 
-Current active milestone: `v0.4.0`.
+Current active milestone: `v0.5.0`.
 
 Definition of done before moving focus to `v0.5.0`:
 
@@ -63,15 +63,14 @@ phase sections below.
 | `v0.1.x-preview` | Done | Complete | Functional preview: service, local logging, Brevo alerting, Sysmon ingestion, AI compact analysis, baseline learning, and daily summaries. |
 | `v0.2.0-beta` | Done | Complete | Tagged beta with install, upgrade, validation, package-release script, config preservation, and scheduled-task admin bridge. |
 | `v0.3.0` | Done | Complete | Detection-quality work is released as `v0.3.0`; further empirical tuning feeds later milestones. |
-| `v0.4.0` | Ready for release | Implementation complete | Modular alert sinks are implemented for Brevo, SMTP, webhook, generic HTTP/API, Windows Event Log, and local JSONL. Daily report preview, local archive, selectable sections, row limits, independent report destinations, canonical destination names, and concurrent AI provider fan-out are implemented; release verification, tag, and local publish remain. |
+| `v0.4.0` | Done | Complete | Modular alert sinks are released for Brevo, SMTP, webhook, generic HTTP/API, Windows Event Log, and local JSONL. Daily report preview, local archive, selectable sections, row limits, independent report destinations, canonical destination names, and concurrent AI provider fan-out are released in `v0.4.0`. |
 | `v0.5.0` | Mostly done | Substantial | `why` explanations, incident grouping, timeline command, support bundle, simulations, and rule-family docs are implemented. Remaining work is polishing expected alert shapes, demo flow, and user-friendly granular allow/block detection policy. |
 | `v0.6.0` | Started | Partial | Agent Profile labeling exists. Remaining work includes agent write/elevation guardrails, compact activity ledger, maintenance/session markers, response policy, and active-response dry-run. |
 | `v0.7.0` | Not started | Planned | Collector/rule interface cleanup, privacy hardening, and AI provider abstraction remain planned. |
 | `v1.0.0` | Not ready | Planned | Requires completed docs, tuned alert volume, tested install/upgrade/release flow, dry-run/manual response safety, and stable privacy/operations posture. |
 
-Current milestone focus: release-verify, tag, and locally publish `v0.4.0`,
-then move into `v0.5.0` investigation, simulation, and user-friendly policy
-polish.
+Current milestone focus: `v0.5.0` investigation, simulation, and user-friendly
+policy polish.
 
 ## `v1.0.0` Scope Boundary
 
