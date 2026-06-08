@@ -21,6 +21,9 @@ namespace ArcaneEDR
         public DateTime TimestampUtc;
         public int ResponseProcessId;
         public IPAddress ResponseRemoteAddress;
+        public bool ExternalSuppressedByPolicy;
+        public bool ExternalForcedByPolicy;
+        public string PolicyContext;
 
         public string SystemLocalTime
         {
@@ -218,6 +221,9 @@ namespace ArcaneEDR
                 "\"score\":" + Score.ToString(CultureInfo.InvariantCulture) + "," +
                 "\"title\":\"" + JsonEscape(Title) + "\"," +
                 "\"why\":" + WhyToJson() + "," +
+                "\"policy_context\":\"" + JsonEscape(PolicyContext) + "\"," +
+                "\"external_suppressed_by_policy\":" + (ExternalSuppressedByPolicy ? "true" : "false") + "," +
+                "\"external_forced_by_policy\":" + (ExternalForcedByPolicy ? "true" : "false") + "," +
                 "\"body\":\"" + JsonEscape(Body) + "\"," +
                 "\"recommendation\":\"" + JsonEscape(Recommendation) + "\"," +
                 "\"entity\":\"" + JsonEscape(EntitySummary) + "\"," +
@@ -238,6 +244,33 @@ namespace ArcaneEDR
             }
 
             Why.Add(normalized);
+        }
+
+        public void AddPolicyContext(string context)
+        {
+            if (String.IsNullOrWhiteSpace(context)) return;
+
+            string normalized = context.Trim();
+            if (String.IsNullOrWhiteSpace(PolicyContext))
+            {
+                PolicyContext = normalized;
+                return;
+            }
+
+            foreach (string existing in PolicyContext.Split(','))
+            {
+                if (existing.Trim().Equals(normalized, StringComparison.OrdinalIgnoreCase)) return;
+            }
+
+            PolicyContext = PolicyContext + "," + normalized;
+        }
+
+        public void SetScore(int score)
+        {
+            if (score < 0) score = 0;
+            if (score > 100) score = 100;
+            Score = score;
+            Severity = SeverityFromScore(score);
         }
 
         private static string SeverityFromScore(int score)

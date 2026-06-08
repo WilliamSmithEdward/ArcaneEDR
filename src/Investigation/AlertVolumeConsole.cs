@@ -108,6 +108,9 @@ namespace ArcaneEDR
                 alert.Body = ReadString(parsed, "body");
                 alert.EntitySummary = ReadString(parsed, "entity");
                 alert.MaintenanceContext = ReadBool(parsed, "maintenance_context");
+                alert.ExternalSuppressedByPolicy = ReadBool(parsed, "external_suppressed_by_policy");
+                alert.ExternalForcedByPolicy = ReadBool(parsed, "external_forced_by_policy");
+                alert.PolicyContext = ReadString(parsed, "policy_context");
 
                 DateTime timestampUtc;
                 if (!TryParseUtc(ReadString(parsed, "timestamp_utc"), out timestampUtc))
@@ -148,6 +151,8 @@ namespace ArcaneEDR
 
         private static bool WouldQualifyForExternal(MonitorConfig config, Alert alert, bool assumeBaselineLearningOff)
         {
+            if (alert.ExternalSuppressedByPolicy) return false;
+            if (alert.ExternalForcedByPolicy) return config.HasExternalAlertProviderEligibleForScore(alert.Score);
             if (UsesDirectExternalPath(alert)) return config.HasExternalAlertProviderEligibleForScore(alert.Score);
             if (alert.Score < AlertRulePolicy.MinimumExternalScore(config, alert)) return false;
             if (!config.HasExternalAlertProviderEligibleForScore(alert.Score)) return false;

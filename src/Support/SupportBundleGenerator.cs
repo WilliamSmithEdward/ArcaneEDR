@@ -62,6 +62,8 @@ namespace ArcaneEDR
             lines.Add("AIAnalysisProviders=" + String.Join(",", config.GetAiAnalysisProviderNames().ToArray()));
             lines.Add("AIAnalysisProviderModels=" + BuildAiProviderModelSummary());
             lines.Add("AIAnalysisAuthHeadersConfigured=" + BuildAiProviderAuthSummary());
+            lines.Add("DetectionPolicyEnabled=" + config.EnableDetectionPolicy);
+            lines.Add("DetectionPolicyFile=" + RedactPath(config.DetectionPolicyFile));
             lines.Add("IncidentGroupingEnabled=" + config.EnableIncidentGrouping);
             lines.Add("AgentActivityLedgerEnabled=" + config.EnableAgentActivityLedger);
             WriteLines(Path.Combine(bundleDirectory, "manifest.txt"), lines);
@@ -151,6 +153,7 @@ namespace ArcaneEDR
         {
             List<string> lines = new List<string>();
             lines.Add("Collectors");
+            lines.Add("Netstat=" + config.EnableNetstatCollector);
             lines.Add("Sysmon=" + config.EnableSysmonIngestion);
             lines.Add("PowerShell=" + config.EnablePowerShellLogIngestion);
             lines.Add("WindowsEvent=" + config.EnableWindowsEventIngestion);

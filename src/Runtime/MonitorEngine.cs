@@ -18,6 +18,7 @@ namespace ArcaneEDR
         private Timer timer;
         private bool running;
         private bool polling;
+        private readonly HashSet<string> warnedStages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         public MonitorEngine(
             MonitorConfig config,
@@ -112,11 +113,91 @@ namespace ArcaneEDR
 
         private List<Alert> CollectAlerts(DateTime timestampUtc)
         {
-            NetworkSnapshot snapshot = collector.Capture();
-            List<Alert> alerts = analyzer.Analyze(snapshot, timestampUtc);
-            alerts.AddRange(hostAnalyzer.Analyze(snapshot, timestampUtc));
-            alerts.AddRange(integrityMonitor.Check());
+            NetworkSnapshot snapshot = CaptureSnapshot();
+            List<Alert> alerts = new List<Alert>();
+            AddRange(alerts, AnalyzeNetwork(snapshot, timestampUtc));
+            AddRange(alerts, AnalyzeHost(snapshot, timestampUtc));
+            AddRange(alerts, CheckIntegrity());
             return alerts;
+        }
+
+        private NetworkSnapshot CaptureSnapshot()
+        {
+            try
+            {
+                NetworkSnapshot snapshot = collector == null ? null : collector.Capture();
+                return snapshot ?? EmptySnapshot();
+            }
+            catch (Exception ex)
+            {
+                WarnStage("collection", "Telemetry collection failed; continuing this poll with empty telemetry: " + ex.Message);
+                return EmptySnapshot();
+            }
+        }
+
+        private List<Alert> AnalyzeNetwork(NetworkSnapshot snapshot, DateTime timestampUtc)
+        {
+            try
+            {
+                return analyzer == null ? new List<Alert>() : analyzer.Analyze(snapshot ?? EmptySnapshot(), timestampUtc);
+            }
+            catch (Exception ex)
+            {
+                WarnStage("network-analysis", "Network analysis failed; continuing this poll with remaining checks: " + ex.Message);
+                return new List<Alert>();
+            }
+        }
+
+        private List<Alert> AnalyzeHost(NetworkSnapshot snapshot, DateTime timestampUtc)
+        {
+            try
+            {
+                return hostAnalyzer == null ? new List<Alert>() : hostAnalyzer.Analyze(snapshot ?? EmptySnapshot(), timestampUtc);
+            }
+            catch (Exception ex)
+            {
+                WarnStage("host-analysis", "Host analysis failed; continuing this poll with remaining checks: " + ex.Message);
+                return new List<Alert>();
+            }
+        }
+
+        private List<Alert> CheckIntegrity()
+        {
+            try
+            {
+                return integrityMonitor == null ? new List<Alert>() : integrityMonitor.Check();
+            }
+            catch (Exception ex)
+            {
+                WarnStage("integrity-check", "Integrity check failed; continuing this poll: " + ex.Message);
+                return new List<Alert>();
+            }
+        }
+
+        private void WarnStage(string stage, string message)
+        {
+            if (logger == null) return;
+
+            string key = String.IsNullOrWhiteSpace(stage) ? "unknown" : stage;
+            if (warnedStages.Contains(key)) return;
+            warnedStages.Add(key);
+            logger.Warn(message);
+        }
+
+        private static void AddRange(List<Alert> target, List<Alert> source)
+        {
+            if (target == null || source == null) return;
+            target.AddRange(source);
+        }
+
+        private static NetworkSnapshot EmptySnapshot()
+        {
+            return new NetworkSnapshot(
+                new List<NetworkEndpoint>(),
+                new List<DnsQueryEvent>(),
+                new List<SysmonProcessEvent>(),
+                new List<SysmonFileEvent>(),
+                new HostTelemetry());
         }
     }
 }

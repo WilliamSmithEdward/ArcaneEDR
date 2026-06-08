@@ -13,6 +13,7 @@ namespace ArcaneEDR
         private readonly IncidentStore incidentStore;
         private readonly LowValueRepeatDampener lowValueRepeatDampener;
         private readonly AgentActivityLedger agentActivityLedger;
+        private readonly DetectionPolicyEngine detectionPolicyEngine;
         private readonly Dictionary<string, DateTime> cooldowns = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         private readonly Queue<DateTime> externalSends = new Queue<DateTime>();
         private DateTime lastThrottleWarningUtc = DateTime.MinValue;
@@ -27,6 +28,7 @@ namespace ArcaneEDR
             incidentStore = new IncidentStore(config, logger);
             lowValueRepeatDampener = new LowValueRepeatDampener(config);
             agentActivityLedger = new AgentActivityLedger(config, logger);
+            detectionPolicyEngine = new DetectionPolicyEngine(config, logger);
         }
 
         public void Dispatch(IEnumerable<Alert> alerts)
@@ -36,39 +38,53 @@ namespace ArcaneEDR
             int sentThisDispatch = 0;
             foreach (Alert alert in alerts)
             {
-                if (alert == null) continue;
-                Alert annotatedAlert = Annotate(alert);
-
-                if (AlertRulePolicy.IsDisabled(config, annotatedAlert))
+                try
                 {
-                    logger.Warn("Alert suppressed by rule policy: " + annotatedAlert.RuleId +
-                        " category=" + annotatedAlert.Category + ".");
-                    continue;
+                    DispatchOne(alert, ref sentThisDispatch);
                 }
-
-                if (IsCoolingDown(annotatedAlert))
+                catch (Exception ex)
                 {
-                    continue;
+                    logger.Error("Alert dispatch failed; continuing with remaining alerts: " + ex);
                 }
+            }
+        }
 
-                Remember(annotatedAlert);
-                logger.Alert(annotatedAlert);
-                incidentStore.Record(annotatedAlert);
-                agentActivityLedger.Record(annotatedAlert);
-                responseManager.Handle(annotatedAlert);
+        private void DispatchOne(Alert alert, ref int sentThisDispatch)
+        {
+            if (alert == null) return;
+            Alert annotatedAlert = Annotate(alert);
 
-                if (ShouldSendExternal(annotatedAlert, sentThisDispatch))
+            if (AlertRulePolicy.IsDisabled(config, annotatedAlert))
+            {
+                logger.Warn("Alert suppressed by rule policy: " + annotatedAlert.RuleId +
+                    " category=" + annotatedAlert.Category + ".");
+                return;
+            }
+
+            detectionPolicyEngine.Apply(annotatedAlert);
+
+            if (IsCoolingDown(annotatedAlert))
+            {
+                return;
+            }
+
+            Remember(annotatedAlert);
+            logger.Alert(annotatedAlert);
+            incidentStore.Record(annotatedAlert);
+            agentActivityLedger.Record(annotatedAlert);
+            responseManager.Handle(annotatedAlert);
+
+            if (ShouldSendExternal(annotatedAlert, sentThisDispatch))
+            {
+                string failureReason;
+                if (TrySendExternalAlert(annotatedAlert, out failureReason))
                 {
-                    string failureReason;
-                    if (TrySendExternalAlert(annotatedAlert, out failureReason))
-                    {
-                        RememberExternalSend();
-                        sentThisDispatch++;
-                    }
-                    else
-                    {
-                        QueueFailedExternal(annotatedAlert, failureReason);
-                    }
+                    RememberExternalSend();
+                    sentThisDispatch++;
+                }
+                else
+                {
+                    QueueFailedExternal(annotatedAlert, failureReason);
                 }
             }
         }
@@ -84,9 +100,16 @@ namespace ArcaneEDR
                 return;
             }
 
+            detectionPolicyEngine.Apply(annotatedAlert);
             logger.Alert(annotatedAlert);
             incidentStore.Record(annotatedAlert);
             agentActivityLedger.Record(annotatedAlert);
+            if (annotatedAlert.ExternalSuppressedByPolicy)
+            {
+                logger.Info("External alert delivery suppressed by detection policy: " + annotatedAlert.RuleId + ".");
+                return;
+            }
+
             string failureReason;
             if (!TrySendExternalAlert(annotatedAlert, out failureReason))
             {
@@ -166,8 +189,15 @@ namespace ArcaneEDR
 
         private bool ShouldSendExternal(Alert alert, int sentThisDispatch)
         {
+            if (alert.ExternalSuppressedByPolicy)
+            {
+                WarnThrottled("detection policy suppressed external delivery");
+                return false;
+            }
+
+            bool forceExternal = alert.ExternalForcedByPolicy;
             int minimumExternalScore = AlertRulePolicy.MinimumExternalScore(config, alert);
-            if (alert.Score < minimumExternalScore) return false;
+            if (!forceExternal && alert.Score < minimumExternalScore) return false;
 
             if (!config.HasExternalAlertProviderEligibleForScore(alert.Score))
             {
@@ -175,25 +205,29 @@ namespace ArcaneEDR
                 return false;
             }
 
-            if (alert.MaintenanceContext &&
+            if (!forceExternal &&
+                alert.MaintenanceContext &&
                 alert.Score < config.MaintenanceContextExternalAlertMinimumScore)
             {
                 WarnThrottled("maintenance context below external alert threshold");
                 return false;
             }
 
-            if (config.BaselineLearningMode && alert.Score < config.BaselineLearningEmailMinimumScore)
+            if (!forceExternal &&
+                config.BaselineLearningMode &&
+                alert.Score < config.BaselineLearningEmailMinimumScore)
             {
                 return false;
             }
 
-            if (TermGroupRules.MatchesAnyGroup(AlertText(alert), config.ExternalAlertSuppressionTermGroups))
+            if (!forceExternal &&
+                TermGroupRules.MatchesAnyGroup(AlertText(alert), config.ExternalAlertSuppressionTermGroups))
             {
                 WarnThrottled("configured suppression group matched");
                 return false;
             }
 
-            if (lowValueRepeatDampener.ShouldDampen(alert))
+            if (!forceExternal && lowValueRepeatDampener.ShouldDampen(alert))
             {
                 WarnThrottled("repeated low-value alert dampened");
                 return false;

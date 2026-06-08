@@ -29,7 +29,7 @@ namespace ArcaneEDR
 
         public bool Send(Alert alert)
         {
-            if (alert != null && alert.Score < minimumScore)
+            if (alert != null && !alert.ExternalForcedByPolicy && alert.Score < minimumScore)
             {
                 logger.Info("Skipping alert sink " + providerName +
                     " because alert score " + alert.Score.ToString(CultureInfo.InvariantCulture) +

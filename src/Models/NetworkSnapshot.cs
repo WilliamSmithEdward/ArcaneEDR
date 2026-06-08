@@ -6,7 +6,7 @@ namespace ArcaneEDR
     {
         public NetworkSnapshot(List<NetworkEndpoint> endpoints)
         {
-            Endpoints = endpoints;
+            Endpoints = OrEmpty(endpoints);
             DnsQueries = new List<DnsQueryEvent>();
             ProcessEvents = new List<SysmonProcessEvent>();
             FileEvents = new List<SysmonFileEvent>();
@@ -15,28 +15,28 @@ namespace ArcaneEDR
 
         public NetworkSnapshot(List<NetworkEndpoint> endpoints, List<DnsQueryEvent> dnsQueries, List<SysmonProcessEvent> processEvents)
         {
-            Endpoints = endpoints;
-            DnsQueries = dnsQueries;
-            ProcessEvents = processEvents;
+            Endpoints = OrEmpty(endpoints);
+            DnsQueries = OrEmpty(dnsQueries);
+            ProcessEvents = OrEmpty(processEvents);
             FileEvents = new List<SysmonFileEvent>();
             HostTelemetry = new HostTelemetry();
         }
 
         public NetworkSnapshot(List<NetworkEndpoint> endpoints, List<DnsQueryEvent> dnsQueries, List<SysmonProcessEvent> processEvents, HostTelemetry hostTelemetry)
         {
-            Endpoints = endpoints;
-            DnsQueries = dnsQueries;
-            ProcessEvents = processEvents;
+            Endpoints = OrEmpty(endpoints);
+            DnsQueries = OrEmpty(dnsQueries);
+            ProcessEvents = OrEmpty(processEvents);
             FileEvents = new List<SysmonFileEvent>();
             HostTelemetry = hostTelemetry ?? new HostTelemetry();
         }
 
         public NetworkSnapshot(List<NetworkEndpoint> endpoints, List<DnsQueryEvent> dnsQueries, List<SysmonProcessEvent> processEvents, List<SysmonFileEvent> fileEvents, HostTelemetry hostTelemetry)
         {
-            Endpoints = endpoints;
-            DnsQueries = dnsQueries;
-            ProcessEvents = processEvents;
-            FileEvents = fileEvents ?? new List<SysmonFileEvent>();
+            Endpoints = OrEmpty(endpoints);
+            DnsQueries = OrEmpty(dnsQueries);
+            ProcessEvents = OrEmpty(processEvents);
+            FileEvents = OrEmpty(fileEvents);
             HostTelemetry = hostTelemetry ?? new HostTelemetry();
         }
 
@@ -45,5 +45,10 @@ namespace ArcaneEDR
         public List<SysmonProcessEvent> ProcessEvents { get; private set; }
         public List<SysmonFileEvent> FileEvents { get; private set; }
         public HostTelemetry HostTelemetry { get; private set; }
+
+        private static List<T> OrEmpty<T>(List<T> values)
+        {
+            return values ?? new List<T>();
+        }
     }
 }

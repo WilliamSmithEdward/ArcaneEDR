@@ -40,9 +40,9 @@ partial implementations that look supported but only work through aliases or
 proxy behavior; a feature should be called supported when config, validation,
 runtime behavior, logging, reports, and docs all share the same model.
 
-Current active milestone: `v0.5.0`.
+Current active milestone: `v0.6.0`.
 
-Definition of done before moving focus to `v0.5.0`:
+Recently completed `v0.4.0` gate:
 
 - Required alert sinks are implemented, validated, and documented.
 - Multi-sink fan-out isolates individual sink failures.
@@ -64,13 +64,13 @@ phase sections below.
 | `v0.2.0-beta` | Done | Complete | Tagged beta with install, upgrade, validation, package-release script, config preservation, and scheduled-task admin bridge. |
 | `v0.3.0` | Done | Complete | Detection-quality work is released as `v0.3.0`; further empirical tuning feeds later milestones. |
 | `v0.4.0` | Done | Complete | Modular alert sinks are released for Brevo, SMTP, webhook, generic HTTP/API, Windows Event Log, and local JSONL. Daily report preview, local archive, selectable sections, row limits, independent report destinations, canonical destination names, and concurrent AI provider fan-out are released in `v0.4.0`. |
-| `v0.5.0` | Mostly done | Substantial | `why` explanations, incident grouping, timeline command, support bundle, simulations, and rule-family docs are implemented. Remaining work is polishing expected alert shapes, demo flow, and user-friendly granular allow/block detection policy. |
-| `v0.6.0` | Started | Partial | Agent Profile labeling exists. Remaining work includes agent write/elevation guardrails, compact activity ledger, maintenance/session markers, response policy, and active-response dry-run. |
+| `v0.5.0` | Done | Complete | Released investigation MVP: `why` explanations, incident grouping, timeline command, support bundle, simulations and demo path, rule-family docs, poll-stage fail-isolation, and structured local detection-policy preview/tuning. |
+| `v0.6.0` | In progress | Partial | Agent Profile labeling exists. Remaining work includes agent write/elevation guardrails, compact activity ledger, maintenance/session markers, response policy, and active-response dry-run. |
 | `v0.7.0` | Not started | Planned | Collector/rule interface cleanup, privacy hardening, and AI provider abstraction remain planned. |
 | `v1.0.0` | Not ready | Planned | Requires completed docs, tuned alert volume, tested install/upgrade/release flow, dry-run/manual response safety, and stable privacy/operations posture. |
 
-Current milestone focus: `v0.5.0` investigation, simulation, and user-friendly
-policy polish.
+Current milestone focus: `v0.6.0` agentic workstation guardrails and
+active-response dry-run groundwork.
 
 ## `v1.0.0` Scope Boundary
 
@@ -392,6 +392,8 @@ Progress:
 - Added `scripts\simulate-detection.cmd` / `.ps1` for safe representative
   simulations covering encoded PowerShell, unexpected localhost listener, and
   scheduled-task persistence telemetry.
+- Added `scripts\simulate-detection.cmd -Scenario Demo` as a compact
+  benign/suspicious/cleanup demo path for first-run validation.
 - Added `docs\rule-family-reference.md` covering current rule families,
   required telemetry, value, false positives, tuning knobs, safe tests, and
   expected alert shape.
@@ -615,6 +617,12 @@ Collector modules:
 - `WindowsSystemCollector`
 - `PersistenceCollector`
 - `DnsCollector`
+- Initial collector and poll-stage fail-isolation completed. Netstat, Sysmon,
+  individual host telemetry collectors, network analysis, host analysis,
+  integrity checks, and per-alert dispatch now continue with remaining work
+  after a bounded failure and log a warning/error for review.
+  `EnableNetstatCollector` completes the current set of user-facing collector
+  toggles.
 
 Enrichment modules:
 
@@ -638,13 +646,16 @@ User-friendly granular detection policy:
 
 - Add a structured policy file, for example `config\policy-rules.json`, for
   machine-specific allow/block tuning without hardcoding local software into
-  the product.
+  the product. Initial runtime support completed with an ignored local
+  `DetectionPolicyFile`, tracked example template, validation, and recent-alert
+  preview command.
 - Keep normal cases field-based rather than regex-based. Supported match fields
   should include process name, parent process, signer, path prefix, command
   term group, user/account, rule ID, category, destination domain, IP/CIDR,
   port, and hash.
 - Support plain-language actions such as `trusted_context`, `lower_score`,
-  `suppress_external`, `raise_score`, `force_alert`, and `tag_only`.
+  `suppress_external`, `raise_score`, `force_alert`, and `tag_only`. Initial
+  support completed; `suppress_external` preserves local evidence by default.
 - Preserve local logging, incident grouping, and report context by default even
   when a policy suppresses external delivery.
 - Require user-friendly metadata on policy entries where practical: `reason`,
@@ -652,14 +663,19 @@ User-friendly granular detection policy:
 - Validate policy files with plain-English warnings for unknown fields,
   unsupported actions, invalid CIDRs, expired entries, and risky broad matches.
 - Add a preview/test command that explains which policy entries would match a
-  sample or recent alert and what action Arcane would take.
+  sample or recent alert and what action Arcane would take. Initial
+  `--policy-preview --last <duration>`, `--sample-rule`, and `--sample-alert`
+  support completed, including sample context fields for process, parent, user,
+  destination, IP, port, path, signer, hash, and command text.
 - Document examples for common tuning tasks so another LLM agent can help a
   user configure Arcane for their own machine without needing to fork or modify
   source code.
 
 Exit criteria:
 
-- Collectors are independently enableable and fail-isolated.
+- Collectors are independently enableable and fail-isolated. Initial support is
+  completed for the current collector set, poll analysis stages, and per-alert
+  dispatch.
 - Rules have IDs, categories, defaults, tests, and per-rule config.
 - Optional enrichment can be added without changing detection flow broadly.
 - Granular allow/block detection policy is understandable, validated, previewable,

@@ -34,11 +34,12 @@ namespace ArcaneEDR
 
         public void Alert(Alert alert)
         {
+            string body = alert.Body ?? "";
             Write("ALERT", "[" + alert.Score.ToString(CultureInfo.InvariantCulture) + "] " +
                 alert.RuleId + " category=" + AlertRulePolicy.AlertCategory(alert) + " " +
                 "maintenance_context=" + alert.MaintenanceContext + " " +
                 "system_local_time=\"" + alert.SystemLocalTime + "\" " +
-                alert.Title + " | " + WhyText(alert) + alert.Body.Replace(Environment.NewLine, " | "));
+                alert.Title + " | " + WhyText(alert) + body.Replace(Environment.NewLine, " | "));
             try
             {
                 AppendLine("ArcaneAlerts.jsonl", alert.ToJson());

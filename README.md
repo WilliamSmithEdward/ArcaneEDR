@@ -338,6 +338,12 @@ summaries, recent warning/error lines, recent incident summaries, and active
 external sink/AI provider metadata. It does not copy raw alert bodies, entities,
 command lines, script blocks, AI payloads, or secret values.
 
+Preview structured detection policy effects against recent alerts:
+
+```powershell
+.\bin\ArcaneEDR.exe --policy-preview --last 24h --limit 20
+```
+
 Run one monitor poll and exit without starting the Windows service or writing
 service lifecycle health state:
 
@@ -358,6 +364,14 @@ Run one representative simulation:
 .\scripts\simulate-detection.cmd -Scenario UnexpectedListener -DurationSeconds 120
 .\scripts\simulate-detection.cmd -Scenario ScheduledTaskPersistence
 .\scripts\simulate-detection.cmd -Scenario StartupFileDrop
+```
+
+Run a compact demo path that cleans prior simulation artifacts, generates
+harmless suspicious process telemetry, opens a localhost listener long enough
+for the service or a second-shell poll, and prints the review commands:
+
+```powershell
+.\scripts\simulate-detection.cmd -Scenario Demo -DurationSeconds 120
 ```
 
 Clean up the scheduled-task simulation artifact:
@@ -403,6 +417,17 @@ PersistEventLogWatermarks=true
 EventLogWatermarkFile=ArcaneEventLogWatermarks.tsv
 ```
 
+Collector toggles are independent, and bounded collector, analysis-stage, or
+per-alert dispatch failures are logged without stopping the rest of the poll:
+
+```ini
+EnableNetstatCollector=true
+EnableSysmonIngestion=true
+EnablePowerShellLogIngestion=true
+EnableWindowsEventIngestion=true
+EnablePersistenceInventory=true
+```
+
 This prevents service restarts, publish cycles, and recovery restarts from
 reprocessing the same recent event records into new local alerts and daily
 report counts. If an event log appears to have reset or been cleared, Arcane
@@ -426,6 +451,52 @@ normal alert path. The example `RuleMinimumEmailScores` profile keeps weak
 standalone discovery signals mostly local by default; use `--alert-volume
 --last 24h` and its baseline-off projection drivers to tune these thresholds
 for the actual host.
+
+Structured detection policy is the preferred v0.5 tuning surface for
+machine-specific allow/block decisions that should remain local:
+
+```ini
+EnableDetectionPolicy=true
+DetectionPolicyFile=policy-rules.json
+```
+
+Start from `config\policy-rules.example.json` and create the ignored local
+`config\policy-rules.json`. Policy entries match fields such as `rule_id`,
+`category`, `process_name`, `parent_process`, `signer`, `path_prefix`,
+`command_terms`, `user`, `destination_domain`, `ip_cidr`, `port`, `hash`, and
+`text_contains`. Supported actions are `trusted_context`, `lower_score`,
+`suppress_external`, `raise_score`, `force_alert`, and `tag_only`.
+
+`suppress_external` keeps the local alert log, incident grouping, daily report
+context, and support-bundle summaries intact; it only prevents external
+delivery for matching alerts. `lower_score` and `raise_score` adjust the local
+score before logging, so the score change remains auditable in the alert body
+and `why` metadata.
+
+Preview policy effects against recent local alerts before relying on a rule:
+
+```powershell
+.\bin\ArcaneEDR.exe --policy-preview --last 24h --limit 20
+```
+
+Preview against a proposed sample alert before matching telemetry exists:
+
+```powershell
+.\bin\ArcaneEDR.exe --policy-preview --sample-rule NET-BEACON-TIMING-LOW-RISK --sample-process codex.exe --sample-score 55
+.\bin\ArcaneEDR.exe --policy-preview --sample-rule NET-EGRESS-PORT-MISUSE --sample-process ssh.exe --sample-ip 192.168.1.50 --sample-port 22 --sample-user operator
+.\bin\ArcaneEDR.exe --policy-preview --sample-rule PS-SUSPICIOUS-COMMAND --sample-process powershell.exe --sample-parent cmd.exe --sample-command "powershell Invoke-WebRequest http://example.invalid/payload"
+```
+
+You can also preview against an alert JSON file:
+
+```powershell
+.\bin\ArcaneEDR.exe --policy-preview --sample-alert .\sample-alert.json
+```
+
+Sample context options include `--sample-process`, `--sample-parent`,
+`--sample-user`, `--sample-destination-domain`, `--sample-ip`,
+`--sample-port`, `--sample-path`, `--sample-signer`, `--sample-hash`, and
+`--sample-command`.
 
 Network port tuning supports both global and process-specific outbound
 allowlists. Use `AllowedOutboundPorts` for ports that are normal for any

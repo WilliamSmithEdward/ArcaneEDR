@@ -238,6 +238,9 @@ Tune the ignored local config first:
 - known agent process names and child shells
 - agent workspace and publish roots, especially for `FILE-*` alerts involving
   package-manager or agent-created executable/script files
+- structured local detection policy entries in `config\policy-rules.json` for
+  host-specific `trusted_context`, `lower_score`, `suppress_external`,
+  `raise_score`, `force_alert`, or `tag_only` decisions
 - maintenance-context term groups
 - per-rule or per-category external alert thresholds
 - trusted process/path/signer indicators where they match durable local reality
@@ -258,6 +261,33 @@ For every tuning change, be able to explain:
 - which config key changed
 - what evidence remains visible locally
 - what risk the user accepts
+
+Prefer `config\policy-rules.json` for narrow local allow/block tuning when the
+operator wants local evidence preserved. Start from
+`config\policy-rules.example.json`, keep entries disabled until reviewed, then
+run:
+
+```powershell
+C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --policy-preview --last 24h
+```
+
+When a proposed rule needs review before matching telemetry exists, preview a
+sample rule or redacted sample alert JSON:
+
+```powershell
+C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --policy-preview --sample-rule NET-BEACON-TIMING-LOW-RISK --sample-process codex.exe --sample-score 55
+C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --policy-preview --sample-rule NET-EGRESS-PORT-MISUSE --sample-process ssh.exe --sample-ip 192.168.1.50 --sample-port 22 --sample-user operator
+C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --policy-preview --sample-alert .\sample-alert.json
+```
+
+Sample preview options can express process, parent process, user, destination
+domain, IP, port, path, signer, hash, and command text. Use them to test the
+exact match fields in a proposed policy entry before enabling it.
+
+Use `suppress_external` to stop repeated external notifications while retaining
+local alert logs, incident grouping, daily report context, and support-bundle
+summaries. Use `DisabledRuleIds` or `DisabledRuleCategories` only when the
+operator accepts that matching evidence will disappear before local logging.
 
 Do not edit source code for a local false positive. If the rule itself appears
 wrong in a general product sense, explain the evidence and ask whether the user

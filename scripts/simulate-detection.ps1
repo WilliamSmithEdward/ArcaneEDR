@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("List", "EncodedPowerShell", "UnexpectedListener", "ScheduledTaskPersistence", "StartupFileDrop", "All", "Cleanup")]
+    [ValidateSet("List", "EncodedPowerShell", "UnexpectedListener", "ScheduledTaskPersistence", "StartupFileDrop", "Demo", "All", "Cleanup")]
     [string]$Scenario = "List",
 
     [int]$DurationSeconds = 90,
@@ -20,6 +20,7 @@ function Show-Scenarios {
     Write-Host "  UnexpectedListener       Opens a localhost TCP listener for the selected duration."
     Write-Host "  ScheduledTaskPersistence Creates a harmless current-user scheduled task."
     Write-Host "  StartupFileDrop          Creates a harmless current-user Startup .cmd file."
+    Write-Host "  Demo                     Runs a compact suspicious-activity demo with cleanup."
     Write-Host "  All                      Runs the listed detection scenarios."
     Write-Host "  Cleanup                  Removes scheduled-task and Startup-file simulation artifacts."
     Write-Host ""
@@ -28,9 +29,30 @@ function Show-Scenarios {
     Write-Host "  .\scripts\simulate-detection.cmd -Scenario UnexpectedListener -DurationSeconds 120 -ListenerPort 49291"
     Write-Host "  .\scripts\simulate-detection.cmd -Scenario ScheduledTaskPersistence"
     Write-Host "  .\scripts\simulate-detection.cmd -Scenario StartupFileDrop"
+    Write-Host "  .\scripts\simulate-detection.cmd -Scenario Demo -DurationSeconds 120"
     Write-Host "  .\scripts\simulate-detection.cmd -Scenario Cleanup"
     Write-Host ""
     Write-Host "These simulations can generate real Arcane EDR alerts and external notifications if the service is running."
+}
+
+function Invoke-DemoSimulation {
+    Write-Host "Running compact Arcane EDR demo path."
+    Write-Host ""
+    Write-Host "Step 1/3: remove prior simulation artifacts."
+    Remove-ScheduledTaskSimulation
+    Remove-StartupFileDropSimulation
+    Write-Host ""
+    Write-Host "Step 2/3: generate harmless suspicious process telemetry."
+    Invoke-EncodedPowerShellSimulation
+    Write-Host ""
+    Write-Host "Step 3/3: open a localhost listener for $DurationSeconds second(s)."
+    Write-Host "If the service is not running, run this in another shell while the listener is open:"
+    Write-Host "  .\bin\ArcaneEDR.exe --poll-once"
+    Invoke-UnexpectedListenerSimulation
+    Write-Host ""
+    Write-Host "Demo complete. Review local alerts with:"
+    Write-Host "  .\bin\ArcaneEDR.exe --alert-volume --last 10m"
+    Write-Host "  Get-Content .\bin\logs\ArcaneAlerts.jsonl -Tail 10"
 }
 
 function Invoke-EncodedPowerShellSimulation {
@@ -119,6 +141,11 @@ if ($Scenario -eq "List") {
 if ($Scenario -eq "Cleanup") {
     Remove-ScheduledTaskSimulation
     Remove-StartupFileDropSimulation
+    exit 0
+}
+
+if ($Scenario -eq "Demo") {
+    Invoke-DemoSimulation
     exit 0
 }
 

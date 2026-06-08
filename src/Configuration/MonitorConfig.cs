@@ -22,6 +22,8 @@ namespace ArcaneEDR
         public HashSet<string> DisabledRuleCategories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> RuleMinimumEmailScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> CategoryMinimumEmailScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        public bool EnableDetectionPolicy = true;
+        public string DetectionPolicyFile = "policy-rules.json";
         public Dictionary<string, int> ExternalAlertProviderMinimumScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> ExternalAlertProviderMaxPerHour = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public int ExternalAlertMaxPerDispatch = 3;
@@ -126,6 +128,7 @@ namespace ArcaneEDR
         public string WindowsEventLogAlertSource = "ArcaneEDR";
         public string WindowsEventLogAlertLogName = "Application";
         public int WindowsEventLogAlertEventId = 9100;
+        public bool EnableNetstatCollector = true;
         public bool EnableSysmonIngestion = true;
         public string SysmonServiceName = "Sysmon";
         public string SysmonEventLogName = "Microsoft-Windows-Sysmon/Operational";
@@ -248,6 +251,8 @@ namespace ArcaneEDR
             config.DisabledRuleCategories = ReadStringSet(values, "DisabledRuleCategories");
             config.RuleMinimumEmailScores = ReadStringIntMap(values, "RuleMinimumEmailScores");
             config.CategoryMinimumEmailScores = ReadStringIntMap(values, "CategoryMinimumEmailScores");
+            config.EnableDetectionPolicy = ReadBool(values, "EnableDetectionPolicy", config.EnableDetectionPolicy);
+            config.DetectionPolicyFile = ResolvePath(Path.GetDirectoryName(config.ConfigPath), ReadString(values, "DetectionPolicyFile", config.DetectionPolicyFile));
             config.ExternalAlertProviderMinimumScores = ReadStringIntMap(values, "ExternalAlertProviderMinimumScores");
             config.ExternalAlertProviderMaxPerHour = ReadStringIntMap(values, "ExternalAlertProviderMaxPerHour");
             config.ExternalAlertMaxPerDispatch = ReadInt(values, "ExternalAlertMaxPerDispatch", config.ExternalAlertMaxPerDispatch);
@@ -364,6 +369,7 @@ namespace ArcaneEDR
             config.WindowsEventLogAlertSource = ReadString(values, "WindowsEventLogAlertSource", config.WindowsEventLogAlertSource);
             config.WindowsEventLogAlertLogName = ReadString(values, "WindowsEventLogAlertLogName", config.WindowsEventLogAlertLogName);
             config.WindowsEventLogAlertEventId = ReadInt(values, "WindowsEventLogAlertEventId", config.WindowsEventLogAlertEventId);
+            config.EnableNetstatCollector = ReadBool(values, "EnableNetstatCollector", config.EnableNetstatCollector);
             config.EnableSysmonIngestion = ReadBool(values, "EnableSysmonIngestion", config.EnableSysmonIngestion);
             config.SysmonServiceName = ReadString(values, "SysmonServiceName", config.SysmonServiceName);
             config.SysmonEventLogName = ReadString(values, "SysmonEventLogName", config.SysmonEventLogName);

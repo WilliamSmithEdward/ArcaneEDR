@@ -905,6 +905,8 @@ namespace ArcaneEDR
                 record.Score = ReadInt(parsed, "score");
                 record.Title = SanitizeText(Read(parsed, "title"));
                 record.MaintenanceContext = ReadBool(parsed, "maintenance_context");
+                record.ExternalSuppressedByPolicy = ReadBool(parsed, "external_suppressed_by_policy");
+                record.ExternalForcedByPolicy = ReadBool(parsed, "external_forced_by_policy");
                 record.ProcessFamily = ProcessFamily(Read(parsed, "entity"));
                 record.AgentContext = HasAgentContext(parsed);
                 return record;
@@ -1043,6 +1045,8 @@ namespace ArcaneEDR
         private bool WouldQualifyForExternal(DailyAlertRecord record)
         {
             if (record == null) return false;
+            if (record.ExternalSuppressedByPolicy) return false;
+            if (record.ExternalForcedByPolicy) return config.HasExternalAlertProviderEligibleForScore(record.Score);
             if (IsDirectExternalRule(record.RuleId)) return config.HasExternalAlertProviderEligibleForScore(record.Score);
 
             Alert alert = new Alert();
@@ -1345,6 +1349,8 @@ namespace ArcaneEDR
         public string ProcessFamily;
         public bool MaintenanceContext;
         public bool AgentContext;
+        public bool ExternalSuppressedByPolicy;
+        public bool ExternalForcedByPolicy;
     }
 
     internal sealed class DailyAgentActivityRecord

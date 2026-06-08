@@ -37,6 +37,7 @@ namespace ArcaneEDR
             ValidateEventLogAccess(config, warnings);
             ValidateSysmon(config, warnings);
             ValidateCustomRules(config, errors, warnings);
+            ValidateDetectionPolicy(config, errors, warnings);
 
             return Finish(errors, warnings);
         }
@@ -78,6 +79,7 @@ namespace ArcaneEDR
             if (config.GenericHttpApiTimeoutSeconds <= 0) Fail(errors, "GenericHttpApiTimeoutSeconds must be greater than zero.");
             if (config.WindowsEventLogAlertEventId < 1 || config.WindowsEventLogAlertEventId > 65535) Fail(errors, "WindowsEventLogAlertEventId must be between 1 and 65535.");
             if (config.PersistEventLogWatermarks && String.IsNullOrWhiteSpace(config.EventLogWatermarkFile)) Fail(errors, "EventLogWatermarkFile must be configured when PersistEventLogWatermarks is enabled.");
+            ValidateCollectorConfig(config, warnings);
             if (config.AuthSpecialPrivilegeRepeatDampeningMinutes <= 0) Fail(errors, "AuthSpecialPrivilegeRepeatDampeningMinutes must be greater than zero.");
             if (config.AuthSpecialPrivilegeRemoteCorrelationMinutes <= 0) Fail(errors, "AuthSpecialPrivilegeRemoteCorrelationMinutes must be greater than zero.");
             if (config.EnableIncidentGrouping)
@@ -576,6 +578,23 @@ namespace ArcaneEDR
             }
         }
 
+        private static void ValidateCollectorConfig(MonitorConfig config, List<string> warnings)
+        {
+            if (!config.EnableNetstatCollector && !config.EnableSysmonIngestion)
+            {
+                Warn(warnings, "EnableNetstatCollector and EnableSysmonIngestion are both false; network detections will be disabled.");
+            }
+
+            if (!config.EnableNetstatCollector &&
+                !config.EnableSysmonIngestion &&
+                !config.EnablePowerShellLogIngestion &&
+                !config.EnableWindowsEventIngestion &&
+                !config.EnablePersistenceInventory)
+            {
+                Warn(warnings, "All collectors are disabled; Arcane will have no telemetry to analyze.");
+            }
+        }
+
         private static void ValidateAgentProfile(MonitorConfig config, List<string> warnings)
         {
             if (!config.EnableAgentProfile) return;
@@ -818,6 +837,39 @@ namespace ArcaneEDR
             catch (Exception ex)
             {
                 Fail(errors, "Custom rules file failed to parse: " + config.CustomRulesFile + " (" + ex.Message + ")");
+            }
+        }
+
+        private static void ValidateDetectionPolicy(MonitorConfig config, List<string> errors, List<string> warnings)
+        {
+            if (!config.EnableDetectionPolicy) return;
+
+            if (String.IsNullOrWhiteSpace(config.DetectionPolicyFile))
+            {
+                Fail(errors, "DetectionPolicyFile must be configured when EnableDetectionPolicy is enabled.");
+                return;
+            }
+
+            DetectionPolicy policy = DetectionPolicy.Load(config.DetectionPolicyFile);
+            if (!policy.FileFound)
+            {
+                Pass("Detection policy file not found; no local policy entries loaded: " + config.DetectionPolicyFile);
+                return;
+            }
+
+            foreach (string error in policy.Errors)
+            {
+                Fail(errors, error);
+            }
+
+            foreach (string warning in policy.Warnings)
+            {
+                Warn(warnings, warning);
+            }
+
+            if (policy.Errors.Count == 0)
+            {
+                Pass("Detection policy parsed: " + policy.Rules.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " entries from " + config.DetectionPolicyFile);
             }
         }
 
