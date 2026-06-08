@@ -699,13 +699,20 @@ DailyReportAgentBucketRows=3
 EnableDailyReportArchive=true
 DailyReportArchiveDirectory=reports
 DailyReportArchiveFormats=Markdown,Json
+DailyReportWebhookUrl=
+DailyReportWebhookSecretEnvironmentVariable=
+DailyReportWebhookSecretHeaderName=Authorization
+DailyReportWebhookSecretPrefix=Bearer
+DailyReportWebhookTimeoutSeconds=15
 ```
 
 `DailyReportDestinations` separates daily reporting from normal alert routing.
 `ExternalAlertSinks` sends the daily report through the configured external
-alert sinks. `LocalArchive` writes the configured archive formats. Use
+alert sinks. `LocalArchive` writes the configured archive formats. `Webhook`
+posts the redacted JSON report payload to `DailyReportWebhookUrl`. Use
 `DailyReportDestinations=LocalArchive` for archive-only reporting while keeping
-real-time alerts enabled.
+real-time alerts enabled, or `DailyReportDestinations=LocalArchive,Webhook` for
+archive plus report-specific webhook delivery.
 
 Archived reports are written under `LogDirectory` when
 `DailyReportArchiveDirectory` is relative. The Markdown archive mirrors the
@@ -713,6 +720,16 @@ delivered report body; the JSON archive stores redacted report metadata,
 metrics, bucket summaries, high-signal summaries, and AI review metadata
 without raw alert bodies, entities, command lines, paths, users, IPs, URLs,
 emails, or secrets.
+
+Example report webhook destination:
+
+```ini
+DailyReportDestinations=LocalArchive,Webhook
+DailyReportWebhookUrl=https://example.com/arcane-daily-report
+DailyReportWebhookSecretEnvironmentVariable=ARCANE_REPORT_WEBHOOK_TOKEN
+DailyReportWebhookSecretHeaderName=Authorization
+DailyReportWebhookSecretPrefix=Bearer
+```
 
 Use `--preview-daily-report` while tuning `DailyReportSections` and row limits.
 The preview command does not send external notifications and does not call

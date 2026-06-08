@@ -536,6 +536,8 @@ Progress:
 - Added `DailyReportDestinations` so scheduled and test daily reports can be
   routed to `ExternalAlertSinks`, `LocalArchive`, or archive-only reporting
   without changing normal real-time alert sinks.
+- Added a report-specific webhook destination that posts the redacted daily
+  report JSON payload without reusing normal alert webhook schema.
 - Added `ArcaneEDR.exe --validate-config <config-path>` so cloned or staged
   deployments can validate a specific machine-tuned config without copying it
   into the runtime config directory first.
@@ -550,7 +552,7 @@ Reporting should be separate from alerting where useful:
 - Daily summary report sink. Initial local archive completed; other report
   destinations remain future work.
 - Markdown or JSON report sink. Local archive completed.
-- Webhook report sink.
+- Webhook report sink. Completed.
 - Local report archive. Completed.
 - Configurable reporting engine with selectable sections, output formats,
   destinations, schedules, and audience-specific tone/detail levels. Initial

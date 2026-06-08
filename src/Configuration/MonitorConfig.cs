@@ -62,6 +62,11 @@ namespace ArcaneEDR
         public bool EnableDailyReportArchive = true;
         public string DailyReportArchiveDirectory = "reports";
         public HashSet<string> DailyReportArchiveFormats = DefaultDailyReportArchiveFormats();
+        public string DailyReportWebhookUrl;
+        public string DailyReportWebhookSecretEnvironmentVariable;
+        public string DailyReportWebhookSecretHeaderName = "Authorization";
+        public string DailyReportWebhookSecretPrefix = "Bearer ";
+        public int DailyReportWebhookTimeoutSeconds = 15;
         public int HealthHeartbeatSeconds = 60;
         public bool EnableOpenAiLogAnalysis = true;
         public int OpenAIAnalysisIntervalMinutes = 60;
@@ -291,6 +296,11 @@ namespace ArcaneEDR
                 ? ReadStringSet(values, "DailyReportArchiveFormats")
                 : DefaultDailyReportArchiveFormats();
             if (config.DailyReportArchiveFormats.Count == 0) config.DailyReportArchiveFormats = DefaultDailyReportArchiveFormats();
+            config.DailyReportWebhookUrl = ReadString(values, "DailyReportWebhookUrl", "");
+            config.DailyReportWebhookSecretEnvironmentVariable = ReadString(values, "DailyReportWebhookSecretEnvironmentVariable", "");
+            config.DailyReportWebhookSecretHeaderName = ReadString(values, "DailyReportWebhookSecretHeaderName", config.DailyReportWebhookSecretHeaderName);
+            config.DailyReportWebhookSecretPrefix = ReadString(values, "DailyReportWebhookSecretPrefix", config.DailyReportWebhookSecretPrefix);
+            config.DailyReportWebhookTimeoutSeconds = ReadInt(values, "DailyReportWebhookTimeoutSeconds", config.DailyReportWebhookTimeoutSeconds);
             config.HealthHeartbeatSeconds = ReadInt(values, "HealthHeartbeatSeconds", config.HealthHeartbeatSeconds);
             config.EnableOpenAiLogAnalysis = values.ContainsKey("EnableAIAnalysis")
                 ? ReadBool(values, "EnableAIAnalysis", config.EnableOpenAiLogAnalysis)
@@ -532,7 +542,9 @@ namespace ArcaneEDR
             return left.Equals(right, StringComparison.OrdinalIgnoreCase) ||
                 (left.Equals("externalalerts", StringComparison.OrdinalIgnoreCase) && right.Equals("externalalertsinks", StringComparison.OrdinalIgnoreCase)) ||
                 (left.Equals("alertsinks", StringComparison.OrdinalIgnoreCase) && right.Equals("externalalertsinks", StringComparison.OrdinalIgnoreCase)) ||
-                (left.Equals("archive", StringComparison.OrdinalIgnoreCase) && right.Equals("localarchive", StringComparison.OrdinalIgnoreCase));
+                (left.Equals("archive", StringComparison.OrdinalIgnoreCase) && right.Equals("localarchive", StringComparison.OrdinalIgnoreCase)) ||
+                (left.Equals("webhook", StringComparison.OrdinalIgnoreCase) && right.Equals("reportwebhook", StringComparison.OrdinalIgnoreCase)) ||
+                (left.Equals("dailyreportwebhook", StringComparison.OrdinalIgnoreCase) && right.Equals("reportwebhook", StringComparison.OrdinalIgnoreCase));
         }
 
         private static string NormalizeReportDestination(string value)

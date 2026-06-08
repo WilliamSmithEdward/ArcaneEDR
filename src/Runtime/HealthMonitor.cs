@@ -174,10 +174,31 @@ namespace ArcaneEDR
             }
 
             string body = reportBuilder.BuildReport(snapshot, dailyAiResult, dailyAiStatus);
+            string archiveJson = reportBuilder.BuildArchiveJson(snapshot, dailyAiResult, dailyAiStatus);
             if (config.DailyReportDestinationEnabled("LocalArchive"))
             {
                 DailyReportArchive archive = new DailyReportArchive(config, logger);
-                archive.Save(snapshot, body, reportBuilder.BuildArchiveJson(snapshot, dailyAiResult, dailyAiStatus));
+                archive.Save(snapshot, body, archiveJson);
+            }
+
+            if (config.DailyReportDestinationEnabled("ReportWebhook"))
+            {
+                DailyReportHttpSink reportSink = new DailyReportHttpSink(config, logger, new EnvironmentSecretProvider());
+                if (reportSink.IsConfigured)
+                {
+                    try
+                    {
+                        reportSink.Send(snapshot, archiveJson);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Error("Daily report webhook delivery failed: " + ex.Message);
+                    }
+                }
+                else
+                {
+                    logger.Warn("Daily report webhook skipped: " + reportSink.MissingConfigurationReason);
+                }
             }
 
             if (config.DailyReportDestinationEnabled("ExternalAlertSinks"))

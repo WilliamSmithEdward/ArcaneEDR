@@ -219,6 +219,19 @@ namespace ArcaneEDR
                 }
             }
 
+            if (config.DailyReportDestinationEnabled("ReportWebhook"))
+            {
+                if (String.IsNullOrWhiteSpace(config.DailyReportWebhookUrl))
+                {
+                    Fail(errors, "DailyReportWebhookUrl must be configured when DailyReportDestinations includes Webhook.");
+                }
+
+                if (config.DailyReportWebhookTimeoutSeconds <= 0)
+                {
+                    Fail(errors, "DailyReportWebhookTimeoutSeconds must be greater than zero when daily report webhook delivery is enabled.");
+                }
+            }
+
             if (!config.EnableDailyReportArchive) return;
 
             if (!config.DailyReportDestinationEnabled("LocalArchive"))
@@ -238,6 +251,7 @@ namespace ArcaneEDR
                     Warn(warnings, "DailyReportArchiveFormats contains an unknown format: " + format);
                 }
             }
+
         }
 
         private static bool IsDailyReportSection(string section)
@@ -259,7 +273,10 @@ namespace ArcaneEDR
                 ProviderMatches(destination, "ExternalAlerts") ||
                 ProviderMatches(destination, "AlertSinks") ||
                 ProviderMatches(destination, "LocalArchive") ||
-                ProviderMatches(destination, "Archive");
+                ProviderMatches(destination, "Archive") ||
+                ProviderMatches(destination, "Webhook") ||
+                ProviderMatches(destination, "ReportWebhook") ||
+                ProviderMatches(destination, "DailyReportWebhook");
         }
 
         private static bool IsDailyReportArchiveFormat(string format)
@@ -574,6 +591,19 @@ namespace ArcaneEDR
                 else
                 {
                     Pass("Generic HTTP API secret is visible via environment variable: " + config.GenericHttpApiSecretEnvironmentVariable);
+                }
+            }
+
+            if (config.DailyReportDestinationEnabled("ReportWebhook") &&
+                !String.IsNullOrWhiteSpace(config.DailyReportWebhookSecretEnvironmentVariable))
+            {
+                if (String.IsNullOrWhiteSpace(secrets.GetSecret(config.DailyReportWebhookSecretEnvironmentVariable)))
+                {
+                    Warn(warnings, "Daily report webhook secret environment variable is not visible: " + config.DailyReportWebhookSecretEnvironmentVariable);
+                }
+                else
+                {
+                    Pass("Daily report webhook secret is visible via environment variable: " + config.DailyReportWebhookSecretEnvironmentVariable);
                 }
             }
 
