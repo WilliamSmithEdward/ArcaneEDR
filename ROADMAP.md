@@ -63,13 +63,13 @@ phase sections below.
 | `v0.1.x-preview` | Done | Complete | Functional preview: service, local logging, Brevo alerting, Sysmon ingestion, AI compact analysis, baseline learning, and daily summaries. |
 | `v0.2.0-beta` | Done | Complete | Tagged beta with install, upgrade, validation, package-release script, config preservation, and scheduled-task admin bridge. |
 | `v0.3.0` | Done | Complete | Detection-quality work is released as `v0.3.0`; further empirical tuning feeds later milestones. |
-| `v0.4.0` | In progress | Near complete | Modular alert sinks are implemented for Brevo, SMTP, webhook, generic HTTP/API, Windows Event Log, and local JSONL. Daily report preview, local archive, selectable sections, row limits, independent report destinations, and concurrent AI provider fan-out are implemented; additional report destinations remain future work. |
+| `v0.4.0` | Ready for release | Implementation complete | Modular alert sinks are implemented for Brevo, SMTP, webhook, generic HTTP/API, Windows Event Log, and local JSONL. Daily report preview, local archive, selectable sections, row limits, independent report destinations, canonical destination names, and concurrent AI provider fan-out are implemented; release verification, tag, and local publish remain. |
 | `v0.5.0` | Mostly done | Substantial | `why` explanations, incident grouping, timeline command, support bundle, simulations, and rule-family docs are implemented. Remaining work is polishing expected alert shapes, demo flow, and user-friendly granular allow/block detection policy. |
 | `v0.6.0` | Started | Partial | Agent Profile labeling exists. Remaining work includes agent write/elevation guardrails, compact activity ledger, maintenance/session markers, response policy, and active-response dry-run. |
 | `v0.7.0` | Not started | Planned | Collector/rule interface cleanup, privacy hardening, and AI provider abstraction remain planned. |
 | `v1.0.0` | Not ready | Planned | Requires completed docs, tuned alert volume, tested install/upgrade/release flow, dry-run/manual response safety, and stable privacy/operations posture. |
 
-Current milestone focus: finish `v0.4.0` modular notification/reporting polish,
+Current milestone focus: release-verify, tag, and locally publish `v0.4.0`,
 then move into `v0.5.0` investigation, simulation, and user-friendly policy
 polish.
 
@@ -574,6 +574,23 @@ Reporting should be separate from alerting where useful:
   destinations, schedules, and audience-specific tone/detail levels. Initial
   selectable sections, local formats, row limits, and no-send preview command
   completed.
+
+Deferred reporting-engine gaps:
+
+- Additional native report destinations such as Slack, Teams, Discord, syslog,
+  ntfy, and Pushover are deferred until the report JSON schema and core sink
+  contracts have stayed stable through more local use. Generic webhook already
+  covers integration experiments without adding partial native providers.
+- Multiple named report profiles, audiences, and tone/detail presets are
+  deferred to the user-friendly policy/reporting work because they need a clear
+  config model rather than one-off keys.
+- Multiple report schedules, recipient groups, and per-destination report
+  variants are deferred until the reporting engine has named profiles.
+- Custom report templates or a report DSL are deferred because they would be a
+  broad configuration surface; current selectable sections and row limits are
+  the stable base.
+- Report retention, compression, and rotation policy are deferred to later
+  operational hardening after archive format usage is better understood.
 
 Exit criteria:
 
