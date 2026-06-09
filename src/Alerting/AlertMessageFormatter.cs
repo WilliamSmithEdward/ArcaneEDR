@@ -174,19 +174,19 @@ namespace ArcaneEDR
             string category = alert == null ? "" : AlertRulePolicy.AlertCategory(alert);
             string body = alert == null ? "" : NullToEmpty(alert.Body);
 
-            if (StartsWith(ruleId, "NET-")) return "network";
-            if (StartsWith(ruleId, "DNS-")) return "dns";
-            if (StartsWith(ruleId, "PS-")) return "powershell";
-            if (StartsWith(ruleId, "AUTH-")) return "windows-event-log";
-            if (StartsWith(ruleId, "PERSIST-")) return "persistence";
-            if (StartsWith(ruleId, "FILE-")) return "sysmon-file";
-            if (StartsWith(ruleId, "PROC-")) return "process";
-            if (StartsWith(ruleId, "SERVICE-") || StartsWith(ruleId, "APP-")) return "arcane-service";
-            if (category.Equals("PowerShell", StringComparison.OrdinalIgnoreCase) || body.StartsWith("PowerShell:", StringComparison.OrdinalIgnoreCase)) return "powershell";
-            if (category.Equals("Network", StringComparison.OrdinalIgnoreCase)) return "network";
-            if (category.Equals("Auth", StringComparison.OrdinalIgnoreCase) || body.StartsWith("WindowsEvent:", StringComparison.OrdinalIgnoreCase)) return "windows-event-log";
-            if (category.Equals("Persistence", StringComparison.OrdinalIgnoreCase) || body.StartsWith("Persistence:", StringComparison.OrdinalIgnoreCase)) return "persistence";
-            if (category.Equals("File", StringComparison.OrdinalIgnoreCase) || body.StartsWith("FileEvent:", StringComparison.OrdinalIgnoreCase)) return "sysmon-file";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixNetwork)) return "network";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixDns)) return "dns";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixPowerShell)) return "powershell";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixAuth)) return "windows-event-log";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixPersistence)) return "persistence";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixFile)) return "sysmon-file";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixProcess)) return "process";
+            if (AlertRuleTaxonomy.HasAnyPrefix(ruleId, AlertRuleTaxonomy.PrefixService, AlertRuleTaxonomy.PrefixApp)) return "arcane-service";
+            if (category.Equals(AlertRuleTaxonomy.CategoryPowerShell, StringComparison.OrdinalIgnoreCase) || body.StartsWith("PowerShell:", StringComparison.OrdinalIgnoreCase)) return "powershell";
+            if (category.Equals(AlertRuleTaxonomy.CategoryNetwork, StringComparison.OrdinalIgnoreCase)) return "network";
+            if (category.Equals(AlertRuleTaxonomy.CategoryAuth, StringComparison.OrdinalIgnoreCase) || body.StartsWith("WindowsEvent:", StringComparison.OrdinalIgnoreCase)) return "windows-event-log";
+            if (category.Equals(AlertRuleTaxonomy.CategoryPersistence, StringComparison.OrdinalIgnoreCase) || body.StartsWith("Persistence:", StringComparison.OrdinalIgnoreCase)) return "persistence";
+            if (category.Equals(AlertRuleTaxonomy.CategoryFile, StringComparison.OrdinalIgnoreCase) || body.StartsWith("FileEvent:", StringComparison.OrdinalIgnoreCase)) return "sysmon-file";
 
             return "";
         }
@@ -231,14 +231,9 @@ namespace ArcaneEDR
             return !String.IsNullOrWhiteSpace(first) ? first : second;
         }
 
-        private static bool StartsWith(string value, string prefix)
-        {
-            return value != null && value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
-        }
-
         private static bool IsDailySummary(string ruleId)
         {
-            return ruleId != null && ruleId.Equals("SERVICE-DAILY-SUMMARY", StringComparison.OrdinalIgnoreCase);
+            return AlertRuleTaxonomy.IsDailySummaryRule(ruleId);
         }
 
         private static string BuildDailyReportHtml(Alert alert)

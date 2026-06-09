@@ -127,6 +127,7 @@ Local files are intentionally ignored by Git:
 
 - `config\ArcaneEDR.config`
 - `config\Deployment.config`
+- `config\remote-endpoint-policy.json`
 
 Keep machine-specific values, recipient addresses, local paths, and environment
 variable names in the ignored local files. The example runtime config disables
@@ -507,6 +508,57 @@ specific process:
 AllowedOutboundPorts=53,80,123,443,587,993,995
 ProcessAllowedOutboundPorts=Codex.exe=5228;browser.exe=5228-5230
 ```
+
+Remote endpoint enrichment adds DNS-derived names and RDAP owner/ASN/country
+context to network alerts. Country is best-effort registry data, not proof of
+physical origin. RDAP is enabled by default because the ordered endpoint policy
+elevates non-US and country-missing destinations; this discloses investigated
+remote IPs to the configured RDAP lookup service.
+
+```ini
+EnableRemoteEndpointEnrichment=true
+EnableRemoteEndpointReverseDns=false
+EnableRemoteEndpointRdapEnrichment=true
+RemoteEndpointRdapUrlTemplate=https://rdap.org/ip/{ip}
+RemoteEndpointEnrichmentTimeoutSeconds=3
+RemoteEndpointEnrichmentCacheMinutes=1440
+RemoteEndpointRdapMaxLookupsPerPoll=3
+EnableRemoteEndpointPolicy=true
+RemoteEndpointPolicyFile=remote-endpoint-policy.example.json
+```
+
+Remote allow, trust, block, and critical country/owner/domain/CIDR decisions
+belong in one ordered JSON file. First enabled match wins. The tracked
+`config\remote-endpoint-policy.example.json` includes default critical entries
+for RDAP country missing and country not equal to `US`. For host-specific
+tuning, copy it to the ignored `config\remote-endpoint-policy.json` and point
+`RemoteEndpointPolicyFile` there.
+
+```json
+{
+  "id": "example-trust-expected-agent-cloudflare",
+  "enabled": false,
+  "action": "trust",
+  "reason": "Expected agent backend traffic.",
+  "match": {
+    "process_name": "codex.exe",
+    "owner": "Cloudflare",
+    "port": 443
+  }
+}
+```
+
+Policy text fields use case-insensitive contains matching by default. Prefix an
+entry with `regex:` or `re:`, or wrap it as `/pattern/`, for regex matching.
+Use JSON arrays for multiple values; strings are treated as one entry.
+Supported actions are `critical`, `block`, `trust`, `allow`, and `observe`.
+`critical` and `block` create high-score policy alerts. `trust` lowers only
+clean timing-only or direct-IP network noise from expected processes. `allow`
+skips generic external-remote analysis for the matching endpoint, so keep allow
+rules narrow and place more specific block/critical rules above broad allow
+rules.
+See [docs/remote-endpoint-policy.md](docs/remote-endpoint-policy.md) for the
+full match field list and examples.
 
 Maintenance context tuning labels expected admin/build/publish activity without
 making it disappear:

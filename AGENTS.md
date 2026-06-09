@@ -34,6 +34,14 @@ configuration changes while preserving the user's control of their machine.
   still early enough that public config, docs, commands, and report language
   should be refactored toward the clearest current model rather than preserving
   old partial names.
+- Do not add backwards-compatibility shims unless the operator explicitly asks
+  for one. When a clearer model replaces an old surface, remove the old
+  source/docs/config path and make validation fail loudly on removed keys.
+- Treat the `v0.8.0` direction as a permanent product strategy: Arcane should
+  become a coupled Windows service plus Windows GUI application with MSI
+  install/uninstall. Going forward, service features should stay aligned with
+  GUI configuration/maintenance surfaces, validation, docs, and installer
+  behavior unless the operator explicitly scopes out GUI or installer work.
 - Avoid partial implementations that appear supported but only work in narrow
   cases. For provider integrations, do not present a provider as supported until
   the direct request shape, auth model, validation, redacted payload handling,

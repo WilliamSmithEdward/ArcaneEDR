@@ -428,11 +428,13 @@ namespace ArcaneEDR
             {
                 if (alert.Score >= minimumScore ||
                     (minimumScore <= 75 &&
-                        (StartsWith(alert.RuleId, "AUTH-REMOTE-") ||
-                        StartsWith(alert.RuleId, "NET-LAN-") ||
-                        StartsWith(alert.RuleId, "PERSIST-") ||
-                        StartsWith(alert.RuleId, "FILE-") ||
-                        StartsWith(alert.RuleId, "RAT-"))))
+                        AlertRuleTaxonomy.HasAnyPrefix(
+                            alert.RuleId,
+                            AlertRuleTaxonomy.PrefixAuthRemote,
+                            AlertRuleTaxonomy.PrefixNetworkLan,
+                            AlertRuleTaxonomy.PrefixPersistence,
+                            AlertRuleTaxonomy.PrefixFile,
+                            AlertRuleTaxonomy.PrefixRat)))
                 {
                     highSignal.Add(alert);
                 }
@@ -682,13 +684,13 @@ namespace ArcaneEDR
 
         private static string ExplainAlert(DailyAlertRecord alert)
         {
-            if (StartsWith(alert.RuleId, "PS-ENCODED-")) return "Encoded or obfuscated PowerShell; review command origin and parent process.";
-            if (StartsWith(alert.RuleId, "NET-C2-BEACON")) return "Beacon-like timing; confirm process and destination before assuming C2.";
-            if (StartsWith(alert.RuleId, "RAT-")) return "RAT/LOLBin-style egress; verify command line and destination.";
-            if (StartsWith(alert.RuleId, "AUTH-REMOTE-")) return "Remote auth plus privilege context; verify account and source.";
-            if (StartsWith(alert.RuleId, "NET-LAN-")) return "LAN lateral/admin-port pattern; verify peer host and process.";
-            if (StartsWith(alert.RuleId, "FILE-")) return "High-risk file write or drop-execute pattern; verify writer and path.";
-            if (StartsWith(alert.RuleId, "PERSIST-")) return "Persistence change; verify expected administrative or software activity.";
+            if (AlertRuleTaxonomy.HasPrefix(alert.RuleId, AlertRuleTaxonomy.PrefixPowerShellEncoded)) return "Encoded or obfuscated PowerShell; review command origin and parent process.";
+            if (AlertRuleTaxonomy.HasPrefix(alert.RuleId, AlertRuleTaxonomy.PrefixNetworkC2Beacon)) return "Beacon-like timing; confirm process and destination before assuming C2.";
+            if (AlertRuleTaxonomy.HasPrefix(alert.RuleId, AlertRuleTaxonomy.PrefixRat)) return "RAT/LOLBin-style egress; verify command line and destination.";
+            if (AlertRuleTaxonomy.HasPrefix(alert.RuleId, AlertRuleTaxonomy.PrefixAuthRemote)) return "Remote auth plus privilege context; verify account and source.";
+            if (AlertRuleTaxonomy.HasPrefix(alert.RuleId, AlertRuleTaxonomy.PrefixNetworkLan)) return "LAN lateral/admin-port pattern; verify peer host and process.";
+            if (AlertRuleTaxonomy.HasPrefix(alert.RuleId, AlertRuleTaxonomy.PrefixFile)) return "High-risk file write or drop-execute pattern; verify writer and path.";
+            if (AlertRuleTaxonomy.HasPrefix(alert.RuleId, AlertRuleTaxonomy.PrefixPersistence)) return "Persistence change; verify expected administrative or software activity.";
             if (alert.Score >= 90) return "Critical-priority local signal; inspect source-event context before declaring compromise.";
             if (alert.Score >= 75) return "High signal; review source-event context.";
             return SanitizeText(alert.Title);
@@ -1065,9 +1067,7 @@ namespace ArcaneEDR
 
         private static bool IsDirectExternalRule(string ruleId)
         {
-            if (ruleId == null) return false;
-            return ruleId.StartsWith("SERVICE-", StringComparison.OrdinalIgnoreCase) ||
-                ruleId.StartsWith("AI-LOG-ANALYSIS-", StringComparison.OrdinalIgnoreCase);
+            return AlertRuleTaxonomy.IsDirectExternalRule(ruleId);
         }
 
         private string Assess(DailyReportSnapshot snapshot)
@@ -1092,7 +1092,7 @@ namespace ArcaneEDR
         {
             if (String.IsNullOrWhiteSpace(ruleId)) return false;
             if (config.AIAnalysisExcludedRuleIds.Contains(ruleId)) return true;
-            return ruleId.Equals("SERVICE-DAILY-SUMMARY", StringComparison.OrdinalIgnoreCase);
+            return AlertRuleTaxonomy.IsDailySummaryRule(ruleId);
         }
 
         private static string AlertBucketName(DailyAlertRecord record, string field)
@@ -1200,11 +1200,6 @@ namespace ArcaneEDR
             if (!DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out parsed)) return false;
             result = parsed.ToUniversalTime();
             return true;
-        }
-
-        private static bool StartsWith(string value, string prefix)
-        {
-            return value != null && value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool ContainsIgnoreCase(string text, string value)

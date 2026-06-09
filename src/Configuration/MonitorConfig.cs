@@ -7,8 +7,6 @@ namespace ArcaneEDR
 {
     internal sealed class MonitorConfig
     {
-        private readonly List<CidrRange> allowedRemoteCidrs = new List<CidrRange>();
-        private readonly List<CidrRange> blockedRemoteCidrs = new List<CidrRange>();
         private readonly List<CidrRange> dohProviderCidrs = new List<CidrRange>();
 
         public string ProductName = "Arcane EDR";
@@ -228,6 +226,15 @@ namespace ArcaneEDR
         public int AgentActivityLedgerMinimumScore = 60;
         public HashSet<IPAddress> AllowedDnsResolvers = new HashSet<IPAddress>();
         public bool EnforceAuthorizedDnsResolvers;
+        public bool EnableRemoteEndpointEnrichment = true;
+        public bool EnableRemoteEndpointReverseDns;
+        public bool EnableRemoteEndpointRdapEnrichment = true;
+        public string RemoteEndpointRdapUrlTemplate = "https://rdap.org/ip/{ip}";
+        public int RemoteEndpointEnrichmentTimeoutSeconds = 3;
+        public int RemoteEndpointEnrichmentCacheMinutes = 1440;
+        public int RemoteEndpointRdapMaxLookupsPerPoll = 3;
+        public bool EnableRemoteEndpointPolicy = true;
+        public string RemoteEndpointPolicyFile = "remote-endpoint-policy.example.json";
         public int ConnectionBurstThreshold = 25;
         public int BeaconMinimumSamples = 5;
         public int BeaconMaxAverageIntervalSeconds = 600;
@@ -516,25 +523,22 @@ namespace ArcaneEDR
             config.AgentActivityLedgerMinimumScore = ReadInt(values, "AgentActivityLedgerMinimumScore", config.AgentActivityLedgerMinimumScore);
             config.EnforceAuthorizedDnsResolvers = ReadBool(values, "EnforceAuthorizedDnsResolvers", false);
             config.AllowedDnsResolvers = ReadIpSet(values, "AllowedDnsResolvers");
+            config.EnableRemoteEndpointEnrichment = ReadBool(values, "EnableRemoteEndpointEnrichment", config.EnableRemoteEndpointEnrichment);
+            config.EnableRemoteEndpointReverseDns = ReadBool(values, "EnableRemoteEndpointReverseDns", config.EnableRemoteEndpointReverseDns);
+            config.EnableRemoteEndpointRdapEnrichment = ReadBool(values, "EnableRemoteEndpointRdapEnrichment", config.EnableRemoteEndpointRdapEnrichment);
+            config.RemoteEndpointRdapUrlTemplate = ReadString(values, "RemoteEndpointRdapUrlTemplate", config.RemoteEndpointRdapUrlTemplate);
+            config.RemoteEndpointEnrichmentTimeoutSeconds = ReadInt(values, "RemoteEndpointEnrichmentTimeoutSeconds", config.RemoteEndpointEnrichmentTimeoutSeconds);
+            config.RemoteEndpointEnrichmentCacheMinutes = ReadInt(values, "RemoteEndpointEnrichmentCacheMinutes", config.RemoteEndpointEnrichmentCacheMinutes);
+            config.RemoteEndpointRdapMaxLookupsPerPoll = ReadInt(values, "RemoteEndpointRdapMaxLookupsPerPoll", config.RemoteEndpointRdapMaxLookupsPerPoll);
+            config.EnableRemoteEndpointPolicy = ReadBool(values, "EnableRemoteEndpointPolicy", config.EnableRemoteEndpointPolicy);
+            config.RemoteEndpointPolicyFile = ResolvePath(Path.GetDirectoryName(config.ConfigPath), ReadString(values, "RemoteEndpointPolicyFile", config.RemoteEndpointPolicyFile));
             config.ConnectionBurstThreshold = ReadInt(values, "ConnectionBurstThreshold", config.ConnectionBurstThreshold);
             config.BeaconMinimumSamples = ReadInt(values, "BeaconMinimumSamples", config.BeaconMinimumSamples);
             config.BeaconMaxAverageIntervalSeconds = ReadInt(values, "BeaconMaxAverageIntervalSeconds", config.BeaconMaxAverageIntervalSeconds);
             config.BeaconMaxJitterRatio = ReadDouble(values, "BeaconMaxJitterRatio", config.BeaconMaxJitterRatio);
-            ReadCidrList(values, "AllowedRemoteCidrs", config.allowedRemoteCidrs);
-            ReadCidrList(values, "BlockedRemoteCidrs", config.blockedRemoteCidrs);
             ReadCidrList(values, "DohProviderCidrs", config.dohProviderCidrs);
 
             return config;
-        }
-
-        public bool IsAllowedRemote(IPAddress address)
-        {
-            return Contains(allowedRemoteCidrs, address);
-        }
-
-        public bool IsBlockedRemote(IPAddress address)
-        {
-            return Contains(blockedRemoteCidrs, address);
         }
 
         public bool IsAllowedDnsResolver(IPAddress address)
@@ -1097,10 +1101,10 @@ namespace ArcaneEDR
         private static HashSet<string> DefaultResponseBlockedRuleIds()
         {
             HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            result.Add("SERVICE-STARTED");
-            result.Add("SERVICE-STOPPED");
-            result.Add("SERVICE-RECOVERED-AFTER-UNCLEAN-STOP");
-            result.Add("TEST-ALERT");
+            result.Add(AlertRuleTaxonomy.RuleServiceStarted);
+            result.Add(AlertRuleTaxonomy.RuleServiceStopped);
+            result.Add(AlertRuleTaxonomy.RuleServiceRecoveredAfterUncleanStop);
+            result.Add(AlertRuleTaxonomy.RuleTestAlert);
             return result;
         }
 

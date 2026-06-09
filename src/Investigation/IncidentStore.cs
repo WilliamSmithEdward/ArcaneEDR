@@ -109,12 +109,12 @@ namespace ArcaneEDR
             if (alert.Score < config.IncidentMinimumScore) return false;
 
             string ruleId = alert.RuleId ?? "";
-            return !ruleId.Equals("SERVICE-STARTED", StringComparison.OrdinalIgnoreCase) &&
-                !ruleId.Equals("SERVICE-STOPPED", StringComparison.OrdinalIgnoreCase) &&
-                !ruleId.Equals("SERVICE-DAILY-SUMMARY", StringComparison.OrdinalIgnoreCase) &&
-                !ruleId.Equals("SERVICE-HEALTH-TEST", StringComparison.OrdinalIgnoreCase) &&
-                !ruleId.Equals("AI-LOG-ANALYSIS-TEST", StringComparison.OrdinalIgnoreCase) &&
-                !ruleId.Equals("TEST-ALERT-DELIVERY", StringComparison.OrdinalIgnoreCase);
+            return !AlertRuleTaxonomy.EqualsRule(ruleId, AlertRuleTaxonomy.RuleServiceStarted) &&
+                !AlertRuleTaxonomy.EqualsRule(ruleId, AlertRuleTaxonomy.RuleServiceStopped) &&
+                !AlertRuleTaxonomy.IsDailySummaryRule(ruleId) &&
+                !AlertRuleTaxonomy.EqualsRule(ruleId, AlertRuleTaxonomy.RuleServiceHealthTest) &&
+                !AlertRuleTaxonomy.EqualsRule(ruleId, AlertRuleTaxonomy.RuleAiLogAnalysisTest) &&
+                !AlertRuleTaxonomy.EqualsRule(ruleId, AlertRuleTaxonomy.RuleTestAlertDelivery);
         }
 
         private IncidentRecord BuildRecord(Alert alert)

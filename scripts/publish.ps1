@@ -87,6 +87,7 @@ if ($OverwriteDeploymentConfig -or !(Test-Path $destinationDeploymentConfig)) {
 Copy-Item -LiteralPath (Join-Path $root "config\arcaneedr-sysmon.xml") -Destination $config -Force
 Copy-Item -LiteralPath (Join-Path $root "config\custom-rules.json") -Destination $config -Force
 Copy-Item -LiteralPath (Join-Path $root "config\policy-rules.example.json") -Destination $config -Force
+Copy-Item -LiteralPath (Join-Path $root "config\remote-endpoint-policy.example.json") -Destination $config -Force
 Copy-Item -LiteralPath (Join-Path $root "README.md") -Destination $destination -Force
 Copy-Item -Path (Join-Path $root "docs\*.md") -Destination $docs -Force
 Copy-Item -Path (Join-Path $root "scripts\*.ps1") -Destination $scripts -Force

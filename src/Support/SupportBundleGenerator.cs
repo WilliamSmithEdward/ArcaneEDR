@@ -78,6 +78,8 @@ namespace ArcaneEDR
             lines.Add("AIAnalysisAuthHeadersConfigured=" + BuildAiProviderAuthSummary());
             lines.Add("DetectionPolicyEnabled=" + config.EnableDetectionPolicy);
             lines.Add("DetectionPolicyFile=" + RedactPath(config.DetectionPolicyFile));
+            lines.Add("RemoteEndpointPolicyEnabled=" + config.EnableRemoteEndpointPolicy);
+            lines.Add("RemoteEndpointPolicyFile=" + RedactPath(config.RemoteEndpointPolicyFile));
             lines.Add("IncidentGroupingEnabled=" + config.EnableIncidentGrouping);
             lines.Add("MaintenanceSessionMarkersEnabled=" + config.EnableMaintenanceSessionMarkers);
             lines.Add("AgentActivityLedgerEnabled=" + config.EnableAgentActivityLedger);

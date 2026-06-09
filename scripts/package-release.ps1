@@ -82,6 +82,7 @@ Copy-Item -LiteralPath (Join-Path $root "config\Deployment.example.config") -Des
 Copy-Item -LiteralPath (Join-Path $root "config\arcaneedr-sysmon.xml") -Destination (Join-Path $stage "config") -Force
 Copy-Item -LiteralPath (Join-Path $root "config\custom-rules.json") -Destination (Join-Path $stage "config") -Force
 Copy-Item -LiteralPath (Join-Path $root "config\policy-rules.example.json") -Destination (Join-Path $stage "config") -Force
+Copy-Item -LiteralPath (Join-Path $root "config\remote-endpoint-policy.example.json") -Destination (Join-Path $stage "config") -Force
 Copy-Item -Path (Join-Path $root "scripts\*.ps1") -Destination (Join-Path $stage "scripts") -Force
 Copy-Item -Path (Join-Path $root "scripts\*.cmd") -Destination (Join-Path $stage "scripts") -Force
 Copy-Item -Path (Join-Path $root "docs\*.md") -Destination (Join-Path $stage "docs") -Force

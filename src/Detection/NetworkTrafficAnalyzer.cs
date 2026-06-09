@@ -10,12 +10,31 @@ namespace ArcaneEDR
         private readonly MonitorConfig config;
         private readonly DetectionState state;
         private readonly BaselineStore baselineStore;
+        private readonly RemoteEndpointEnricher remoteEndpointEnricher;
+        private readonly RemoteEndpointPolicyEngine remoteEndpointPolicyEngine;
 
         public NetworkTrafficAnalyzer(MonitorConfig config, DetectionState state, BaselineStore baselineStore)
+            : this(config, state, baselineStore, null, null)
+        {
+        }
+
+        public NetworkTrafficAnalyzer(MonitorConfig config, DetectionState state, BaselineStore baselineStore, RemoteEndpointEnricher remoteEndpointEnricher)
+            : this(config, state, baselineStore, remoteEndpointEnricher, null)
+        {
+        }
+
+        public NetworkTrafficAnalyzer(
+            MonitorConfig config,
+            DetectionState state,
+            BaselineStore baselineStore,
+            RemoteEndpointEnricher remoteEndpointEnricher,
+            RemoteEndpointPolicyEngine remoteEndpointPolicyEngine)
         {
             this.config = config;
             this.state = state;
             this.baselineStore = baselineStore;
+            this.remoteEndpointEnricher = remoteEndpointEnricher;
+            this.remoteEndpointPolicyEngine = remoteEndpointPolicyEngine;
         }
 
         public List<Alert> Analyze(NetworkSnapshot snapshot, DateTime timestampUtc)
@@ -23,6 +42,11 @@ namespace ArcaneEDR
             List<Alert> alerts = new List<Alert>();
             Dictionary<string, int> externalConnectionCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             HashSet<int> externallyReachableTcpListeningPorts = GetExternallyReachableTcpListeningPorts(snapshot);
+
+            if (remoteEndpointEnricher != null)
+            {
+                remoteEndpointEnricher.Enrich(snapshot);
+            }
 
             AnalyzeProcessEvents(snapshot.ProcessEvents, alerts);
             AnalyzeDnsQueries(snapshot.DnsQueries, alerts);
@@ -248,16 +272,16 @@ namespace ArcaneEDR
             DateTime timestampUtc,
             List<Alert> alerts)
         {
-            bool blockedRemote = config.IsBlockedRemote(endpoint.RemoteAddress);
-            bool allowedRemote = config.IsAllowedRemote(endpoint.RemoteAddress);
-            bool remoteExternal = IpRules.IsExternal(endpoint.RemoteAddress) && !allowedRemote;
+            RemoteEndpointPolicyDecision remotePolicy = EvaluateRemotePolicy(endpoint);
+            bool remoteExternal = IpRules.IsExternal(endpoint.RemoteAddress) &&
+                (!remotePolicy.IsAllow || remotePolicy.IsHighSignal || remotePolicy.IsTrust);
             bool remotePrivate = IpRules.IsPrivateNetwork(endpoint.RemoteAddress);
             bool trustedProcess = config.TrustedProcesses.Contains(endpoint.ProcessName);
             bool ordinaryOutboundPort = IsAllowedOutboundPort(endpoint);
             bool riskyRemotePort = config.HighRiskRemotePorts.Contains(endpoint.RemotePort);
             bool inboundToLocalListener = tcpListeningPorts.Contains(endpoint.LocalPort);
 
-            if (remoteExternal || blockedRemote)
+            if (remoteExternal || remotePolicy.IsHighSignal)
             {
                 string processKey = endpoint.ProcessName + "|" + endpoint.ProcessId.ToString(CultureInfo.InvariantCulture);
                 Increment(externalConnectionCounts, processKey);
@@ -270,15 +294,9 @@ namespace ArcaneEDR
                 return;
             }
 
-            if (blockedRemote)
+            if (remotePolicy.IsHighSignal)
             {
-                alerts.Add(Alert.FromEndpoint(
-                    "NET-IOC-REMOTE-MATCH",
-                    "Connection to blocked remote indicator",
-                    95,
-                    "Remote IP matched the configured blocked indicator list.",
-                    "Disconnect the host from untrusted networks, preserve process details, and investigate the process tree.",
-                        endpoint));
+                alerts.Add(RemoteEndpointPolicyAlert(endpoint, remotePolicy));
             }
 
             if (endpoint.Process != null && config.IsBlockedHash(endpoint.Process.Sha256))
@@ -294,7 +312,7 @@ namespace ArcaneEDR
 
             if (remoteExternal)
             {
-                AnalyzeExternalTcpConnection(endpoint, inboundToLocalListener, trustedProcess, ordinaryOutboundPort, riskyRemotePort, timestampUtc, alerts);
+                AnalyzeExternalTcpConnection(endpoint, inboundToLocalListener, trustedProcess, ordinaryOutboundPort, riskyRemotePort, remotePolicy, timestampUtc, alerts);
             }
             else if (remotePrivate)
             {
@@ -340,11 +358,12 @@ namespace ArcaneEDR
             bool trustedProcess,
             bool ordinaryOutboundPort,
             bool riskyRemotePort,
+            RemoteEndpointPolicyDecision remotePolicy,
             DateTime timestampUtc,
             List<Alert> alerts)
         {
             int endpointSpecificAlertStart = alerts.Count;
-            AnalyzeRatOrientedExternalConnection(endpoint, trustedProcess, alerts);
+            AnalyzeRatOrientedExternalConnection(endpoint, trustedProcess, remotePolicy, alerts);
             bool endpointSpecificAlertEmitted = alerts.Count > endpointSpecificAlertStart;
 
             if (config.EnforceAuthorizedDnsResolvers &&
@@ -419,11 +438,11 @@ namespace ArcaneEDR
                     endpoint));
             }
 
-            AnalyzeBeaconing(endpoint, timestampUtc, alerts);
+            AnalyzeBeaconing(endpoint, timestampUtc, remotePolicy, alerts);
             AnalyzeBaselineForEndpoint(endpoint, alerts);
         }
 
-        private void AnalyzeRatOrientedExternalConnection(NetworkEndpoint endpoint, bool trustedProcess, List<Alert> alerts)
+        private void AnalyzeRatOrientedExternalConnection(NetworkEndpoint endpoint, bool trustedProcess, RemoteEndpointPolicyDecision remotePolicy, List<Alert> alerts)
         {
             ProcessInfo process = endpoint.Process;
             string commandLine = process == null ? "" : process.CommandLine;
@@ -517,16 +536,20 @@ namespace ArcaneEDR
             if (!trustedProcess && IsOrdinaryWebPort(endpoint) && String.IsNullOrWhiteSpace(endpoint.RemoteHost))
             {
                 bool lowRiskSignedProcess = IsSignedNonUserWritableProcess(endpoint) &&
-                    !HasStrongSuspiciousEndpointContext(endpoint, trustedProcess, false);
+                    !HasStrongSuspiciousEndpointContext(endpoint, trustedProcess, false, remotePolicy);
+                bool trustedRemoteContext = remotePolicy.IsTrust &&
+                    IsExpectedRemoteContextProcess(endpoint, trustedProcess) &&
+                    !HasStrongSuspiciousEndpointContext(endpoint, trustedProcess, false, remotePolicy);
+                bool lowerRiskContext = lowRiskSignedProcess || trustedRemoteContext;
 
                 alerts.Add(Alert.FromEndpoint(
-                    lowRiskSignedProcess ? "NET-DIRECT-IP-WEB-EGRESS-SIGNED" : "NET-DIRECT-IP-WEB-EGRESS",
-                    lowRiskSignedProcess ? "Signed process made direct-IP web connection" : "Untrusted process made direct-IP web connection",
-                    lowRiskSignedProcess ? 45 : 60,
-                    lowRiskSignedProcess
-                        ? "Signed process connected externally on HTTP/HTTPS without observed hostname context. No paired high-risk process, command-line, path, port, DNS, or indicator context was observed."
+                    lowerRiskContext ? "NET-DIRECT-IP-WEB-EGRESS-SIGNED" : "NET-DIRECT-IP-WEB-EGRESS",
+                    lowerRiskContext ? "Lower-risk direct-IP web connection" : "Untrusted process made direct-IP web connection",
+                    trustedRemoteContext ? 35 : (lowRiskSignedProcess ? 45 : 60),
+                    lowerRiskContext
+                        ? "Process connected externally on HTTP/HTTPS without observed hostname context, but local process and remote enrichment context are lower risk. " + RemoteContextSentence(endpoint)
                         : "Untrusted process connected externally on HTTP/HTTPS without observed hostname context.",
-                    lowRiskSignedProcess
+                    lowerRiskContext
                         ? "Keep as local context unless it repeats with suspicious process lineage, persistence, PowerShell staging, risky ports, or threat intelligence."
                         : "Correlate with DNS telemetry. Direct IP HTTPS from unusual processes is common in RAT and loader traffic.",
                     endpoint));
@@ -548,7 +571,7 @@ namespace ArcaneEDR
             }
         }
 
-        private void AnalyzeBeaconing(NetworkEndpoint endpoint, DateTime timestampUtc, List<Alert> alerts)
+        private void AnalyzeBeaconing(NetworkEndpoint endpoint, DateTime timestampUtc, RemoteEndpointPolicyDecision remotePolicy, List<Alert> alerts)
         {
             string flowKey = endpoint.ProcessName + "|" + endpoint.RemoteAddress + "|" + endpoint.RemotePort.ToString(CultureInfo.InvariantCulture);
             BeaconResult result = state.BeaconTracker.RecordAndEvaluate(
@@ -570,15 +593,23 @@ namespace ArcaneEDR
 
             bool trustedProcess = config.TrustedProcesses.Contains(endpoint.ProcessName);
             bool riskyRemotePort = config.HighRiskRemotePorts.Contains(endpoint.RemotePort);
+            bool trustedRemoteContext = remotePolicy.IsTrust;
             bool lowRiskTimingOnly = IsExpectedSignedNormalWebEndpoint(endpoint, trustedProcess) &&
-                !HasStrongSuspiciousEndpointContext(endpoint, trustedProcess, riskyRemotePort);
+                !HasStrongSuspiciousEndpointContext(endpoint, trustedProcess, riskyRemotePort, remotePolicy);
+            if (!lowRiskTimingOnly &&
+                trustedRemoteContext &&
+                IsExpectedRemoteContextProcess(endpoint, trustedProcess) &&
+                !HasStrongSuspiciousEndpointContext(endpoint, trustedProcess, riskyRemotePort, remotePolicy))
+            {
+                lowRiskTimingOnly = true;
+            }
 
             alerts.Add(Alert.FromEndpoint(
                 lowRiskTimingOnly ? "NET-BEACON-TIMING-LOW-RISK" : "NET-C2-BEACON-PATTERN",
                 lowRiskTimingOnly ? "Beacon-like timing from low-risk process" : "Potential beaconing activity",
                 lowRiskTimingOnly ? 55 : 90,
                 lowRiskTimingOnly
-                    ? details + " The process is signed, expected, using a normal web port, and no paired high-risk context was observed."
+                    ? details + " The process and remote enrichment context are expected, using a normal web port, and no paired high-risk context was observed. " + RemoteContextSentence(endpoint)
                     : details,
                 lowRiskTimingOnly
                     ? "Keep as local context. Escalate if paired with unsigned/user-writable execution, persistence, PowerShell staging, unusual ports, suspicious parentage, or threat intelligence."
@@ -643,10 +674,48 @@ namespace ArcaneEDR
             return false;
         }
 
-        private bool HasStrongSuspiciousEndpointContext(NetworkEndpoint endpoint, bool trustedProcess, bool riskyRemotePort)
+        private RemoteEndpointPolicyDecision EvaluateRemotePolicy(NetworkEndpoint endpoint)
+        {
+            return remoteEndpointPolicyEngine == null
+                ? RemoteEndpointPolicyDecision.None
+                : remoteEndpointPolicyEngine.Evaluate(endpoint);
+        }
+
+        private static Alert RemoteEndpointPolicyAlert(NetworkEndpoint endpoint, RemoteEndpointPolicyDecision decision)
+        {
+            string ruleId = decision.IsBlock
+                ? AlertRuleTaxonomy.RuleNetworkRemotePolicyBlocked
+                : AlertRuleTaxonomy.RuleNetworkRemotePolicyCritical;
+            string action = decision.Action ?? "";
+            string policyContext = "remote_endpoint_policy=" + SafePolicyToken(decision.RuleId) + ":" + SafePolicyToken(action);
+            string body = "Ordered remote endpoint policy matched id=" + SafePolicyToken(decision.RuleId) +
+                " action=" + SafePolicyToken(action) +
+                " reason=" + Compact(decision.Reason, 180) + ". " +
+                RemoteContextSentence(endpoint);
+            string recommendation = decision.IsBlock
+                ? "Review the process, parent, command line, and destination immediately. If this destination is expected, add a narrower rule above this policy entry."
+                : "Treat this as critical review context. If the destination is expected, add a narrower allow or trust rule above this policy entry.";
+            Alert alert = Alert.FromEndpoint(
+                ruleId,
+                decision.IsBlock ? "Connection matched blocked remote endpoint policy" : "Connection matched critical remote endpoint policy",
+                decision.Score,
+                body,
+                recommendation,
+                endpoint);
+            alert.CooldownKey = ruleId + "|" +
+                SafePolicyToken(decision.RuleId) + "|" +
+                SafePolicyToken(endpoint.ProcessName) + "|" +
+                (endpoint.RemoteAddress == null ? "" : endpoint.RemoteAddress.ToString()) + "|" +
+                endpoint.RemotePort.ToString(CultureInfo.InvariantCulture);
+            alert.AddPolicyContext(policyContext);
+            alert.EntitySummary = AppendEntity(alert.EntitySummary, "policy=" + policyContext);
+            return alert;
+        }
+
+        private bool HasStrongSuspiciousEndpointContext(NetworkEndpoint endpoint, bool trustedProcess, bool riskyRemotePort, RemoteEndpointPolicyDecision remotePolicy)
         {
             if (endpoint == null) return false;
-            if (config.IsBlockedRemote(endpoint.RemoteAddress)) return true;
+            if (remotePolicy != null && remotePolicy.IsHighSignal) return true;
             if (riskyRemotePort) return true;
             if (config.IsDynamicDnsDomain(endpoint.RemoteHost)) return true;
             if (config.IsDohProvider(endpoint.RemoteAddress) && !trustedProcess) return true;
@@ -689,6 +758,49 @@ namespace ArcaneEDR
                 config.AgentProcessNames.Contains(parentName) ||
                 config.AgentChildProcessNames.Contains(processName) ||
                 config.AgentPackageManagerProcesses.Contains(processName);
+        }
+
+        private bool IsExpectedRemoteContextProcess(NetworkEndpoint endpoint, bool trustedProcess)
+        {
+            return endpoint != null &&
+                IsOrdinaryWebPort(endpoint) &&
+                (trustedProcess || IsAgentProfileEndpoint(endpoint));
+        }
+
+        private static string RemoteContextSentence(NetworkEndpoint endpoint)
+        {
+            if (endpoint == null) return "Remote context was unavailable.";
+
+            string summary = endpoint.RemoteContextSummary();
+            return String.IsNullOrWhiteSpace(summary)
+                ? "Remote context was unavailable."
+                : "Remote context: " + summary + ".";
+        }
+
+        private static string SafePolicyToken(string value)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return "unknown";
+            return value.Trim()
+                .Replace(" ", "_")
+                .Replace(",", "_")
+                .Replace(";", "_")
+                .Replace("|", "_")
+                .Replace("\r", "")
+                .Replace("\n", "");
+        }
+
+        private static string AppendEntity(string value, string addition)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return addition;
+            return value + " " + addition;
+        }
+
+        private static string Compact(string value, int maxLength)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return "not specified";
+            string compact = value.Replace("\r", " ").Replace("\n", " ").Trim();
+            if (compact.Length <= maxLength) return compact;
+            return compact.Substring(0, Math.Max(0, maxLength - 3)) + "...";
         }
 
         private bool IsAllowedOutboundPort(NetworkEndpoint endpoint)

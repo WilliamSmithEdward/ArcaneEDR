@@ -119,7 +119,7 @@ namespace ArcaneEDR
             if (config.DailyReportDestinationEnabled("ExternalAlertSinks"))
             {
                 dispatcher.SendExternal(Alert.SystemAlert(
-                    "SERVICE-DAILY-SUMMARY",
+                    AlertRuleTaxonomy.RuleServiceDailySummary,
                     "Daily Arcane EDR report test",
                     config.DailySummaryScore,
                     body,

@@ -1,0 +1,74 @@
+{
+  "policies": [
+    {
+      "id": "default-critical-country-missing",
+      "enabled": true,
+      "action": "critical",
+      "score": 90,
+      "reason": "RDAP enrichment was attempted but did not return a country. Treat country-unavailable external destinations as critical review context by default.",
+      "match": {
+        "country_missing": true
+      }
+    },
+    {
+      "id": "default-critical-non-us-country",
+      "enabled": true,
+      "action": "critical",
+      "score": 90,
+      "reason": "Remote endpoint country is outside the default US-only country policy.",
+      "match": {
+        "country_not": "US"
+      }
+    },
+    {
+      "id": "example-block-remote-owner",
+      "enabled": false,
+      "action": "block",
+      "score": 95,
+      "reason": "Example high-confidence blocked owner context. Keep entries narrow and evidence-based.",
+      "match": {
+        "owner": "Example Bad Hosting"
+      }
+    },
+    {
+      "id": "example-block-remote-asn",
+      "enabled": false,
+      "action": "block",
+      "score": 95,
+      "reason": "Example high-confidence blocked ASN context. Keep entries narrow and evidence-based.",
+      "match": {
+        "asn": "AS64500"
+      }
+    },
+    {
+      "id": "example-block-remote-domain-pattern",
+      "enabled": false,
+      "action": "block",
+      "score": 95,
+      "reason": "Example blocked domain context from local operator intelligence.",
+      "match": {
+        "domain": "regex:(dynamic-dns-example|unexpected-cdn)"
+      }
+    },
+    {
+      "id": "example-trust-expected-agent-cloudflare",
+      "enabled": false,
+      "action": "trust",
+      "reason": "Expected agent backend traffic. Trust lowers only clean direct-IP and timing-only network noise from expected processes.",
+      "match": {
+        "process_name": "codex.exe",
+        "owner": "Cloudflare",
+        "port": 443
+      }
+    },
+    {
+      "id": "example-allow-specific-remote-ip",
+      "enabled": false,
+      "action": "allow",
+      "reason": "Example explicit allow for a stable, expected remote IP. Allow entries skip generic external-remote analysis, so keep them narrow.",
+      "match": {
+        "remote_ip": "203.0.113.10"
+      }
+    }
+  ]
+}

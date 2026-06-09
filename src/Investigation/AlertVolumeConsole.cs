@@ -171,8 +171,7 @@ namespace ArcaneEDR
         private static bool UsesDirectExternalPath(Alert alert)
         {
             string ruleId = alert == null ? "" : alert.RuleId ?? "";
-            return ruleId.StartsWith("SERVICE-", StringComparison.OrdinalIgnoreCase) ||
-                ruleId.StartsWith("AI-LOG-ANALYSIS-", StringComparison.OrdinalIgnoreCase);
+            return AlertRuleTaxonomy.IsDirectExternalRule(ruleId);
         }
 
         private static List<AlertVolumeBucket> BuildBuckets(List<AlertVolumeRecord> records, string field)

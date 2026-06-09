@@ -23,6 +23,9 @@ deployment.
   user-friendly granular detection policy.
 - `v0.6.0`: agentic workstation guardrails MVP and active-response dry-run.
 - `v0.7.0`: collector/rule interface cleanup and privacy hardening.
+- `v0.8.0`: full feature-complete local product milestone with MSI
+  installer/uninstaller, best-in-class Windows GUI for configuring and
+  maintaining the service, and a locked service/GUI alignment strategy.
 - `v1.0.0`: documented stable release with tested install, upgrade, alerting,
   privacy, recovery behavior, and a clear mission as an agent-workstation safety
   layer.
@@ -35,24 +38,39 @@ unblocks the active milestone, prevents avoidable rework, fixes an urgent
 operational issue, or is a very small adjacent change with low risk.
 
 Because the project is still pre-`v1.0.0`, prefer active refactoring toward
-unified product surfaces over preserving backwards-compatibility hacks. Avoid
+unified product surfaces over preserving backwards-compatibility hacks. Do not
+add compatibility shims unless the operator explicitly asks for one; removed
+surfaces should fail validation loudly instead of being quietly honored. Avoid
 partial implementations that look supported but only work through aliases or
 proxy behavior; a feature should be called supported when config, validation,
 runtime behavior, logging, reports, and docs all share the same model.
 
-Current active milestone: `v0.6.0` is release-ready locally; tagging and live
-deployment remain explicit operator actions.
+Starting with the `v0.8.0` track, Arcane should be developed as a coupled
+service plus Windows GUI product. New service capabilities should have matching
+GUI configuration/maintenance surfaces, validation, documentation, and installer
+coverage unless the operator explicitly scopes them out. The GUI should stay in
+lockstep with the service feature set instead of becoming a stale wrapper around
+older config.
 
-Recently completed `v0.4.0` gate:
+Current active milestone: `v0.8.0` planning. `v0.7.0` is released and deployed
+locally.
 
-- Required alert sinks are implemented, validated, and documented.
-- Multi-sink fan-out isolates individual sink failures.
-- Brevo-specific behavior is isolated from the notification architecture.
-- Daily reporting can be routed independently from real-time alert sinks.
-- Local Markdown/JSON daily report archive output is configurable and redacted.
-- Preview and validation commands support safe report tuning before delivery.
-- Remaining configurable reporting-engine gaps are explicitly deferred with a
-  reason.
+Recently completed `v0.7.0` gate:
+
+- Shared rule taxonomy now centralizes rule categories, lifecycle IDs,
+  response follow-up IDs, direct notification-path rules, and common
+  prefix/category decisions.
+- Remote endpoint enrichment adds DNS-derived names plus bounded optional rDNS
+  and RDAP owner/ASN/country context without blocking the poll indefinitely.
+- Ordered remote endpoint policy is the single remote allow, trust, block, and
+  critical review surface. Removed split remote-list keys now fail validation
+  loudly instead of being honored through compatibility shims.
+- Default policy elevates RDAP country missing and non-US country context to
+  critical review while preserving operator-controlled local tuning.
+- Remote endpoint policy validation catches unsupported actions, invalid CIDRs,
+  malformed ports, invalid regex entries, unknown fields, and missing reasons.
+- `0.7.0` versioning, local release ZIP, checksum, package contents, bundled
+  example-config validation, GitHub release, and local deployment are complete.
 
 ## Milestone Status
 
@@ -66,11 +84,57 @@ phase sections below.
 | `v0.3.0` | Done | Complete | Detection-quality work is released as `v0.3.0`; further empirical tuning feeds later milestones. |
 | `v0.4.0` | Done | Complete | Modular alert sinks are released for Brevo, SMTP, webhook, generic HTTP/API, Windows Event Log, and local JSONL. Daily report preview, local archive, selectable sections, row limits, independent report destinations, canonical destination names, and concurrent AI provider fan-out are released in `v0.4.0`. |
 | `v0.5.0` | Done | Complete | Released investigation MVP: `why` explanations, incident grouping, timeline command, support bundle, simulations and demo path, rule-family docs, poll-stage fail-isolation, and structured local detection-policy preview/tuning. |
-| `v0.6.0` | Ready | Release-ready locally | Agent Profile labeling, file-write guardrails, compact activity ledger, alert-only admin/secret/supply-chain guardrails, response dry-run ledger, active-response policy gates, rollback helpers, follow-up detections, maintenance session markers, `0.6.0` versioning, package ZIP, checksum, and staged validation are complete. Not yet tagged or deployed. |
-| `v0.7.0` | Not started | Planned | Collector/rule interface cleanup, privacy hardening, and AI provider abstraction remain planned. |
+| `v0.6.0` | Done | Complete | Released guardrails and response-safety milestone: Agent Profile labeling, file-write guardrails, compact activity ledger, alert-only admin/secret/supply-chain guardrails, response dry-run ledger, active-response policy gates, rollback helpers, follow-up detections, maintenance session markers, `0.6.0` versioning, package ZIP, checksum, GitHub release, and local deployment are complete. |
+| `v0.7.0` | Done | Complete | Released collector/rule cleanup and privacy-hardening milestone: shared rule taxonomy cleanup, remote endpoint enrichment, ordered remote endpoint policy, default critical country review for RDAP country missing or non-US, no-shim validation for removed remote-list config keys, policy regex/port validation, `0.7.0` versioning, package ZIP, checksum, GitHub release, and local deployment are complete. |
+| `v0.8.0` | Planned | Not started | Full feature-complete local product milestone: MSI installer/uninstaller, best-in-class Windows GUI application for configuration and service maintenance, and permanent service/GUI feature-set alignment. |
 | `v1.0.0` | Not ready | Planned | Requires completed docs, tuned alert volume, tested install/upgrade/release flow, dry-run/manual response safety, and stable privacy/operations posture. |
 
-Current milestone focus: tag and deploy `v0.6.0` only when explicitly requested.
+Current milestone focus: prepare the `v0.8.0` GUI and MSI track using
+`docs\v0.8-gui-and-msi-research.md` as the planning baseline. Do not start live
+installer/GUI deployment work without explicit operator scope.
+
+## `v0.8.0` Feature Complete Installer And GUI
+
+`v0.8.0` is the full feature-complete local product milestone. It should move
+Arcane from a powerful service-plus-config repo into a best-in-class Windows
+application that an operator can install, understand, configure, validate,
+maintain, and uninstall without hand-editing files for normal workflows.
+
+Required for `v0.8.0`:
+
+- Use `docs\v0.8-gui-and-msi-research.md` as the planning baseline for GUI
+  framework choice, UX standards, installer behavior, service/GUI alignment,
+  and validation gates.
+- MSI installer and uninstaller with clean install, upgrade, repair, uninstall,
+  and rollback behavior.
+- A full Windows GUI application for service configuration, health, validation,
+  policy editing, alert/report review, support bundle generation, maintenance
+  windows, and safe response rollback workflows.
+- GUI and service feature sets must stay coupled going forward. New service
+  features should ship with matching GUI controls, validation, help text,
+  docs, and installer/update considerations unless explicitly scoped out.
+- GUI changes should use the same canonical config, policy, validation, and
+  status model as the service. No duplicate hidden config model, no stale UI
+  settings, and no compatibility shims unless explicitly requested.
+- Operator safety remains central: `AlertOnly` stays default, active-response
+  controls remain explicit, rollback paths are visible, and risky actions are
+  understandable before execution.
+- Release packaging should make the MSI, service binary, GUI binary, examples,
+  docs, checksums, and version metadata coherent as one product.
+
+Exit criteria:
+
+- A fresh Windows install can be completed from the MSI and validated from the
+  GUI without manual file edits.
+- The GUI can configure every supported service feature intended for normal
+  operator use in that release.
+- The GUI can show service state, validation results, recent alerts, report
+  status, policy file state, and response rollback state.
+- MSI uninstall removes installed binaries/tasks/service entries cleanly while
+  preserving or explicitly offering to remove local evidence/config according
+  to documented operator choice.
+- `--validate-config`, GUI validation, docs, and installer behavior agree on the
+  same supported feature set.
 
 ## `v1.0.0` Scope Boundary
 
@@ -526,6 +590,9 @@ Progress:
 - Bumped `VersionInfo` to `0.6.0` and generated a local release package plus
   SHA256 checksum under `artifacts\ArcaneEDR-0.6.0*`. The staged package binary
   reports `Arcane EDR 0.6.0` and validates its bundled example config.
+- Tagged and pushed `v0.6.0`, published the GitHub release with ZIP and checksum
+  assets, and deployed locally via `PublishRestart`. Admin validation passed
+  after deployment with 0 errors and 0 warnings.
 
 ## Phase 4: Modular Notification And Reporting
 
@@ -714,6 +781,33 @@ Exit criteria:
 - Optional enrichment can be added without changing detection flow broadly.
 - Granular allow/block detection policy is understandable, validated, previewable,
   and preserves local evidence by default.
+
+Progress:
+
+- Started `v0.7.0` rule-interface cleanup with a shared rule taxonomy for rule
+  families, categories, lifecycle rule IDs, response follow-up checks, daily
+  report classification, alert-volume estimates, incident exclusions, and
+  agent activity summaries.
+- Added one ordered remote endpoint policy JSON surface for remote allow, trust,
+  block, and critical owner/domain/CIDR/country decisions. First enabled match
+  wins, default policy elevates RDAP country missing and non-US country to
+  critical, and removed split remote-list config keys fail validation.
+- Added remote endpoint policy documentation, release/publish packaging for the
+  policy example, support-bundle manifest entries, and config-integrity
+  monitoring for policy file changes.
+- Locked the product strategy that removed surfaces should fail validation
+  instead of being carried through compatibility shims unless the operator
+  explicitly requests a shim.
+- Completed remote endpoint policy validation for invalid regex entries and
+  malformed ports, and cleaned the tracked example policy so owner and ASN
+  examples do not imply unsupported OR behavior across match fields.
+- Bumped `VersionInfo` to `0.7.0`, generated
+  `artifacts\ArcaneEDR-0.7.0.zip` plus SHA256 checksum, and validated the staged
+  package against its bundled example config with 0 errors. Only expected
+  non-admin event-log access warnings remained.
+- Tagged and pushed `v0.7.0`, published the GitHub release with ZIP and checksum
+  assets, and deployed locally via `PublishRestart`. Admin validation passed
+  after deployment.
 
 ## Phase 6: Active Response Safety
 

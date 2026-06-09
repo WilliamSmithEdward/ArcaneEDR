@@ -69,7 +69,7 @@ namespace ArcaneEDR
             string entity = alert.EntitySummary ?? "";
             string process = ExtractToken(entity, "process");
 
-            if (StartsWith(ruleId, "NET-LISTEN-"))
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixNetworkListen))
             {
                 return Join(ruleId, process, ExtractToken(entity, "local"));
             }
@@ -81,8 +81,7 @@ namespace ArcaneEDR
             }
 
             if (category.Equals("DNS", StringComparison.OrdinalIgnoreCase) ||
-                StartsWith(ruleId, "DNS-") ||
-                StartsWith(ruleId, "NET-DNS-"))
+                AlertRuleTaxonomy.IsDnsRule(ruleId))
             {
                 return Join(ruleId, process, ExtractToken(entity, "query"));
             }
@@ -143,9 +142,5 @@ namespace ArcaneEDR
             return value.Trim().ToLowerInvariant();
         }
 
-        private static bool StartsWith(string value, string prefix)
-        {
-            return value != null && value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
-        }
     }
 }

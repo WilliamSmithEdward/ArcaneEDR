@@ -31,6 +31,7 @@ namespace ArcaneEDR
                 return Finish(errors, warnings);
             }
 
+            ValidateRemovedConfigKeys(config, errors);
             ValidateBasicSettings(config, errors, warnings);
             ValidateLogDirectory(config, errors);
             ValidateSecrets(config, errors, warnings);
@@ -83,6 +84,7 @@ namespace ArcaneEDR
             if (config.WindowsEventLogAlertEventId < 1 || config.WindowsEventLogAlertEventId > 65535) Fail(errors, "WindowsEventLogAlertEventId must be between 1 and 65535.");
             if (config.PersistEventLogWatermarks && String.IsNullOrWhiteSpace(config.EventLogWatermarkFile)) Fail(errors, "EventLogWatermarkFile must be configured when PersistEventLogWatermarks is enabled.");
             ValidateCollectorConfig(config, warnings);
+            ValidateRemoteEndpointEnrichment(config, errors, warnings);
             if (config.AuthSpecialPrivilegeRepeatDampeningMinutes <= 0) Fail(errors, "AuthSpecialPrivilegeRepeatDampeningMinutes must be greater than zero.");
             if (config.AuthSpecialPrivilegeRemoteCorrelationMinutes <= 0) Fail(errors, "AuthSpecialPrivilegeRemoteCorrelationMinutes must be greater than zero.");
             if (config.EnableIncidentGrouping)
@@ -594,6 +596,80 @@ namespace ArcaneEDR
             }
         }
 
+        private static void ValidateRemoteEndpointEnrichment(MonitorConfig config, List<string> errors, List<string> warnings)
+        {
+            if (config.RemoteEndpointEnrichmentTimeoutSeconds <= 0)
+            {
+                Fail(errors, "RemoteEndpointEnrichmentTimeoutSeconds must be greater than zero.");
+            }
+
+            if (config.RemoteEndpointEnrichmentCacheMinutes < 0)
+            {
+                Fail(errors, "RemoteEndpointEnrichmentCacheMinutes must not be negative.");
+            }
+
+            if (config.RemoteEndpointRdapMaxLookupsPerPoll < 0)
+            {
+                Fail(errors, "RemoteEndpointRdapMaxLookupsPerPoll must not be negative.");
+            }
+
+            if (config.EnableRemoteEndpointRdapEnrichment &&
+                String.IsNullOrWhiteSpace(config.RemoteEndpointRdapUrlTemplate))
+            {
+                Fail(errors, "RemoteEndpointRdapUrlTemplate must be configured when EnableRemoteEndpointRdapEnrichment is true.");
+            }
+
+            ValidateRemoteEndpointPolicy(config, errors, warnings);
+        }
+
+        private static void ValidateRemoteEndpointPolicy(MonitorConfig config, List<string> errors, List<string> warnings)
+        {
+            if (!config.EnableRemoteEndpointPolicy) return;
+
+            if (String.IsNullOrWhiteSpace(config.RemoteEndpointPolicyFile))
+            {
+                Fail(errors, "RemoteEndpointPolicyFile must be configured when EnableRemoteEndpointPolicy is true.");
+                return;
+            }
+
+            RemoteEndpointPolicy policy = RemoteEndpointPolicy.Load(config.RemoteEndpointPolicyFile);
+            if (!policy.FileFound)
+            {
+                Fail(errors, "Remote endpoint policy file not found: " + config.RemoteEndpointPolicyFile);
+                return;
+            }
+
+            foreach (string error in policy.Errors)
+            {
+                Fail(errors, error);
+            }
+
+            foreach (string warning in policy.Warnings)
+            {
+                Warn(warnings, warning);
+            }
+
+            if (!config.EnableRemoteEndpointEnrichment)
+            {
+                Warn(warnings, "Remote endpoint policy is enabled but EnableRemoteEndpointEnrichment is false; owner, domain, and country matching will be limited.");
+            }
+
+            if (policy.HasCountryCriteria && !config.EnableRemoteEndpointRdapEnrichment)
+            {
+                Warn(warnings, "Remote endpoint policy contains country criteria but EnableRemoteEndpointRdapEnrichment is false; country matching will not be available.");
+            }
+
+            if (policy.HasOwnerCriteria && !config.EnableRemoteEndpointRdapEnrichment)
+            {
+                Warn(warnings, "Remote endpoint policy contains owner/ASN criteria but EnableRemoteEndpointRdapEnrichment is false; owner/ASN matching will not be available.");
+            }
+
+            if (policy.Errors.Count == 0)
+            {
+                Pass("Remote endpoint policy parsed: " + policy.Rules.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " entries from " + config.RemoteEndpointPolicyFile);
+            }
+        }
+
         private static void ValidateAgentProfile(MonitorConfig config, List<string> warnings)
         {
             if (!config.EnableAgentProfile) return;
@@ -1098,6 +1174,52 @@ namespace ArcaneEDR
             }
 
             return false;
+        }
+
+        private static void ValidateRemovedConfigKeys(MonitorConfig config, List<string> errors)
+        {
+            if (config == null || String.IsNullOrWhiteSpace(config.ConfigPath) || !File.Exists(config.ConfigPath)) return;
+
+            HashSet<string> keys = ReadConfigKeys(config.ConfigPath);
+            string[] removed = new[]
+            {
+                "AllowedRemoteCidrs",
+                "BlockedRemoteCidrs",
+                "TrustedRemoteOwnerPatterns",
+                "BlockedRemoteOwnerPatterns",
+                "TrustedRemoteDomainPatterns",
+                "BlockedRemoteDomainPatterns",
+                "EnableRemoteCountryPolicy",
+                "AllowedRemoteCountryCodes",
+                "BlockedRemoteCountryCodes",
+                "RemoteCountryPolicyAlertOnUnknown",
+                "RemoteCountryPolicyScore"
+            };
+
+            foreach (string key in removed)
+            {
+                if (keys.Contains(key))
+                {
+                    Fail(errors, key + " has been removed. Put remote allow/block/trust/country rules in RemoteEndpointPolicyFile instead.");
+                }
+            }
+        }
+
+        private static HashSet<string> ReadConfigKeys(string path)
+        {
+            HashSet<string> keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string rawLine in File.ReadAllLines(path))
+            {
+                string line = rawLine.Trim();
+                if (line.Length == 0 || line.StartsWith("#", StringComparison.Ordinal)) continue;
+
+                int equals = line.IndexOf('=');
+                if (equals <= 0) continue;
+                string key = line.Substring(0, equals).Trim();
+                if (key.Length > 0) keys.Add(key);
+            }
+
+            return keys;
         }
 
         private static bool ProviderEnabled(MonitorConfig config, string expectedProvider)

@@ -167,6 +167,7 @@ function Publish-Arcane {
     Copy-IfExists -Source (Join-Path $SourceRoot "config\arcaneedr-sysmon.xml") -Destination $config
     Copy-IfExists -Source (Join-Path $SourceRoot "config\custom-rules.json") -Destination $config
     Copy-IfExists -Source (Join-Path $SourceRoot "config\policy-rules.example.json") -Destination $config
+    Copy-IfExists -Source (Join-Path $SourceRoot "config\remote-endpoint-policy.example.json") -Destination $config
     Copy-IfExists -Source (Join-Path $SourceRoot "README.md") -Destination $PublishedRoot
     Copy-IfExists -Source (Join-Path $SourceRoot "ROADMAP.md") -Destination $PublishedRoot
     Copy-IfExists -Source (Join-Path $SourceRoot "LICENSE") -Destination $PublishedRoot

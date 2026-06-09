@@ -21,7 +21,9 @@ namespace ArcaneEDR
             INetworkSnapshotCollector collector = new CompositeNetworkSnapshotCollector(netstatCollector, sysmonCollector, hostTelemetryCollector, logger);
             DetectionState detectionState = new DetectionState();
             BaselineStore baselineStore = new BaselineStore(config, logger);
-            NetworkTrafficAnalyzer analyzer = new NetworkTrafficAnalyzer(config, detectionState, baselineStore);
+            RemoteEndpointEnricher remoteEndpointEnricher = new RemoteEndpointEnricher(config, logger);
+            RemoteEndpointPolicyEngine remoteEndpointPolicyEngine = new RemoteEndpointPolicyEngine(config, logger);
+            NetworkTrafficAnalyzer analyzer = new NetworkTrafficAnalyzer(config, detectionState, baselineStore, remoteEndpointEnricher, remoteEndpointPolicyEngine);
             ReputationCache reputationCache = new ReputationCache(config, logger);
             CustomRuleEngine customRuleEngine = new CustomRuleEngine(config, logger);
             HostTelemetryAnalyzer hostAnalyzer = new HostTelemetryAnalyzer(config, detectionState, reputationCache, customRuleEngine);

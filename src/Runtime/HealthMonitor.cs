@@ -67,7 +67,7 @@ namespace ArcaneEDR
                 }
 
                 dispatcher.SendExternal(Alert.SystemAlert(
-                    recovered ? "SERVICE-RECOVERED-AFTER-UNCLEAN-STOP" : "SERVICE-STARTED",
+                    recovered ? AlertRuleTaxonomy.RuleServiceRecoveredAfterUncleanStop : AlertRuleTaxonomy.RuleServiceStarted,
                     recovered ? "Service recovered after unclean stop" : "Service started",
                     recovered ? 80 : 60,
                     body,
@@ -87,7 +87,7 @@ namespace ArcaneEDR
             if (config.NotifyOnServiceStop)
             {
                 dispatcher.SendExternal(Alert.SystemAlert(
-                    "SERVICE-STOPPED",
+                    AlertRuleTaxonomy.RuleServiceStopped,
                     "Service stopped cleanly",
                     50,
                     config.ProductName + " stopped cleanly at " + Format(DateTime.UtcNow) + ".",
@@ -204,7 +204,7 @@ namespace ArcaneEDR
             if (config.DailyReportDestinationEnabled("ExternalAlertSinks"))
             {
                 dispatcher.SendExternal(Alert.SystemAlert(
-                    "SERVICE-DAILY-SUMMARY",
+                    AlertRuleTaxonomy.RuleServiceDailySummary,
                     "Daily Arcane EDR report",
                     config.DailySummaryScore,
                     body,
@@ -261,7 +261,7 @@ namespace ArcaneEDR
                 if (forced)
                 {
                     dispatcher.SendExternal(Alert.SystemAlert(
-                        "AI-LOG-ANALYSIS-TEST",
+                        AlertRuleTaxonomy.RuleAiLogAnalysisTest,
                         "AI log analysis test result",
                         Math.Max(config.MinimumEmailScore, result.Score),
                         result.ToBody(),
@@ -279,7 +279,7 @@ namespace ArcaneEDR
                     }
 
                     dispatcher.SendExternal(Alert.SystemAlert(
-                        "AI-LOG-ANALYSIS-ALERT",
+                        AlertRuleTaxonomy.RuleAiLogAnalysisAlert,
                         "AI analysis flagged security-relevant log activity",
                         Math.Max(result.Score, config.MinimumEmailScore),
                         result.ToBody(),

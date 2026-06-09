@@ -16,6 +16,7 @@ tools/
 config/ArcaneEDR.config
 config/Deployment.config
 config/policy-rules.json
+config/remote-endpoint-policy.json
 *.local.config
 *.local.json
 .env

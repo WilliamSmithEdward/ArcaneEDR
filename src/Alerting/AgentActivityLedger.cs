@@ -91,33 +91,34 @@ namespace ArcaneEDR
         private string CommandCategory(Alert alert, string text)
         {
             string ruleId = alert.RuleId ?? "";
-            if (StartsWith(ruleId, "AGENT-ADMIN-")) return "agent-admin-command";
-            if (StartsWith(ruleId, "AGENT-SECRET-")) return "agent-secret-reference";
-            if (StartsWith(ruleId, "AGENT-SUPPLY-")) return "agent-supply-chain";
-            if (StartsWith(ruleId, "AGENT-")) return "agent-guardrail";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixAgentAdmin)) return "agent-admin-command";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixAgentSecret)) return "agent-secret-reference";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixAgentSupply)) return "agent-supply-chain";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixAgent)) return "agent-guardrail";
             if (Contains(ruleId, "ENCODED") || Contains(text, "base64")) return "encoded";
-            if (StartsWith(ruleId, "PS-DEFENDER") || Contains(text, "defender")) return "security-control-change";
-            if (StartsWith(ruleId, "PS-PERSIST") || StartsWith(ruleId, "PERSIST-")) return "persistence";
-            if (StartsWith(ruleId, "FILE-")) return "file-write";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixPowerShellDefender) || Contains(text, "defender")) return "security-control-change";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixPowerShellPersistence) ||
+                AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixPersistence)) return "persistence";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixFile)) return "file-write";
             if (Contains(ruleId, "DOWNLOAD") || Contains(text, "download")) return "download-or-staging";
-            if (StartsWith(ruleId, "NET-LAN-") || Contains(ruleId, "LATERAL")) return "lateral-or-admin-access";
-            if (StartsWith(ruleId, "NET-") || StartsWith(ruleId, "DNS-") || StartsWith(ruleId, "RAT-")) return "network";
-            if (StartsWith(ruleId, "AUTH-")) return "auth";
-            if (StartsWith(ruleId, "PROC-") || StartsWith(ruleId, "REPUTATION-")) return "process";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixNetworkLan) || Contains(ruleId, "LATERAL")) return "lateral-or-admin-access";
+            if (AlertRuleTaxonomy.HasAnyPrefix(ruleId, AlertRuleTaxonomy.PrefixNetwork, AlertRuleTaxonomy.PrefixDns, AlertRuleTaxonomy.PrefixRat)) return "network";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixAuth)) return "auth";
+            if (AlertRuleTaxonomy.HasAnyPrefix(ruleId, AlertRuleTaxonomy.PrefixProcess, AlertRuleTaxonomy.PrefixReputation)) return "process";
             return "other";
         }
 
         private string EndpointCategory(Alert alert, string text)
         {
             string ruleId = alert.RuleId ?? "";
-            if (StartsWith(ruleId, "NET-LAN-INBOUND-")) return "lan-inbound-admin";
-            if (StartsWith(ruleId, "NET-LAN-EGRESS-")) return "lan-egress-admin";
-            if (StartsWith(ruleId, "NET-INBOUND-")) return "external-inbound";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixNetworkLanInbound)) return "lan-inbound-admin";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixNetworkLanEgress)) return "lan-egress-admin";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixNetworkInbound)) return "external-inbound";
             if (Contains(ruleId, "DIRECT-IP")) return "external-direct-ip-web";
             if (Contains(ruleId, "BEACON")) return "external-beacon-like";
             if (Contains(ruleId, "HIGH-RISK-PORT") || Contains(ruleId, "UNUSUAL-PORT") || Contains(ruleId, "PORT-MISUSE")) return "external-unusual-port";
-            if (StartsWith(ruleId, "DNS-") || StartsWith(ruleId, "NET-DNS-")) return "dns";
-            if (StartsWith(ruleId, "NET-EGRESS-") || StartsWith(ruleId, "RAT-")) return "external-egress";
+            if (AlertRuleTaxonomy.IsDnsRule(ruleId)) return "dns";
+            if (AlertRuleTaxonomy.HasAnyPrefix(ruleId, AlertRuleTaxonomy.PrefixNetworkEgress, AlertRuleTaxonomy.PrefixRat)) return "external-egress";
             if (Contains(text, "remote=")) return "network";
             return "none";
         }
@@ -249,11 +250,6 @@ namespace ArcaneEDR
         private static string FirstNonEmpty(string first, string second)
         {
             return !String.IsNullOrWhiteSpace(first) ? first : second;
-        }
-
-        private static bool StartsWith(string value, string prefix)
-        {
-            return value != null && value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool Contains(string value, string term)

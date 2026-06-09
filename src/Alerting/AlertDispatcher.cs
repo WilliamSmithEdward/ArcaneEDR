@@ -242,7 +242,7 @@ namespace ArcaneEDR
             }
 
             if (!forceExternal &&
-                StartsWith(alert.RuleId, "RESPONSE-") &&
+                AlertRuleTaxonomy.IsResponseRule(alert.RuleId) &&
                 alert.Score < config.ResponseFollowUpExternalAlertMinimumScore)
             {
                 WarnThrottled("response follow-up below external alert threshold");
@@ -325,11 +325,6 @@ namespace ArcaneEDR
                 (alert.Title ?? "") + " " +
                 (alert.Body ?? "") + " " +
                 (alert.EntitySummary ?? "");
-        }
-
-        private static bool StartsWith(string value, string prefix)
-        {
-            return value != null && value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

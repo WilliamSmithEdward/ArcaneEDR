@@ -9,7 +9,8 @@ what telemetry is required, common false positives, and safe ways to test.
 Rule IDs include `NET-EGRESS-*`, `NET-LISTEN-*`, `NET-INBOUND-*`,
 `NET-C2-BEACON-PATTERN`, `NET-BEACON-TIMING-LOW-RISK`,
 `NET-DIRECT-IP-WEB-EGRESS`, `NET-DIRECT-IP-WEB-EGRESS-SIGNED`,
-`NET-EGRESS-TRUSTED-ALT-WEB-PORT`,
+`NET-EGRESS-TRUSTED-ALT-WEB-PORT`, `NET-REMOTE-POLICY-BLOCKED`,
+`NET-REMOTE-POLICY-CRITICAL`,
 `NET-LAN-INBOUND-LATERAL-PORT`, `NET-LAN-EGRESS-LATERAL-PORT`,
 `NET-LATERAL-PORT`, and `NET-DNS-UNAUTHORIZED-RESOLVER`.
 
@@ -24,14 +25,24 @@ Rule IDs include `NET-EGRESS-*`, `NET-LISTEN-*`, `NET-INBOUND-*`,
 - Common false positives: development servers, browser extensions, update
   agents, VPNs, sync clients, package managers, and local test listeners.
 - Correlation-first tuning: timing-only beaconing and direct-IP HTTPS are
-  reduced when the process is signed, expected, on a normal web port, outside
-  user-writable paths, and lacks paired high-risk context such as suspicious
-  command lines, LOLBins, RMM tools, persistence, risky ports, dynamic DNS, DoH
-  bypass, blocked indicators, or suspicious parentage. Trusted signed processes
-  using common alternate web/proxy ports such as `8080` or `8443` are also
-  reduced to local context. The events remain logged locally as
+  reduced when the process is signed or otherwise expected, on a normal web
+  port, outside user-writable paths when signer context is available, and lacks
+  paired high-risk context such as suspicious command lines, LOLBins, RMM
+  tools, persistence, risky ports, dynamic DNS, DoH bypass, blocked indicators,
+  blocked or critical remote endpoint policy, or suspicious parentage. Trusted signed
+  processes using common alternate web/proxy ports such as `8080` or `8443` are
+  also reduced to local context. The events remain logged locally as
   `NET-BEACON-TIMING-LOW-RISK`, `NET-DIRECT-IP-WEB-EGRESS-SIGNED`, or
   `NET-EGRESS-TRUSTED-ALT-WEB-PORT`.
+- Remote context enrichment: Arcane can add local DNS names and optional
+  reverse-DNS/RDAP owner context such as best-effort ASN, ASN org, rDNS, DNS names,
+  resolved domain, approximate registrable domain, and country. Country is
+  registry-derived context, not proof of physical origin. Ordered remote endpoint
+  policy entries in `RemoteEndpointPolicyFile` handle remote allow, trust, block,
+  and critical country/owner/domain/CIDR decisions. First enabled match wins.
+  The default example policy marks country missing after RDAP and countries other
+  than `US` as critical. SNI is reserved for future telemetry and remains empty
+  unless a collector supplies it.
 - Duplicate reduction: the generic `NET-EGRESS-NEW-UNTRUSTED` context is not
   emitted when a more specific endpoint finding already explains the same
   connection, such as direct-IP web egress, DoH bypass, LOLBin/RMM egress,
@@ -43,9 +54,12 @@ Rule IDs include `NET-EGRESS-*`, `NET-LISTEN-*`, `NET-INBOUND-*`,
   those ports on a private-network host.
 - Tuning knobs: `AllowedListeningPorts`, `AllowedOutboundPorts`,
   `ProcessAllowedOutboundPorts`, `HighRiskRemotePorts`, `TrustedProcesses`,
-  `AllowedRemoteCidrs`, `AllowedDnsResolvers`, `ConnectionBurstThreshold`,
+  `AllowedDnsResolvers`, `ConnectionBurstThreshold`,
   `BeaconMinimumSamples`, `BeaconMaxAverageIntervalSeconds`,
-  `BeaconMaxJitterRatio`, and low-value repeat dampening settings.
+  `BeaconMaxJitterRatio`, `EnableRemoteEndpointEnrichment`,
+  `EnableRemoteEndpointReverseDns`, `EnableRemoteEndpointRdapEnrichment`,
+  `EnableRemoteEndpointPolicy`, `RemoteEndpointPolicyFile`, and low-value
+  repeat dampening settings.
   `ProcessAllowedOutboundPorts` is useful when a specific trusted process has a
   normal nonstandard destination port that should not make that port globally
   normal for every process.
@@ -301,16 +315,16 @@ Rule IDs include `BASELINE-*` and `REPUTATION-*`.
 
 Rule IDs include `*-IOC-*`, `CUSTOM-*`, and configured custom rule IDs.
 
-- Detects: blocked IPs/CIDRs, blocked hashes, blocked domains, and local JSON
-  custom rule matches.
+- Detects: blocked hashes, blocked domains, ordered remote endpoint policy
+  matches, and local JSON custom rule matches.
 - Required telemetry: the relevant network, DNS, process, PowerShell, Windows
   event, or persistence collector plus configured indicators/rules.
 - Why it matters: configured indicators represent operator intent and should be
   higher-confidence than generic heuristic signals.
 - Common false positives: stale indicators, shared infrastructure, or broad
   custom terms.
-- Tuning knobs: `BlockedDomains`, `BlockedHashes`, `BlockedRemoteCidrs`,
-  `EnableCustomRules`, and `CustomRulesFile`.
+- Tuning knobs: `BlockedDomains`, `BlockedHashes`,
+  `RemoteEndpointPolicyFile`, `EnableCustomRules`, and `CustomRulesFile`.
 - Safe test: add a temporary lab-only custom rule, then remove it.
 - Expected alert shape: `why` explains indicator or custom-rule matching.
 
