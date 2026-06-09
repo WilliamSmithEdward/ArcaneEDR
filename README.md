@@ -127,7 +127,7 @@ Local files are intentionally ignored by Git:
 
 - `config\ArcaneEDR.config`
 - `config\Deployment.config`
-- `config\remote-endpoint-policy.json`
+- `config\arcane-policy.json`
 
 Keep machine-specific values, recipient addresses, local paths, and environment
 variable names in the ignored local files. The example runtime config disables
@@ -453,20 +453,26 @@ standalone discovery signals mostly local by default; use `--alert-volume
 --last 24h` and its baseline-off projection drivers to tune these thresholds
 for the actual host.
 
-Structured detection policy is the preferred v0.5 tuning surface for
-machine-specific allow/block decisions that should remain local:
+Unified policy is the preferred tuning surface for allow/block/trust decisions
+and machine-specific alert handling:
 
 ```ini
 EnableDetectionPolicy=true
-DetectionPolicyFile=policy-rules.json
+PolicyFile=arcane-policy.example.json
 ```
 
-Start from `config\policy-rules.example.json` and create the ignored local
-`config\policy-rules.json`. Policy entries match fields such as `rule_id`,
-`category`, `process_name`, `parent_process`, `signer`, `path_prefix`,
-`command_terms`, `user`, `destination_domain`, `ip_cidr`, `port`, `hash`, and
-`text_contains`. Supported actions are `trusted_context`, `lower_score`,
-`suppress_external`, `raise_score`, `force_alert`, and `tag_only`.
+`config\arcane-policy.example.json` contains one JSON surface for network
+allowlists, domain/hash blocklists, trusted process and persistence context,
+response allow/block policy, ordered remote endpoint policy, and structured
+local alert tuning. Host-specific tuning should copy it to an ignored local
+policy file and point `PolicyFile` there.
+
+Detection policy entries in `detection_policies` match fields such as
+`rule_id`, `category`, `process_name`, `parent_process`, `signer`,
+`path_prefix`, `command_terms`, `user`, `destination_domain`, `ip_cidr`,
+`port`, `hash`, and `text_contains`. Supported actions are `trusted_context`,
+`lower_score`, `suppress_external`, `raise_score`, `force_alert`, and
+`tag_only`.
 
 `suppress_external` keeps the local alert log, incident grouping, daily report
 context, and support-bundle summaries intact; it only prevents external
@@ -499,24 +505,30 @@ Sample context options include `--sample-process`, `--sample-parent`,
 `--sample-port`, `--sample-path`, `--sample-signer`, `--sample-hash`, and
 `--sample-command`.
 
-Network port tuning supports both global and process-specific outbound
-allowlists. Use `AllowedOutboundPorts` for ports that are normal for any
-process, and `ProcessAllowedOutboundPorts` for ports that are normal only for a
-specific process:
+Network port allowlists are in `allowlists.allowed_listening_ports`,
+`allowlists.allowed_outbound_ports`, and
+`allowlists.process_allowed_outbound_ports` inside `PolicyFile`.
 
-```ini
-AllowedOutboundPorts=53,80,123,443,587,993,995
-ProcessAllowedOutboundPorts=Codex.exe=5228;browser.exe=5228-5230
-```
-
-Remote endpoint enrichment adds DNS-derived names and RDAP owner/ASN/country
-context to network alerts. Country is best-effort registry data, not proof of
-physical origin. RDAP is enabled by default because the ordered endpoint policy
-elevates non-US and country-missing destinations; this discloses investigated
-remote IPs to the configured RDAP lookup service.
+Remote endpoint enrichment adds DNS-derived names and remote owner/ASN/country
+context to network alerts. Country is best-effort registry/geolocation data,
+not proof of physical origin. RDAP is enabled by default because the ordered
+endpoint policy uses owner, ASN, and country context to adjust review priority;
+this discloses investigated remote IPs to the configured RDAP lookup service.
+Optional `ip-api.com` and `ipwhois.io`/`ipwho.is` hooks can fill geolocation
+country, owner, or ASN context when local country blocks and RDAP are
+incomplete. They are disabled in tracked config. Their free endpoints are for
+non-commercial use only; commercial use requires the provider's paid/commercial
+plan.
 
 ```ini
 EnableRemoteEndpointEnrichment=true
+EnableRemoteEndpointCountryBlockEnrichment=false
+RemoteEndpointCountryBlocksDirectory=country-ip-blocks
+EnableRemoteEndpointIpApiGeolocation=false
+RemoteEndpointIpApiUrlTemplate=http://ip-api.com/json/{ip}?fields=status,message,countryCode,org,isp,as,asname,query
+EnableRemoteEndpointIpWhoisGeolocation=false
+RemoteEndpointIpWhoisUrlTemplate=https://ipwho.is/{ip}?fields=success,message,country_code,org,isp,asn,ip
+RemoteEndpointGeoProviderMaxLookupsPerPoll=3
 EnableRemoteEndpointReverseDns=false
 EnableRemoteEndpointRdapEnrichment=true
 RemoteEndpointRdapUrlTemplate=https://rdap.org/ip/{ip}
@@ -524,15 +536,28 @@ RemoteEndpointEnrichmentTimeoutSeconds=3
 RemoteEndpointEnrichmentCacheMinutes=1440
 RemoteEndpointRdapMaxLookupsPerPoll=3
 EnableRemoteEndpointPolicy=true
-RemoteEndpointPolicyFile=remote-endpoint-policy.example.json
 ```
 
 Remote allow, trust, block, and critical country/owner/domain/CIDR decisions
-belong in one ordered JSON file. First enabled match wins. The tracked
-`config\remote-endpoint-policy.example.json` includes default critical entries
-for RDAP country missing and country not equal to `US`. For host-specific
-tuning, copy it to the ignored `config\remote-endpoint-policy.json` and point
-`RemoteEndpointPolicyFile` there.
+belong in `remote_endpoint_policies` inside `PolicyFile`. First enabled match
+wins. The tracked default trusts Arcane EDR service self-traffic, treats known
+major provider ownership such as Microsoft or Cloudflare as trusted remote
+context before country-based escalation, treats fully unresolved country/domain
+context after enabled local or provider geolocation enrichment as critical,
+observes ordinary country-unavailable outcomes as a score enhancer, and treats
+countries other than `US` as critical when no earlier trust rule matched.
+Country unavailable also becomes critical when paired with first-seen app/IP
+context or another stronger suspicious endpoint signal.
+
+`RemoteEndpointCountryBlocksDirectory` can point at an extracted
+`ipverse/country-ip-blocks` tree, for example a directory containing
+`country\us\ipv4-aggregated.txt` and `country\us\ipv6-aggregated.txt`. Arcane
+reads those files locally; it does not download country data at runtime.
+`RemoteEndpointGeoProviderMaxLookupsPerPoll` caps combined `ip-api` and
+`ipwhois` requests per poll so free/non-commercial endpoints are not hammered.
+Arcane tries local country blocks first, then RDAP for registry owner/ASN
+context, then these optional providers only when country or useful owner/ASN
+context is still missing.
 
 ```json
 {
@@ -630,11 +655,8 @@ untrusted user-writable path, and RMM/RAT-like traits are absent. For
 scheduled-task create/update events, Arcane also inspects task action XML when
 Windows provides it.
 
-```ini
-TrustedPersistenceNamePrefixes=\Microsoft\Windows\,MDCoreSvc,WinDefend
-TrustedPersistencePathIndicators=\windows\system32\,\program files\,\programdata\microsoft\windows defender\
-TrustedPersistenceSignerSubjects=Microsoft Windows,Microsoft Corporation,Microsoft Windows Publisher
-```
+Trusted persistence name, path, and signer context lives in
+`allowlists.trusted_persistence_*` inside `PolicyFile`.
 
 High-signal file-create detection is Sysmon-backed and intentionally narrow:
 
@@ -916,12 +938,13 @@ Single-provider configuration:
 ```ini
 AIAnalysisProviders=OpenAI
 AIAnalysisModel=<configured model>
-AIAnalysisApiKeyEnvironmentVariable=OPENAI_API_KEY
+AIAnalysisApiKeyEnvironmentVariable=OpenAIAPIKey_ArcaneEDR
 AIAnalysisApiUrl=https://api.openai.com/v1/responses
 ```
 
 Provider defaults fill common auth headers: OpenAI uses `Authorization` with a
-`Bearer ` prefix, and Claude uses `x-api-key` plus `anthropic-version`.
+`Bearer ` prefix and defaults to `OpenAIAPIKey_ArcaneEDR`, and Claude uses
+`x-api-key` plus `anthropic-version`.
 
 Multi-provider configuration:
 
@@ -929,7 +952,7 @@ Multi-provider configuration:
 AIAnalysisProviders=OpenAI,Claude
 AIAnalysisProviderTypes=OpenAI=OpenAI,Claude=Anthropic
 AIAnalysisProviderModels=OpenAI=<configured OpenAI model>,Claude=<configured Claude model>
-AIAnalysisProviderApiKeyEnvironmentVariables=OpenAI=OPENAI_API_KEY,Claude=ANTHROPIC_API_KEY
+AIAnalysisProviderApiKeyEnvironmentVariables=OpenAI=OpenAIAPIKey_ArcaneEDR,Claude=ANTHROPIC_API_KEY
 AIAnalysisProviderApiUrls=OpenAI=https://api.openai.com/v1/responses,Claude=https://api.anthropic.com/v1/messages
 AIAnalysisProviderAuthHeaderNames=OpenAI=Authorization,Claude=x-api-key
 AIAnalysisProviderAuthHeaderPrefixes=OpenAI=Bearer,Claude=
@@ -951,8 +974,11 @@ The payload is intentionally compact and redacted. It includes health counters,
 recent event summaries, alert metadata, and sanitized aggregate context. The
 aggregate context includes score buckets, category/rule counts, repeated-rule
 indicators, maintenance/agent-context counts, trend counters, and top sanitized
-reasons for score-60+ activity. Detailed alert summaries still honor
-`AIAnalysisMinimumIncludedAlertScore` or
+reasons for score-60+ activity. Network alert summaries include bounded remote
+enrichment context such as process name, remote port, owner/ASN org, country,
+country lookup status, registrable/resolved domain labels, and remote policy id
+after redaction; raw IPs, URLs, paths, and command lines remain omitted.
+Detailed alert summaries still honor `AIAnalysisMinimumIncludedAlertScore` or
 `AIAnalysisBaselineMinimumIncludedAlertScore`.
 
 Arcane EDR does not send alert bodies, entities, command lines, script blocks,
@@ -1067,11 +1093,6 @@ ResponseMinimumScore=95
 EnableFirewallBlockResponse=false
 EnableProcessTerminationResponse=false
 EnableResponsePolicy=true
-ResponseAllowedRuleIds=
-ResponseAllowedCategories=
-ResponseBlockedRuleIds=SERVICE-STARTED,SERVICE-STOPPED,SERVICE-RECOVERED-AFTER-UNCLEAN-STOP,TEST-ALERT
-ResponseBlockedCategories=Agent,AI,Baseline,Health,Response,Test
-ResponseProtectedProcessNames=System,Idle,Registry,smss.exe,csrss.exe,wininit.exe,winlogon.exe,services.exe,lsass.exe,svchost.exe,explorer.exe,dwm.exe,fontdrvhost.exe,sihost.exe,taskhostw.exe,chrome.exe,msedge.exe,firefox.exe,code.exe,devenv.exe,git.exe,git-remote-https.exe,codex.exe,Codex.exe
 EnableResponseLedger=true
 ResponseLedgerFile=ArcaneResponseLedger.jsonl
 EnableResponseFollowUpDetections=true
@@ -1096,10 +1117,11 @@ cannot be rolled back. Read `docs\response-safety-and-rollback.md` before
 enabling active response.
 
 When `EnableResponsePolicy=true`, active response also requires an explicit
-allow entry in `ResponseAllowedRuleIds` or `ResponseAllowedCategories`. The
-example config leaves both allowlists empty, so active modes skip every action
-even if an action gate is enabled. Dry-run modes remain useful for discovering
-candidate rules before adding a narrow allow entry.
+allow entry in `response_policy.allowed_rule_ids` or
+`response_policy.allowed_categories` inside `PolicyFile`. The example policy
+leaves both allowlists empty, so active modes skip every action even if an
+action gate is enabled. Dry-run modes remain useful for discovering candidate
+rules before adding a narrow allow entry.
 
 Firewall block response rules are named `ArcaneEDR_BLOCK_<response-id>`, where
 `response-id` is a GUID recorded in `ResponseLedgerFile` with the triggering

@@ -7,6 +7,9 @@ namespace ArcaneEDR
 {
     internal static class AlertMessageFormatter
     {
+        private const int EmailContentWidthPixels = 760;
+        private const string WrapStyle = "word-break:break-word;overflow-wrap:anywhere;";
+
         public static string BuildSubject(Alert alert)
         {
             if (IsDailySummary(alert.RuleId))
@@ -31,22 +34,22 @@ namespace ArcaneEDR
                 return BuildDailyReportHtml(alert);
             }
 
-            return "<html><body style=\"margin:0;padding:16px;font-family:Arial,sans-serif;line-height:1.45;word-break:break-word;overflow-wrap:anywhere;\">" +
+            return BeginEmailHtml() +
                 "<h2>" + HtmlEscape(alert.Title) + "</h2>" +
-                "<p><strong>Rule:</strong> " + HtmlEscape(alert.RuleId) + "</p>" +
-                "<p><strong>Category:</strong> " + HtmlEscape(AlertRulePolicy.AlertCategory(alert)) + "</p>" +
-                "<p><strong>Source:</strong> " + HtmlEscape(BuildSourceSummary(alert)) + "</p>" +
-                "<p><strong>Maintenance Context:</strong> " + (alert.MaintenanceContext ? "true" : "false") + "</p>" +
-                "<p><strong>Severity:</strong> " + HtmlEscape(alert.Severity) + "</p>" +
-                "<p><strong>Score:</strong> " + alert.Score.ToString(CultureInfo.InvariantCulture) + "</p>" +
-                "<p><strong>UTC:</strong> " + HtmlEscape(alert.TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)) + "</p>" +
-                "<p><strong>System Local Time:</strong> " + HtmlEscape(alert.SystemLocalTime) + "</p>" +
+                BuildAlertFieldHtml("Rule", alert.RuleId) +
+                BuildAlertFieldHtml("Category", AlertRulePolicy.AlertCategory(alert)) +
+                BuildAlertFieldHtml("Source", BuildSourceSummary(alert)) +
+                BuildAlertFieldHtml("Maintenance Context", alert.MaintenanceContext ? "true" : "false") +
+                BuildAlertFieldHtml("Severity", alert.Severity) +
+                BuildAlertFieldHtml("Score", alert.Score.ToString(CultureInfo.InvariantCulture)) +
+                BuildAlertFieldHtml("UTC", alert.TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)) +
+                BuildAlertFieldHtml("System Local Time", alert.SystemLocalTime) +
                 BuildScoreContextHtml() +
                 BuildWhyHtml(alert) +
                 "<h3>Details</h3>" + BuildWrappedPreHtml(alert.Body) +
                 "<h3>Recommendation</h3>" + BuildWrappedPreHtml(alert.Recommendation) +
                 "<h3>Entity</h3>" + BuildWrappedPreHtml(alert.EntitySummary) +
-                "</body></html>";
+                EndEmailHtml();
         }
 
         public static string BuildPlainText(Alert alert)
@@ -89,10 +92,10 @@ namespace ArcaneEDR
         {
             if (alert.Why == null || alert.Why.Count == 0) return "";
 
-            string html = "<h3>Why This Alerted</h3><ul>";
+            string html = "<h3>Why This Alerted</h3><ul style=\"margin:6px 0 12px 20px;padding:0;\">";
             foreach (string reason in alert.Why)
             {
-                html += "<li>" + HtmlEscape(reason) + "</li>";
+                html += "<li style=\"margin:6px 0;" + WrapStyle + "\">" + HtmlEscape(reason) + "</li>";
             }
 
             return html + "</ul>";
@@ -116,9 +119,35 @@ namespace ArcaneEDR
             return AlertRuleCatalog.IsServiceLifecycleAlert(ruleId);
         }
 
+        private static string BeginEmailHtml()
+        {
+            string width = EmailContentWidthPixels.ToString(CultureInfo.InvariantCulture);
+            return "<!doctype html><html><head>" +
+                "<meta name=\"color-scheme\" content=\"light dark\">" +
+                "<meta name=\"supported-color-schemes\" content=\"light dark\">" +
+                "</head><body style=\"margin:0;padding:0;font-family:Arial,sans-serif;line-height:1.45;background:#ffffff;\">" +
+                "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"border-collapse:collapse;width:100%;background:#ffffff;\">" +
+                "<tr><td align=\"center\" style=\"padding:20px 12px;\">" +
+                "<table role=\"presentation\" align=\"center\" width=\"" + width + "\" cellspacing=\"0\" cellpadding=\"0\" style=\"border-collapse:collapse;width:100%;max-width:" + width + "px;table-layout:fixed;\">" +
+                "<tr><td style=\"padding:0;font-family:Arial,sans-serif;font-size:16px;line-height:1.45;" + WrapStyle + "\">";
+        }
+
+        private static string EndEmailHtml()
+        {
+            return "</td></tr></table></td></tr></table></body></html>";
+        }
+
+        private static string BuildAlertFieldHtml(string label, string value)
+        {
+            return "<p style=\"margin:6px 0;" + WrapStyle + "\"><strong>" +
+                HtmlEscape(label) + ":</strong> " + HtmlEscape(value) + "</p>";
+        }
+
         private static string BuildWrappedPreHtml(string value)
         {
-            return "<pre style=\"white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;max-width:100%;font-family:Consolas,Monaco,monospace;font-size:13px;line-height:1.4;border:1px solid #999;padding:8px;margin:6px 0 14px 0;\">" +
+            return "<pre style=\"display:block;box-sizing:border-box;width:100%;max-width:100%;white-space:pre-wrap;" +
+                WrapStyle +
+                "font-family:Consolas,Monaco,monospace;font-size:13px;line-height:1.4;border:1px solid #999;padding:8px;margin:6px 0 14px 0;\">" +
                 HtmlEscape(value) + "</pre>";
         }
 
@@ -239,12 +268,7 @@ namespace ArcaneEDR
         private static string BuildDailyReportHtml(Alert alert)
         {
             string[] lines = NullToEmpty(alert.Body).Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
-            string html = "<!doctype html><html><head>" +
-                "<meta name=\"color-scheme\" content=\"light dark\">" +
-                "<meta name=\"supported-color-schemes\" content=\"light dark\">" +
-                "</head><body style=\"margin:0;padding:0;font-family:Arial,sans-serif;line-height:1.45;\">" +
-                "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"border-collapse:collapse;\">" +
-                "<tr><td style=\"padding:20px;font-family:Arial,sans-serif;font-size:16px;line-height:1.45;word-break:break-word;\">";
+            string html = BeginEmailHtml();
             bool inList = false;
             bool skippedDuplicateTitle = false;
 
@@ -304,7 +328,7 @@ namespace ArcaneEDR
                         inList = true;
                     }
 
-                    html += "<li style=\"margin:6px 0;\">" + HtmlEscape(line.Substring(2)) + "</li>";
+                    html += "<li style=\"margin:6px 0;" + WrapStyle + "\">" + HtmlEscape(line.Substring(2)) + "</li>";
                     continue;
                 }
 
@@ -324,14 +348,14 @@ namespace ArcaneEDR
 
             html += BuildScoreContextHtml();
 
-            return html + "</td></tr></table></body></html>";
+            return html + EndEmailHtml();
         }
 
         private static string BuildScoreContextHtml()
         {
-            string tableStyle = "border-collapse:collapse;width:100%;margin:8px 0 14px 0;font-family:Arial,sans-serif;font-size:14px;line-height:1.35;";
-            string thStyle = "border:1px solid #999;padding:6px 8px;text-align:left;font-weight:700;vertical-align:top;width:22%;word-break:normal;";
-            string tdStyle = "border:1px solid #999;padding:6px 8px;text-align:left;vertical-align:top;word-break:break-word;width:78%;";
+            string tableStyle = "border-collapse:collapse;table-layout:fixed;width:100%;max-width:100%;margin:8px 0 14px 0;font-family:Arial,sans-serif;font-size:14px;line-height:1.35;";
+            string thStyle = "border:1px solid #999;padding:6px 8px;text-align:left;font-weight:700;vertical-align:top;width:22%;word-break:normal;overflow-wrap:anywhere;";
+            string tdStyle = "border:1px solid #999;padding:6px 8px;text-align:left;vertical-align:top;" + WrapStyle + "width:78%;";
             return "<h2 style=\"font-size:18px;line-height:1.3;margin:20px 0 8px 0;border-top:1px solid #999;padding-top:12px;font-weight:700;\">Score Context</h2>" +
                 "<p style=\"margin:6px 0;\">Scores are Arcane risk and review-priority signals, not proof of compromise. Corroborating source context still matters.</p>" +
                 "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"" + tableStyle + "\">" +
@@ -365,10 +389,10 @@ namespace ArcaneEDR
             {
                 string key = HtmlEscape(line.Substring(0, separator + 1));
                 string value = HtmlEscape(line.Substring(separator + 1).TrimStart());
-                return "<p style=\"margin:6px 0;\"><strong>" + key + "</strong> " + value + "</p>";
+                return "<p style=\"margin:6px 0;" + WrapStyle + "\"><strong>" + key + "</strong> " + value + "</p>";
             }
 
-            return "<p style=\"margin:6px 0;\">" + escaped + "</p>";
+            return "<p style=\"margin:6px 0;" + WrapStyle + "\">" + escaped + "</p>";
         }
 
         private static bool IsMarkdownTableStart(string[] lines, int index)
@@ -404,10 +428,10 @@ namespace ArcaneEDR
         private static string BuildMarkdownTableHtml(string[] lines, ref int index)
         {
             List<string> header = SplitMarkdownTableRow(lines[index]);
-            string tableStyle = "border-collapse:collapse;width:100%;margin:8px 0 14px 0;font-family:Arial,sans-serif;font-size:14px;line-height:1.35;";
-            string thStyle = "border:1px solid #999;padding:6px 8px;text-align:left;font-weight:700;vertical-align:top;";
-            string tdStyle = "border:1px solid #999;padding:6px 8px;text-align:left;vertical-align:top;word-break:break-word;";
-            string labelCellStyle = tdStyle + "white-space:normal;word-break:normal;";
+            string tableStyle = "border-collapse:collapse;table-layout:fixed;width:100%;max-width:100%;margin:8px 0 14px 0;font-family:Arial,sans-serif;font-size:14px;line-height:1.35;";
+            string thStyle = "border:1px solid #999;padding:6px 8px;text-align:left;font-weight:700;vertical-align:top;" + WrapStyle;
+            string tdStyle = "border:1px solid #999;padding:6px 8px;text-align:left;vertical-align:top;" + WrapStyle;
+            string labelCellStyle = tdStyle + "white-space:normal;";
             string html = "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"" + tableStyle + "\">" +
                 BuildColumnGroupHtml(header) +
                 "<thead><tr>";

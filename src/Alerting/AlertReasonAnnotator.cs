@@ -140,7 +140,7 @@ namespace ArcaneEDR
             if (AlertRuleTaxonomy.EqualsRule(ruleId, AlertRuleTaxonomy.RuleNetworkRemotePolicyBlocked) ||
                 AlertRuleTaxonomy.EqualsRule(ruleId, AlertRuleTaxonomy.RuleNetworkRemotePolicyCritical))
             {
-                alert.AddWhy("The first matching ordered remote endpoint policy entry marked this destination as blocked or critical.");
+                alert.AddWhy("Ordered remote endpoint policy marked this destination blocked, critical, or escalated by paired context.");
             }
 
             if (AlertRuleTaxonomy.EqualsRule(ruleId, AlertRuleTaxonomy.RuleNetworkC2BeaconPattern) ||

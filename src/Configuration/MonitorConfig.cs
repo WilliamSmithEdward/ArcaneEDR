@@ -1,7 +1,9 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Web.Script.Serialization;
 
 namespace ArcaneEDR
 {
@@ -21,7 +23,8 @@ namespace ArcaneEDR
         public Dictionary<string, int> RuleMinimumEmailScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> CategoryMinimumEmailScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public bool EnableDetectionPolicy = true;
-        public string DetectionPolicyFile = "policy-rules.json";
+        public string PolicyFile = "arcane-policy.example.json";
+        public string DetectionPolicyFile = "arcane-policy.example.json";
         public Dictionary<string, int> ExternalAlertProviderMinimumScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> ExternalAlertProviderMaxPerHour = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public int ExternalAlertMaxPerDispatch = 3;
@@ -227,6 +230,13 @@ namespace ArcaneEDR
         public HashSet<IPAddress> AllowedDnsResolvers = new HashSet<IPAddress>();
         public bool EnforceAuthorizedDnsResolvers;
         public bool EnableRemoteEndpointEnrichment = true;
+        public bool EnableRemoteEndpointCountryBlockEnrichment;
+        public string RemoteEndpointCountryBlocksDirectory = "country-ip-blocks";
+        public bool EnableRemoteEndpointIpApiGeolocation;
+        public string RemoteEndpointIpApiUrlTemplate = "http://ip-api.com/json/{ip}?fields=status,message,countryCode,org,isp,as,asname,query";
+        public bool EnableRemoteEndpointIpWhoisGeolocation;
+        public string RemoteEndpointIpWhoisUrlTemplate = "https://ipwho.is/{ip}?fields=success,message,country_code,org,isp,asn,ip";
+        public int RemoteEndpointGeoProviderMaxLookupsPerPoll = 3;
         public bool EnableRemoteEndpointReverseDns;
         public bool EnableRemoteEndpointRdapEnrichment = true;
         public string RemoteEndpointRdapUrlTemplate = "https://rdap.org/ip/{ip}";
@@ -234,7 +244,7 @@ namespace ArcaneEDR
         public int RemoteEndpointEnrichmentCacheMinutes = 1440;
         public int RemoteEndpointRdapMaxLookupsPerPoll = 3;
         public bool EnableRemoteEndpointPolicy = true;
-        public string RemoteEndpointPolicyFile = "remote-endpoint-policy.example.json";
+        public string RemoteEndpointPolicyFile = "arcane-policy.example.json";
         public int ConnectionBurstThreshold = 25;
         public int BeaconMinimumSamples = 5;
         public int BeaconMaxAverageIntervalSeconds = 600;
@@ -276,6 +286,10 @@ namespace ArcaneEDR
 
             MonitorConfig config = new MonitorConfig();
             config.ConfigPath = configPath;
+            string configDirectory = Path.GetDirectoryName(config.ConfigPath);
+            config.PolicyFile = ResolvePath(configDirectory, ReadString(values, "PolicyFile", config.PolicyFile));
+            config.DetectionPolicyFile = config.PolicyFile;
+            config.RemoteEndpointPolicyFile = config.PolicyFile;
             config.ProductName = ReadString(values, "ProductName", config.ProductName);
             config.ServiceName = ReadString(values, "ServiceName", config.ServiceName);
             config.ServiceDisplayName = ReadString(values, "ServiceDisplayName", config.ServiceDisplayName);
@@ -288,7 +302,6 @@ namespace ArcaneEDR
             config.RuleMinimumEmailScores = ReadStringIntMap(values, "RuleMinimumEmailScores");
             config.CategoryMinimumEmailScores = ReadStringIntMap(values, "CategoryMinimumEmailScores");
             config.EnableDetectionPolicy = ReadBool(values, "EnableDetectionPolicy", config.EnableDetectionPolicy);
-            config.DetectionPolicyFile = ResolvePath(Path.GetDirectoryName(config.ConfigPath), ReadString(values, "DetectionPolicyFile", config.DetectionPolicyFile));
             config.ExternalAlertProviderMinimumScores = ReadStringIntMap(values, "ExternalAlertProviderMinimumScores");
             config.ExternalAlertProviderMaxPerHour = ReadStringIntMap(values, "ExternalAlertProviderMaxPerHour");
             config.ExternalAlertMaxPerDispatch = ReadInt(values, "ExternalAlertMaxPerDispatch", config.ExternalAlertMaxPerDispatch);
@@ -458,17 +471,6 @@ namespace ArcaneEDR
             config.EnableFirewallBlockResponse = ReadBool(values, "EnableFirewallBlockResponse", config.EnableFirewallBlockResponse);
             config.EnableProcessTerminationResponse = ReadBool(values, "EnableProcessTerminationResponse", config.EnableProcessTerminationResponse);
             config.EnableResponsePolicy = ReadBool(values, "EnableResponsePolicy", config.EnableResponsePolicy);
-            config.ResponseAllowedRuleIds = ReadStringSet(values, "ResponseAllowedRuleIds");
-            config.ResponseAllowedCategories = ReadStringSet(values, "ResponseAllowedCategories");
-            config.ResponseBlockedRuleIds = values.ContainsKey("ResponseBlockedRuleIds")
-                ? ReadStringSet(values, "ResponseBlockedRuleIds")
-                : DefaultResponseBlockedRuleIds();
-            config.ResponseBlockedCategories = values.ContainsKey("ResponseBlockedCategories")
-                ? ReadStringSet(values, "ResponseBlockedCategories")
-                : DefaultResponseBlockedCategories();
-            config.ResponseProtectedProcessNames = values.ContainsKey("ResponseProtectedProcessNames")
-                ? ReadStringSet(values, "ResponseProtectedProcessNames")
-                : DefaultResponseProtectedProcessNames();
             config.EnableResponseLedger = ReadBool(values, "EnableResponseLedger", config.EnableResponseLedger);
             config.ResponseLedgerFile = ResolvePath(config.LogDirectory, ReadString(values, "ResponseLedgerFile", config.ResponseLedgerFile));
             config.EnableResponseFollowUpDetections = ReadBool(values, "EnableResponseFollowUpDetections", config.EnableResponseFollowUpDetections);
@@ -476,25 +478,14 @@ namespace ArcaneEDR
             config.ResponseProcessRespawnMinimumScore = ReadInt(values, "ResponseProcessRespawnMinimumScore", config.ResponseProcessRespawnMinimumScore);
             config.ResponseFollowUpExternalAlertMinimumScore = ReadInt(values, "ResponseFollowUpExternalAlertMinimumScore", config.ResponseFollowUpExternalAlertMinimumScore);
             config.MaxLogFileBytes = ReadLong(values, "MaxLogFileBytes", config.MaxLogFileBytes);
-            config.AllowedListeningPorts = ReadPortSet(values, "AllowedListeningPorts");
-            config.AllowedOutboundPorts = ReadPortSet(values, "AllowedOutboundPorts");
-            config.ProcessAllowedOutboundPorts = ReadProcessPortMap(values, "ProcessAllowedOutboundPorts");
             config.HighRiskRemotePorts = ReadPortSet(values, "HighRiskRemotePorts");
             config.LateralMovementPorts = ReadPortSet(values, "LateralMovementPorts");
-            config.TrustedProcesses = ReadStringSet(values, "TrustedProcesses");
             config.LolbinProcesses = ReadStringSet(values, "LolbinProcesses");
             config.KnownRmmProcesses = ReadStringSet(values, "KnownRmmProcesses");
             config.SuspiciousParentProcesses = ReadStringSet(values, "SuspiciousParentProcesses");
             config.SuspiciousCommandLineTerms = ReadStringSet(values, "SuspiciousCommandLineTerms");
-            config.BlockedDomains = ReadStringSet(values, "BlockedDomains");
-            config.BlockedHashes = ReadStringSet(values, "BlockedHashes");
             config.DynamicDnsSuffixes = ReadStringSet(values, "DynamicDnsSuffixes");
             config.UserWritablePathIndicators = ReadStringSet(values, "UserWritablePathIndicators");
-            config.TrustedPersistencePathIndicators = ReadStringSet(values, "TrustedPersistencePathIndicators");
-            config.TrustedPersistenceNamePrefixes = ReadStringSet(values, "TrustedPersistenceNamePrefixes");
-            config.TrustedPersistenceSignerSubjects = values.ContainsKey("TrustedPersistenceSignerSubjects")
-                ? ReadStringSet(values, "TrustedPersistenceSignerSubjects")
-                : DefaultTrustedPersistenceSignerSubjects();
             config.EnableAgentProfile = ReadBool(values, "EnableAgentProfile", config.EnableAgentProfile);
             config.AgentProcessNames = ReadStringSet(values, "AgentProcessNames");
             config.AgentChildProcessNames = ReadStringSet(values, "AgentChildProcessNames");
@@ -522,8 +513,14 @@ namespace ArcaneEDR
             config.AgentActivityLedgerFile = ResolvePath(config.LogDirectory, ReadString(values, "AgentActivityLedgerFile", config.AgentActivityLedgerFile));
             config.AgentActivityLedgerMinimumScore = ReadInt(values, "AgentActivityLedgerMinimumScore", config.AgentActivityLedgerMinimumScore);
             config.EnforceAuthorizedDnsResolvers = ReadBool(values, "EnforceAuthorizedDnsResolvers", false);
-            config.AllowedDnsResolvers = ReadIpSet(values, "AllowedDnsResolvers");
             config.EnableRemoteEndpointEnrichment = ReadBool(values, "EnableRemoteEndpointEnrichment", config.EnableRemoteEndpointEnrichment);
+            config.EnableRemoteEndpointCountryBlockEnrichment = ReadBool(values, "EnableRemoteEndpointCountryBlockEnrichment", config.EnableRemoteEndpointCountryBlockEnrichment);
+            config.RemoteEndpointCountryBlocksDirectory = ResolvePath(Path.GetDirectoryName(config.ConfigPath), ReadString(values, "RemoteEndpointCountryBlocksDirectory", config.RemoteEndpointCountryBlocksDirectory));
+            config.EnableRemoteEndpointIpApiGeolocation = ReadBool(values, "EnableRemoteEndpointIpApiGeolocation", config.EnableRemoteEndpointIpApiGeolocation);
+            config.RemoteEndpointIpApiUrlTemplate = ReadString(values, "RemoteEndpointIpApiUrlTemplate", config.RemoteEndpointIpApiUrlTemplate);
+            config.EnableRemoteEndpointIpWhoisGeolocation = ReadBool(values, "EnableRemoteEndpointIpWhoisGeolocation", config.EnableRemoteEndpointIpWhoisGeolocation);
+            config.RemoteEndpointIpWhoisUrlTemplate = ReadString(values, "RemoteEndpointIpWhoisUrlTemplate", config.RemoteEndpointIpWhoisUrlTemplate);
+            config.RemoteEndpointGeoProviderMaxLookupsPerPoll = ReadInt(values, "RemoteEndpointGeoProviderMaxLookupsPerPoll", config.RemoteEndpointGeoProviderMaxLookupsPerPoll);
             config.EnableRemoteEndpointReverseDns = ReadBool(values, "EnableRemoteEndpointReverseDns", config.EnableRemoteEndpointReverseDns);
             config.EnableRemoteEndpointRdapEnrichment = ReadBool(values, "EnableRemoteEndpointRdapEnrichment", config.EnableRemoteEndpointRdapEnrichment);
             config.RemoteEndpointRdapUrlTemplate = ReadString(values, "RemoteEndpointRdapUrlTemplate", config.RemoteEndpointRdapUrlTemplate);
@@ -531,14 +528,184 @@ namespace ArcaneEDR
             config.RemoteEndpointEnrichmentCacheMinutes = ReadInt(values, "RemoteEndpointEnrichmentCacheMinutes", config.RemoteEndpointEnrichmentCacheMinutes);
             config.RemoteEndpointRdapMaxLookupsPerPoll = ReadInt(values, "RemoteEndpointRdapMaxLookupsPerPoll", config.RemoteEndpointRdapMaxLookupsPerPoll);
             config.EnableRemoteEndpointPolicy = ReadBool(values, "EnableRemoteEndpointPolicy", config.EnableRemoteEndpointPolicy);
-            config.RemoteEndpointPolicyFile = ResolvePath(Path.GetDirectoryName(config.ConfigPath), ReadString(values, "RemoteEndpointPolicyFile", config.RemoteEndpointPolicyFile));
             config.ConnectionBurstThreshold = ReadInt(values, "ConnectionBurstThreshold", config.ConnectionBurstThreshold);
             config.BeaconMinimumSamples = ReadInt(values, "BeaconMinimumSamples", config.BeaconMinimumSamples);
             config.BeaconMaxAverageIntervalSeconds = ReadInt(values, "BeaconMaxAverageIntervalSeconds", config.BeaconMaxAverageIntervalSeconds);
             config.BeaconMaxJitterRatio = ReadDouble(values, "BeaconMaxJitterRatio", config.BeaconMaxJitterRatio);
             ReadCidrList(values, "DohProviderCidrs", config.dohProviderCidrs);
+            LoadUnifiedPolicySettings(config);
 
             return config;
+        }
+
+        private static void LoadUnifiedPolicySettings(MonitorConfig config)
+        {
+            if (config == null || String.IsNullOrWhiteSpace(config.PolicyFile) || !File.Exists(config.PolicyFile)) return;
+
+            IDictionary root = LoadPolicyRoot(config.PolicyFile);
+            if (root == null) return;
+
+            IDictionary allowlists = PolicySection(root, "allowlists");
+            IDictionary blocklists = PolicySection(root, "blocklists");
+            IDictionary response = PolicySection(root, "response_policy");
+
+            object value;
+            if (TryPolicyValue(allowlists, "allowed_listening_ports", out value)) config.AllowedListeningPorts = PolicyPortSet(value);
+            if (TryPolicyValue(allowlists, "allowed_outbound_ports", out value)) config.AllowedOutboundPorts = PolicyPortSet(value);
+            if (TryPolicyValue(allowlists, "process_allowed_outbound_ports", out value)) config.ProcessAllowedOutboundPorts = PolicyProcessPortMap(value);
+            if (TryPolicyValue(allowlists, "trusted_processes", out value)) config.TrustedProcesses = PolicyStringSet(value);
+            if (TryPolicyValue(allowlists, "allowed_dns_resolvers", out value)) config.AllowedDnsResolvers = PolicyIpSet(value);
+            if (TryPolicyValue(allowlists, "trusted_persistence_name_prefixes", out value)) config.TrustedPersistenceNamePrefixes = PolicyStringSet(value);
+            if (TryPolicyValue(allowlists, "trusted_persistence_path_indicators", out value)) config.TrustedPersistencePathIndicators = PolicyStringSet(value);
+            if (TryPolicyValue(allowlists, "trusted_persistence_signer_subjects", out value)) config.TrustedPersistenceSignerSubjects = PolicyStringSet(value);
+
+            if (TryPolicyValue(blocklists, "blocked_domains", out value)) config.BlockedDomains = PolicyStringSet(value);
+            if (TryPolicyValue(blocklists, "blocked_hashes", out value)) config.BlockedHashes = PolicyStringSet(value);
+
+            if (TryPolicyValue(response, "allowed_rule_ids", out value)) config.ResponseAllowedRuleIds = PolicyStringSet(value);
+            if (TryPolicyValue(response, "allowed_categories", out value)) config.ResponseAllowedCategories = PolicyStringSet(value);
+            if (TryPolicyValue(response, "blocked_rule_ids", out value)) config.ResponseBlockedRuleIds = PolicyStringSet(value);
+            if (TryPolicyValue(response, "blocked_categories", out value)) config.ResponseBlockedCategories = PolicyStringSet(value);
+            if (TryPolicyValue(response, "protected_process_names", out value)) config.ResponseProtectedProcessNames = PolicyStringSet(value);
+        }
+
+        private static IDictionary LoadPolicyRoot(string path)
+        {
+            try
+            {
+                JavaScriptSerializer serializer = new JavaScriptSerializer();
+                return serializer.DeserializeObject(File.ReadAllText(path)) as IDictionary;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static IDictionary PolicySection(IDictionary root, string key)
+        {
+            object value;
+            return TryPolicyValue(root, key, out value) ? value as IDictionary : null;
+        }
+
+        private static bool TryPolicyValue(IDictionary map, string key, out object value)
+        {
+            value = null;
+            if (map == null || String.IsNullOrWhiteSpace(key)) return false;
+
+            foreach (DictionaryEntry entry in map)
+            {
+                if (PolicyKeyEquals(entry.Key, key))
+                {
+                    value = entry.Value;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool PolicyKeyEquals(object actual, string expected)
+        {
+            return NormalizePolicyKey(actual).Equals(NormalizePolicyKey(expected), StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizePolicyKey(object value)
+        {
+            return value == null ? "" : value.ToString().Trim().Replace("-", "_").ToLowerInvariant();
+        }
+
+        private static HashSet<string> PolicyStringSet(object value)
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            AddPolicyStringValues(result, value);
+            return result;
+        }
+
+        private static void AddPolicyStringValues(HashSet<string> result, object value)
+        {
+            if (result == null || value == null) return;
+
+            IList list = value as IList;
+            if (list != null)
+            {
+                foreach (object item in list)
+                {
+                    AddPolicyStringValues(result, item);
+                }
+
+                return;
+            }
+
+            string text = value.ToString();
+            foreach (string part in text.Split(','))
+            {
+                string trimmed = part.Trim();
+                if (trimmed.Length > 0) result.Add(trimmed);
+            }
+        }
+
+        private static PortRuleSet PolicyPortSet(object value)
+        {
+            PortRuleSet result = new PortRuleSet();
+            foreach (string port in PolicyStringSet(value))
+            {
+                result.Add(port);
+            }
+
+            return result;
+        }
+
+        private static Dictionary<string, PortRuleSet> PolicyProcessPortMap(object value)
+        {
+            Dictionary<string, PortRuleSet> result = new Dictionary<string, PortRuleSet>(StringComparer.OrdinalIgnoreCase);
+
+            IDictionary map = value as IDictionary;
+            if (map != null)
+            {
+                foreach (DictionaryEntry entry in map)
+                {
+                    string processName = entry.Key == null ? "" : entry.Key.ToString().Trim();
+                    if (processName.Length == 0) continue;
+
+                    result[processName] = PolicyPortSet(entry.Value);
+                }
+
+                return result;
+            }
+
+            string text = value == null ? "" : value.ToString();
+            foreach (string entry in text.Split(';'))
+            {
+                string trimmed = entry.Trim();
+                if (trimmed.Length == 0) continue;
+
+                int equals = trimmed.IndexOf('=');
+                if (equals <= 0 || equals >= trimmed.Length - 1) continue;
+
+                string processName = trimmed.Substring(0, equals).Trim();
+                string portText = trimmed.Substring(equals + 1).Trim();
+                if (processName.Length == 0 || portText.Length == 0) continue;
+
+                result[processName] = PolicyPortSet(portText);
+            }
+
+            return result;
+        }
+
+        private static HashSet<IPAddress> PolicyIpSet(object value)
+        {
+            HashSet<IPAddress> result = new HashSet<IPAddress>();
+            foreach (string item in PolicyStringSet(value))
+            {
+                IPAddress address;
+                if (IPAddress.TryParse(item, out address))
+                {
+                    result.Add(address);
+                }
+            }
+
+            return result;
         }
 
         public bool IsAllowedDnsResolver(IPAddress address)
@@ -729,7 +896,7 @@ namespace ArcaneEDR
             if (settings.ProviderType.Equals("OpenAI", StringComparison.OrdinalIgnoreCase))
             {
                 if (String.IsNullOrWhiteSpace(settings.ApiUrl)) settings.ApiUrl = "https://api.openai.com/v1/responses";
-                if (String.IsNullOrWhiteSpace(settings.ApiKeyEnvironmentVariable)) settings.ApiKeyEnvironmentVariable = "OPENAI_API_KEY";
+                if (String.IsNullOrWhiteSpace(settings.ApiKeyEnvironmentVariable)) settings.ApiKeyEnvironmentVariable = "OpenAIAPIKey_ArcaneEDR";
                 if (String.IsNullOrWhiteSpace(settings.AuthHeaderName)) settings.AuthHeaderName = "Authorization";
                 settings.AuthHeaderPrefix = NormalizeAuthPrefix(settings.AuthHeaderPrefix, settings.AuthHeaderPrefixConfigured, "Bearer ");
                 return;

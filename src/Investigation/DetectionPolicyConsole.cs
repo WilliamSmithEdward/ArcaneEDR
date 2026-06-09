@@ -19,7 +19,7 @@ namespace ArcaneEDR
             bool sampleMode = !String.IsNullOrWhiteSpace(samplePath) || !String.IsNullOrWhiteSpace(sampleRule);
 
             Console.WriteLine("Detection policy preview");
-            Console.WriteLine("PolicyFile=" + config.DetectionPolicyFile);
+            Console.WriteLine("PolicyFile=" + config.PolicyFile);
             Console.WriteLine("Mode=" + (sampleMode ? "sample" : "recent-alerts"));
             if (!sampleMode) Console.WriteLine("Lookback=" + Describe(lookback));
 

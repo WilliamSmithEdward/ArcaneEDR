@@ -104,8 +104,6 @@ ResponseMode=AlertOnly
 EnableFirewallBlockResponse=false
 EnableProcessTerminationResponse=false
 EnableResponsePolicy=true
-ResponseAllowedRuleIds=
-ResponseAllowedCategories=
 ```
 
 For a first install, `AlertOnly` is the safest response mode. Before enabling
@@ -157,7 +155,7 @@ below configures OpenAI; additional providers such as Claude can be added with
 Put the API key in a machine environment variable:
 
 ```powershell
-[Environment]::SetEnvironmentVariable("OpenAIAPIKeyArcaneEDR", "paste-your-key-here", "Machine")
+[Environment]::SetEnvironmentVariable("OpenAIAPIKey_ArcaneEDR", "paste-your-key-here", "Machine")
 ```
 
 Then open the config:
@@ -172,7 +170,7 @@ Set:
 EnableAIAnalysis=true
 AIAnalysisProviders=OpenAI
 AIAnalysisModel=<configured OpenAI model>
-AIAnalysisApiKeyEnvironmentVariable=OpenAIAPIKeyArcaneEDR
+AIAnalysisApiKeyEnvironmentVariable=OpenAIAPIKey_ArcaneEDR
 AIAnalysisIntervalMinutes=60
 ```
 

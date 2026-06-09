@@ -74,6 +74,7 @@ namespace ArcaneEDR
             ValidateDailyReportConfig(config, errors, warnings);
             if (config.MinimumEmailScore < 0 || config.MinimumEmailScore > 100) Warn(warnings, "MinimumEmailScore is outside the usual 0-100 range.");
             ValidateRulePolicy(config, warnings);
+            ValidateUnifiedPolicyFile(config, errors);
             if (config.AIAnalysisMaxChars > 20000) Warn(warnings, "AIAnalysisMaxChars is above 20000; compact analysis may use more tokens than intended.");
             ValidateHighSignalFileDetection(config, warnings);
             if (config.BrevoTimeoutSeconds <= 0) Fail(errors, "BrevoTimeoutSeconds must be greater than zero.");
@@ -613,6 +614,28 @@ namespace ArcaneEDR
                 Fail(errors, "RemoteEndpointRdapMaxLookupsPerPoll must not be negative.");
             }
 
+            if (config.RemoteEndpointGeoProviderMaxLookupsPerPoll < 0)
+            {
+                Fail(errors, "RemoteEndpointGeoProviderMaxLookupsPerPoll must not be negative.");
+            }
+
+            if (config.EnableRemoteEndpointCountryBlockEnrichment &&
+                (String.IsNullOrWhiteSpace(config.RemoteEndpointCountryBlocksDirectory) ||
+                    !Directory.Exists(config.RemoteEndpointCountryBlocksDirectory)))
+            {
+                Fail(errors, "RemoteEndpointCountryBlocksDirectory not found: " + config.RemoteEndpointCountryBlocksDirectory);
+            }
+
+            if (config.EnableRemoteEndpointIpApiGeolocation)
+            {
+                ValidateRemoteEndpointUrlTemplate(config.RemoteEndpointIpApiUrlTemplate, "RemoteEndpointIpApiUrlTemplate", errors);
+            }
+
+            if (config.EnableRemoteEndpointIpWhoisGeolocation)
+            {
+                ValidateRemoteEndpointUrlTemplate(config.RemoteEndpointIpWhoisUrlTemplate, "RemoteEndpointIpWhoisUrlTemplate", errors);
+            }
+
             if (config.EnableRemoteEndpointRdapEnrichment &&
                 String.IsNullOrWhiteSpace(config.RemoteEndpointRdapUrlTemplate))
             {
@@ -626,16 +649,16 @@ namespace ArcaneEDR
         {
             if (!config.EnableRemoteEndpointPolicy) return;
 
-            if (String.IsNullOrWhiteSpace(config.RemoteEndpointPolicyFile))
+            if (String.IsNullOrWhiteSpace(config.PolicyFile))
             {
-                Fail(errors, "RemoteEndpointPolicyFile must be configured when EnableRemoteEndpointPolicy is true.");
+                Fail(errors, "PolicyFile must be configured when EnableRemoteEndpointPolicy is true.");
                 return;
             }
 
             RemoteEndpointPolicy policy = RemoteEndpointPolicy.Load(config.RemoteEndpointPolicyFile);
             if (!policy.FileFound)
             {
-                Fail(errors, "Remote endpoint policy file not found: " + config.RemoteEndpointPolicyFile);
+                Fail(errors, "Unified policy file not found: " + config.PolicyFile);
                 return;
             }
 
@@ -654,19 +677,44 @@ namespace ArcaneEDR
                 Warn(warnings, "Remote endpoint policy is enabled but EnableRemoteEndpointEnrichment is false; owner, domain, and country matching will be limited.");
             }
 
-            if (policy.HasCountryCriteria && !config.EnableRemoteEndpointRdapEnrichment)
+            bool hasCountrySource =
+                config.EnableRemoteEndpointRdapEnrichment ||
+                config.EnableRemoteEndpointCountryBlockEnrichment ||
+                config.EnableRemoteEndpointIpApiGeolocation ||
+                config.EnableRemoteEndpointIpWhoisGeolocation;
+
+            if (policy.HasCountryCriteria && !hasCountrySource)
             {
-                Warn(warnings, "Remote endpoint policy contains country criteria but EnableRemoteEndpointRdapEnrichment is false; country matching will not be available.");
+                Warn(warnings, "Remote endpoint policy contains country criteria but all remote country enrichment sources are disabled; country matching will not be available.");
             }
 
-            if (policy.HasOwnerCriteria && !config.EnableRemoteEndpointRdapEnrichment)
+            bool hasOwnerSource =
+                config.EnableRemoteEndpointRdapEnrichment ||
+                config.EnableRemoteEndpointIpApiGeolocation ||
+                config.EnableRemoteEndpointIpWhoisGeolocation;
+
+            if (policy.HasOwnerCriteria && !hasOwnerSource)
             {
-                Warn(warnings, "Remote endpoint policy contains owner/ASN criteria but EnableRemoteEndpointRdapEnrichment is false; owner/ASN matching will not be available.");
+                Warn(warnings, "Remote endpoint policy contains owner/ASN criteria but all remote owner/ASN enrichment sources are disabled; owner/ASN matching will not be available.");
             }
 
             if (policy.Errors.Count == 0)
             {
-                Pass("Remote endpoint policy parsed: " + policy.Rules.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " entries from " + config.RemoteEndpointPolicyFile);
+                Pass("Remote endpoint policy parsed: " + policy.Rules.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " entries from " + config.PolicyFile);
+            }
+        }
+
+        private static void ValidateRemoteEndpointUrlTemplate(string template, string key, List<string> errors)
+        {
+            if (String.IsNullOrWhiteSpace(template))
+            {
+                Fail(errors, key + " must be configured when its provider is enabled.");
+                return;
+            }
+
+            if (template.IndexOf("{ip}", StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                Fail(errors, key + " must contain the {ip} placeholder.");
             }
         }
 
@@ -858,7 +906,7 @@ namespace ArcaneEDR
             {
                 if (!AlertRuleCatalog.IsKnownCategory(category))
                 {
-                    Warn(warnings, "ResponseAllowedCategories contains an unknown category: " + category);
+                    Warn(warnings, "response_policy.allowed_categories contains an unknown category: " + category);
                 }
             }
 
@@ -866,7 +914,7 @@ namespace ArcaneEDR
             {
                 if (!AlertRuleCatalog.IsKnownCategory(category))
                 {
-                    Warn(warnings, "ResponseBlockedCategories contains an unknown category: " + category);
+                    Warn(warnings, "response_policy.blocked_categories contains an unknown category: " + category);
                 }
             }
 
@@ -879,13 +927,13 @@ namespace ArcaneEDR
             else if (!HasConfiguredValues(config.ResponseAllowedRuleIds) &&
                 !HasConfiguredValues(config.ResponseAllowedCategories))
             {
-                Warn(warnings, "Active response is enabled but ResponseAllowedRuleIds and ResponseAllowedCategories are empty; response policy will skip all active actions.");
+                Warn(warnings, "Active response is enabled but response_policy.allowed_rule_ids and response_policy.allowed_categories are empty in PolicyFile; response policy will skip all active actions.");
             }
 
             if (IsTerminateResponseMode(config.ResponseMode) &&
                 !HasConfiguredValues(config.ResponseProtectedProcessNames))
             {
-                Warn(warnings, "Process termination response is enabled but ResponseProtectedProcessNames is empty.");
+                Warn(warnings, "Process termination response is enabled but response_policy.protected_process_names is empty in PolicyFile.");
             }
         }
 
@@ -1103,16 +1151,16 @@ namespace ArcaneEDR
         {
             if (!config.EnableDetectionPolicy) return;
 
-            if (String.IsNullOrWhiteSpace(config.DetectionPolicyFile))
+            if (String.IsNullOrWhiteSpace(config.PolicyFile))
             {
-                Fail(errors, "DetectionPolicyFile must be configured when EnableDetectionPolicy is enabled.");
+                Fail(errors, "PolicyFile must be configured when EnableDetectionPolicy is enabled.");
                 return;
             }
 
             DetectionPolicy policy = DetectionPolicy.Load(config.DetectionPolicyFile);
             if (!policy.FileFound)
             {
-                Pass("Detection policy file not found; no local policy entries loaded: " + config.DetectionPolicyFile);
+                Fail(errors, "Unified policy file not found: " + config.PolicyFile);
                 return;
             }
 
@@ -1128,7 +1176,22 @@ namespace ArcaneEDR
 
             if (policy.Errors.Count == 0)
             {
-                Pass("Detection policy parsed: " + policy.Rules.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " entries from " + config.DetectionPolicyFile);
+                Pass("Detection policy parsed: " + policy.Rules.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " entries from " + config.PolicyFile);
+            }
+        }
+
+        private static void ValidateUnifiedPolicyFile(MonitorConfig config, List<string> errors)
+        {
+            if (String.IsNullOrWhiteSpace(config.PolicyFile))
+            {
+                Fail(errors, "PolicyFile must be configured.");
+                return;
+            }
+
+            if ((config.EnableDetectionPolicy || config.EnableRemoteEndpointPolicy || config.EnableResponsePolicy) &&
+                !File.Exists(config.PolicyFile))
+            {
+                Fail(errors, "Unified policy file not found: " + config.PolicyFile);
             }
         }
 
@@ -1183,6 +1246,23 @@ namespace ArcaneEDR
             HashSet<string> keys = ReadConfigKeys(config.ConfigPath);
             string[] removed = new[]
             {
+                "DetectionPolicyFile",
+                "RemoteEndpointPolicyFile",
+                "AllowedListeningPorts",
+                "AllowedOutboundPorts",
+                "ProcessAllowedOutboundPorts",
+                "TrustedProcesses",
+                "BlockedDomains",
+                "BlockedHashes",
+                "AllowedDnsResolvers",
+                "TrustedPersistenceNamePrefixes",
+                "TrustedPersistencePathIndicators",
+                "TrustedPersistenceSignerSubjects",
+                "ResponseAllowedRuleIds",
+                "ResponseAllowedCategories",
+                "ResponseBlockedRuleIds",
+                "ResponseBlockedCategories",
+                "ResponseProtectedProcessNames",
                 "AllowedRemoteCidrs",
                 "BlockedRemoteCidrs",
                 "TrustedRemoteOwnerPatterns",
@@ -1200,7 +1280,7 @@ namespace ArcaneEDR
             {
                 if (keys.Contains(key))
                 {
-                    Fail(errors, key + " has been removed. Put remote allow/block/trust/country rules in RemoteEndpointPolicyFile instead.");
+                    Fail(errors, key + " has been removed. Put allow/block/trust policy in PolicyFile instead.");
                 }
             }
         }

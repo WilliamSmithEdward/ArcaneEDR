@@ -10,8 +10,6 @@ ResponseMode=AlertOnly
 EnableFirewallBlockResponse=false
 EnableProcessTerminationResponse=false
 EnableResponsePolicy=true
-ResponseAllowedRuleIds=
-ResponseAllowedCategories=
 ```
 
 With this default, Arcane logs alerts only. It does not add firewall rules and
@@ -36,28 +34,56 @@ active mode is configured without the required action gate or response ledger.
 
 Active response has a second safety layer:
 
-```ini
-EnableResponsePolicy=true
-ResponseAllowedRuleIds=
-ResponseAllowedCategories=
-ResponseBlockedRuleIds=SERVICE-STARTED,SERVICE-STOPPED,SERVICE-RECOVERED-AFTER-UNCLEAN-STOP,TEST-ALERT
-ResponseBlockedCategories=Agent,AI,Baseline,Health,Response,Test
-ResponseProtectedProcessNames=System,Idle,Registry,smss.exe,csrss.exe,wininit.exe,winlogon.exe,services.exe,lsass.exe,svchost.exe,explorer.exe,dwm.exe,fontdrvhost.exe,sihost.exe,taskhostw.exe,chrome.exe,msedge.exe,firefox.exe,code.exe,devenv.exe,git.exe,git-remote-https.exe,codex.exe,Codex.exe
+```json
+{
+  "response_policy": {
+    "allowed_rule_ids": [],
+    "allowed_categories": [],
+    "blocked_rule_ids": [
+      "SERVICE-STARTED",
+      "SERVICE-STOPPED",
+      "SERVICE-RECOVERED-AFTER-UNCLEAN-STOP",
+      "TEST-ALERT"
+    ],
+    "blocked_categories": [
+      "Agent",
+      "AI",
+      "Baseline",
+      "Health",
+      "Response",
+      "Test"
+    ],
+    "protected_process_names": [
+      "System",
+      "Idle",
+      "Registry",
+      "smss.exe",
+      "csrss.exe",
+      "wininit.exe",
+      "winlogon.exe",
+      "services.exe",
+      "lsass.exe",
+      "svchost.exe",
+      "explorer.exe"
+    ]
+  }
+}
 ```
 
 When `EnableResponsePolicy=true`, active modes only act on alerts whose rule ID
-or category appears in `ResponseAllowedRuleIds` or
-`ResponseAllowedCategories`. The example config leaves both allowlists empty,
+or category appears in `response_policy.allowed_rule_ids` or
+`response_policy.allowed_categories` in `PolicyFile`. The example policy leaves both allowlists empty,
 so active response skips all actions until the operator explicitly allows a
 rule or category.
 
-`ResponseBlockedRuleIds` and `ResponseBlockedCategories` always win over allow
-entries. This keeps service-health, test, AI, baseline, response-follow-up, and
-agent guardrail alerts from becoming containment triggers by default.
+`response_policy.blocked_rule_ids` and `response_policy.blocked_categories`
+always win over allow entries. This keeps service-health, test, AI, baseline,
+response-follow-up, and agent guardrail alerts from becoming containment
+triggers by default.
 
 Process termination also re-checks the live PID's process name before killing.
 If the live process no longer matches the alert target, or the process is in
-`ResponseProtectedProcessNames` or configured agent process/tool lists, Arcane
+`response_policy.protected_process_names` or configured agent process/tool lists, Arcane
 records a response-ledger skip instead of killing it.
 
 ## Recommended Test Path
@@ -80,9 +106,10 @@ Get-Content C:\Security\ArcaneResponseLedger.jsonl -Tail 20
 ```
 
 Only enable active firewall blocking after dry-run behavior is understood.
-Before switching to an active mode, add one narrow `ResponseAllowedRuleIds`
-entry for the rule you intend to test. Process termination should remain
-disabled unless you are deliberately testing a specific manual workflow.
+Before switching to an active mode, add one narrow
+`response_policy.allowed_rule_ids` entry for the rule you intend to test.
+Process termination should remain disabled unless you are deliberately testing a
+specific manual workflow.
 
 ## Firewall Rule Naming
 

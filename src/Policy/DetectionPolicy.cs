@@ -80,13 +80,26 @@ namespace ArcaneEDR
             {
                 string key = Key(entry.Key);
                 if (!key.Equals("policies", StringComparison.OrdinalIgnoreCase) &&
-                    !key.Equals("rules", StringComparison.OrdinalIgnoreCase))
+                    !key.Equals("rules", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("detection_policies", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("detectionPolicies", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("remote_endpoint_policies", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("remoteEndpointPolicies", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("allowlists", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("blocklists", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("response_policy", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("responsePolicy", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("schema", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("version", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("description", StringComparison.OrdinalIgnoreCase))
                 {
                     policy.Warnings.Add("Detection policy root contains an unknown field: " + key);
                 }
             }
 
-            object policies = Value(root, "policies");
+            object policies = Value(root, "detection_policies");
+            if (policies == null) policies = Value(root, "detectionPolicies");
+            if (policies == null) policies = Value(root, "policies");
             if (policies == null) policies = Value(root, "rules");
             return policies as IList;
         }

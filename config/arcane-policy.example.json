@@ -1,0 +1,329 @@
+{
+  "schema": "arcane-policy/v1",
+  "description": "Unified allow, block, trust, response, remote endpoint, and alert tuning policy for Arcane EDR.",
+  "allowlists": {
+    "allowed_listening_ports": [
+      "68",
+      "135",
+      "137",
+      "138",
+      "139",
+      "445",
+      "546",
+      "1900",
+      "5040",
+      "5050",
+      "5353",
+      "5355",
+      "7680",
+      "49664-49680"
+    ],
+    "allowed_outbound_ports": [
+      "53",
+      "80",
+      "123",
+      "443",
+      "587",
+      "993",
+      "995"
+    ],
+    "process_allowed_outbound_ports": {
+      "Codex.exe": [
+        "5228"
+      ]
+    },
+    "trusted_processes": [
+      "svchost.exe",
+      "System",
+      "System.exe",
+      "lsass.exe",
+      "services.exe",
+      "spoolsv.exe",
+      "wininit.exe",
+      "OneDrive.exe",
+      "Code.exe",
+      "Codex.exe",
+      "codex.exe",
+      "chrome.exe",
+      "msedge.exe",
+      "explorer.exe",
+      "MsMpEng.exe",
+      "MpDefenderCoreService.exe",
+      "msedgewebview2.exe",
+      "ArcaneEDR.exe",
+      "StartMenuExperienceHost.exe"
+    ],
+    "allowed_dns_resolvers": [],
+    "trusted_persistence_name_prefixes": [
+      "\\Microsoft\\Windows\\",
+      "MDCoreSvc",
+      "WinDefend"
+    ],
+    "trusted_persistence_path_indicators": [
+      "\\windows\\system32\\",
+      "\\windows\\syswow64\\",
+      "%windir%\\system32\\",
+      "%windir%\\syswow64\\",
+      "%systemroot%\\system32\\",
+      "%systemroot%\\syswow64\\",
+      "\\program files\\",
+      "\\program files (x86)\\",
+      "\\programdata\\microsoft\\windows defender\\"
+    ],
+    "trusted_persistence_signer_subjects": [
+      "Microsoft Windows",
+      "Microsoft Corporation",
+      "Microsoft Windows Publisher"
+    ]
+  },
+  "blocklists": {
+    "blocked_domains": [],
+    "blocked_hashes": []
+  },
+  "response_policy": {
+    "allowed_rule_ids": [],
+    "allowed_categories": [],
+    "blocked_rule_ids": [
+      "SERVICE-STARTED",
+      "SERVICE-STOPPED",
+      "SERVICE-RECOVERED-AFTER-UNCLEAN-STOP",
+      "TEST-ALERT"
+    ],
+    "blocked_categories": [
+      "Agent",
+      "AI",
+      "Baseline",
+      "Health",
+      "Response",
+      "Test"
+    ],
+    "protected_process_names": [
+      "System",
+      "Idle",
+      "Registry",
+      "smss.exe",
+      "csrss.exe",
+      "wininit.exe",
+      "winlogon.exe",
+      "services.exe",
+      "lsass.exe",
+      "svchost.exe",
+      "explorer.exe",
+      "dwm.exe",
+      "fontdrvhost.exe",
+      "sihost.exe",
+      "taskhostw.exe",
+      "chrome.exe",
+      "msedge.exe",
+      "firefox.exe",
+      "code.exe",
+      "devenv.exe",
+      "git.exe",
+      "git-remote-https.exe",
+      "codex.exe",
+      "Codex.exe"
+    ]
+  },
+  "remote_endpoint_policies": [
+    {
+      "id": "default-allow-arcane-edr-service",
+      "enabled": true,
+      "action": "allow",
+      "reason": "Arcane EDR service self-traffic is expected monitor telemetry. Keep unrelated local evidence, but do not generate network alerts for the service's own outbound enrichment and notification calls.",
+      "match": {
+        "process_name": "ArcaneEDR.exe"
+      }
+    },
+    {
+      "id": "default-trust-known-provider-owner",
+      "enabled": true,
+      "action": "trust",
+      "reason": "Known major provider ownership context can make foreign country geolocation expected. This trusts only remote context; process, command-line, RAT, risky-port, and other suspicious signals still alert.",
+      "match": {
+        "text_contains": "regex:(Microsoft|MSFT|Cloudflare|CLOUDFLARENET|Google|GOOGLE|Amazon|AMAZON|AWS|Akamai|Fastly|GitHub|Apple)"
+      }
+    },
+    {
+      "id": "default-critical-country-unresolved-after-local-geo-and-dns",
+      "enabled": true,
+      "action": "critical",
+      "score": 90,
+      "reason": "A local or configured geolocation country source did not identify a country and no DNS/domain identity was available. Treat fully-unresolved external destinations as critical review context.",
+      "match": {
+        "country_lookup": "regex:^missing-after-(country-blocks|ip-api|ipwhois).*-dns$"
+      }
+    },
+    {
+      "id": "default-observe-country-missing",
+      "enabled": true,
+      "action": "observe",
+      "score": 10,
+      "reason": "Country was unavailable from enabled enrichment sources, but some endpoint identity context remains. Add review weight, and escalate only when paired with first-seen app/IP or stronger suspicious context.",
+      "match": {
+        "country_lookup": [
+          "missing-after-rdap",
+          "missing-after-rdap-dns",
+          "regex:^missing-after-(country-blocks|ip-api|ipwhois).*$"
+        ]
+      }
+    },
+    {
+      "id": "default-critical-non-us-country",
+      "enabled": true,
+      "action": "critical",
+      "score": 90,
+      "reason": "Remote endpoint country is outside the default US-only country policy and no earlier trust rule matched.",
+      "match": {
+        "country_not": "US"
+      }
+    },
+    {
+      "id": "example-block-remote-owner",
+      "enabled": false,
+      "action": "block",
+      "score": 95,
+      "reason": "Example high-confidence blocked owner context. Keep entries narrow and evidence-based.",
+      "match": {
+        "owner": "Example Bad Hosting"
+      }
+    },
+    {
+      "id": "example-block-remote-asn",
+      "enabled": false,
+      "action": "block",
+      "score": 95,
+      "reason": "Example high-confidence blocked ASN context. Keep entries narrow and evidence-based.",
+      "match": {
+        "asn": "AS64500"
+      }
+    },
+    {
+      "id": "example-block-remote-domain-pattern",
+      "enabled": false,
+      "action": "block",
+      "score": 95,
+      "reason": "Example blocked domain context from local operator intelligence.",
+      "match": {
+        "domain": "regex:(dynamic-dns-example|unexpected-cdn)"
+      }
+    },
+    {
+      "id": "example-trust-expected-agent-cloudflare",
+      "enabled": false,
+      "action": "trust",
+      "reason": "Expected agent backend traffic. Trust lowers only clean direct-IP and timing-only network noise from expected processes.",
+      "match": {
+        "process_name": "codex.exe",
+        "owner": "Cloudflare",
+        "port": 443
+      }
+    },
+    {
+      "id": "example-allow-specific-remote-ip",
+      "enabled": false,
+      "action": "allow",
+      "reason": "Example explicit allow for a stable, expected remote IP. Allow entries skip generic external-remote analysis, so keep them narrow.",
+      "match": {
+        "remote_ip": "203.0.113.10"
+      }
+    }
+  ],
+  "detection_policies": [
+    {
+      "id": "default-suppress-arcane-service-start",
+      "enabled": true,
+      "action": "suppress_external",
+      "reason": "Clean Arcane EDR service-start notifications are local health evidence, not operator-paging material. Crash recovery uses a separate rule and still alerts.",
+      "owner": "product-default",
+      "match": {
+        "rule_id": "SERVICE-STARTED",
+        "text_contains": "Arcane EDR started"
+      }
+    },
+    {
+      "id": "default-suppress-arcane-self-network-alerts",
+      "enabled": true,
+      "action": "suppress_external",
+      "reason": "Arcane EDR service self-traffic should stay in local evidence but not external alert channels.",
+      "owner": "product-default",
+      "match": {
+        "category": "Network",
+        "process_name": "ArcaneEDR.exe"
+      }
+    },
+    {
+      "id": "example-codex-low-risk-beacon-context",
+      "enabled": false,
+      "action": "suppress_external",
+      "reason": "Expected Codex agent backend traffic on this workstation; keep local evidence but avoid repeated low-value external notifications.",
+      "owner": "local-operator",
+      "expires_utc": "2026-12-31T00:00:00Z",
+      "match": {
+        "rule_id": "NET-BEACON-TIMING-LOW-RISK",
+        "process_name": "codex.exe",
+        "text_contains": "agent_context=involved"
+      }
+    },
+    {
+      "id": "example-review-powershell-downloads",
+      "enabled": false,
+      "action": "raise_score",
+      "score_delta": 10,
+      "reason": "Local policy example for treating unexpected PowerShell web-download patterns as higher priority.",
+      "owner": "local-operator",
+      "match": {
+        "category": "PowerShell",
+        "command_terms": [
+          "powershell",
+          "http"
+        ]
+      }
+    },
+    {
+      "id": "example-trusted-internal-admin-port-context",
+      "enabled": false,
+      "action": "lower_score",
+      "score_delta": 15,
+      "reason": "Expected local administration tool connecting to a private-network management port on this workstation.",
+      "owner": "local-operator",
+      "match": {
+        "category": "Network",
+        "process_name": "ssh.exe",
+        "ip_cidr": "192.168.0.0/16",
+        "port": 22
+      }
+    },
+    {
+      "id": "example-force-review-unexpected-rdp-egress",
+      "enabled": false,
+      "action": "force_alert",
+      "reason": "RDP egress to a private-network host should always be reviewed unless this workstation normally initiates that session.",
+      "owner": "local-operator",
+      "match": {
+        "category": "Network",
+        "ip_cidr": [
+          "10.0.0.0/8",
+          "172.16.0.0/12",
+          "192.168.0.0/16"
+        ],
+        "port": 3389
+      }
+    },
+    {
+      "id": "example-tag-local-build-maintenance",
+      "enabled": false,
+      "action": "tag_only",
+      "tag": "maintenance",
+      "reason": "Local build or publish workflow context; tagging preserves evidence while making review easier.",
+      "owner": "local-operator",
+      "match": {
+        "process_name": "powershell.exe",
+        "parent_process": "cmd.exe",
+        "command_terms": [
+          "build",
+          "publish"
+        ]
+      }
+    }
+  ]
+}

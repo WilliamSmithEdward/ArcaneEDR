@@ -16,7 +16,7 @@ namespace ArcaneEDR
             this.config = config;
             this.logger = logger;
             Remember(config.ConfigPath);
-            Remember(config.RemoteEndpointPolicyFile);
+            Remember(config.PolicyFile);
             Remember(typeof(ConfigIntegrityMonitor).Assembly.Location);
         }
 
@@ -24,7 +24,7 @@ namespace ArcaneEDR
         {
             List<Alert> alerts = new List<Alert>();
             CheckPath(config.ConfigPath, "APP-CONFIG-CHANGED", "Monitor configuration changed", alerts);
-            CheckPath(config.RemoteEndpointPolicyFile, "APP-REMOTE-ENDPOINT-POLICY-CHANGED", "Remote endpoint policy changed", alerts);
+            CheckPath(config.PolicyFile, "APP-POLICY-CHANGED", "Unified policy changed", alerts);
             CheckPath(typeof(ConfigIntegrityMonitor).Assembly.Location, "APP-BINARY-CHANGED", "Monitor executable changed", alerts);
             return alerts;
         }

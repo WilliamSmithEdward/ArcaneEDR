@@ -33,7 +33,8 @@ namespace ArcaneEDR
             builder.AppendLine("response_mode=" + config.ResponseMode);
             builder.AppendLine("external_alert_provider=" + config.ExternalAlertProvider);
             builder.AppendLine("privacy_mode=redacted_summary_only");
-            builder.AppendLine("omitted_fields=alert_body,entity,command_line,script_block,user,path,ip,url,email,secrets");
+            builder.AppendLine("omitted_fields=raw_alert_body,raw_entity,command_line,script_block,user,path,ip,url,email,secrets");
+            builder.AppendLine("included_remote_context=redacted_owner_asn_domain_country_policy_process_port");
             builder.AppendLine("poll_count=" + state.PollCount.ToString(CultureInfo.InvariantCulture));
             builder.AppendLine("alert_count=" + state.AlertCount.ToString(CultureInfo.InvariantCulture));
             builder.AppendLine("poll_failures=" + state.PollFailures.ToString(CultureInfo.InvariantCulture));
@@ -163,6 +164,7 @@ namespace ArcaneEDR
                 TryParseUtc(Read(parsed, "timestamp_utc"), out record.TimestampUtc);
                 record.AgentContext = HasAgentContext(parsed);
                 record.Why = ReadWhy(parsed);
+                record.RemoteContext = ExtractRemoteContext(parsed);
                 return record;
             }
             catch
@@ -190,6 +192,123 @@ namespace ArcaneEDR
             }
 
             return false;
+        }
+
+        private static string ExtractRemoteContext(IDictionary parsed)
+        {
+            if (parsed == null) return "";
+
+            string text = Read(parsed, "entity") + " " + Read(parsed, "body") + " " + Read(parsed, "policy_context");
+            if (String.IsNullOrWhiteSpace(text)) return "";
+
+            List<string> parts = new List<string>();
+            AddContextPart(parts, "process", ExtractTokenValue(text, "process"));
+            AddContextPart(parts, "port", ExtractRemotePort(text));
+            AddContextPart(parts, "owner", ExtractTokenValue(text, "owner"));
+            AddContextPart(parts, "asn", ExtractTokenValue(text, "asn"));
+            AddContextPart(parts, "asn_org", ExtractTokenValue(text, "asn_org"));
+            AddContextPart(parts, "country", ExtractTokenValue(text, "country"));
+            AddContextPart(parts, "country_lookup", ExtractTokenValue(text, "country_lookup"));
+            AddContextPart(parts, "resolved_domain", ExtractTokenValue(text, "resolved_domain"));
+            AddContextPart(parts, "registrable_domain", ExtractTokenValue(text, "registrable_domain"));
+            AddContextPart(parts, "remote_policy", ExtractRemotePolicy(text));
+            AddContextPart(parts, "policy_context", ExtractTokenValue(text, "policy"));
+
+            return parts.Count == 0 ? "" : String.Join(" ", parts.ToArray());
+        }
+
+        private static void AddContextPart(List<string> parts, string key, string value)
+        {
+            if (parts == null || String.IsNullOrWhiteSpace(key) || String.IsNullOrWhiteSpace(value)) return;
+
+            string sanitized = SanitizeContextValue(key, value);
+            if (String.IsNullOrWhiteSpace(sanitized)) return;
+
+            string item = key + "=" + sanitized;
+            foreach (string existing in parts)
+            {
+                if (existing.Equals(item, StringComparison.OrdinalIgnoreCase)) return;
+            }
+
+            parts.Add(item);
+        }
+
+        private static string ExtractTokenValue(string text, string key)
+        {
+            if (String.IsNullOrWhiteSpace(text) || String.IsNullOrWhiteSpace(key)) return "";
+
+            Match match = Regex.Match(
+                text,
+                "(?:^|[\\s;|])" + Regex.Escape(key) + "=([^\\s|;]+)",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            return match.Success ? match.Groups[1].Value : "";
+        }
+
+        private static string ExtractRemotePort(string text)
+        {
+            if (String.IsNullOrWhiteSpace(text)) return "";
+
+            Match match = Regex.Match(
+                text,
+                @"Endpoint:\s+\S+\s+\S+:\d+\s+->\s+\S+:(\d{1,5})\b",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            return match.Success ? match.Groups[1].Value : "";
+        }
+
+        private static string ExtractRemotePolicy(string text)
+        {
+            if (String.IsNullOrWhiteSpace(text)) return "";
+
+            Match match = Regex.Match(
+                text,
+                @"remote_endpoint_policy=([A-Za-z0-9_.:-]+)",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            if (match.Success) return match.Groups[1].Value;
+
+            string id = ExtractTokenValue(text, "id");
+            string action = ExtractTokenValue(text, "action");
+            if (!String.IsNullOrWhiteSpace(id) && !String.IsNullOrWhiteSpace(action)) return id + ":" + action;
+            return "";
+        }
+
+        private static string SanitizeContextValue(string key, string value)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return "";
+
+            string result = value.Trim().Trim(',', '.', ';', '|', '"', '\'');
+            if (key.Equals("resolved_domain", StringComparison.OrdinalIgnoreCase) ||
+                key.Equals("registrable_domain", StringComparison.OrdinalIgnoreCase))
+            {
+                result = String.IsNullOrWhiteSpace(result) ? "" : "present";
+            }
+            else
+            {
+                result = SanitizeContextNonDomainValue(result);
+            }
+
+            result = Regex.Replace(result, "\\s+", "_");
+            result = Regex.Replace(result, "[^A-Za-z0-9_.:/=-]", "_");
+            return TrimForSummary(result.Trim('_'), 120);
+        }
+
+        private static string SanitizeContextNonDomainValue(string value)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return "";
+
+            string result = value;
+            result = Regex.Replace(result, "(?i)bearer\\s+[A-Za-z0-9._\\-+/=]{8,}", "Bearer [redacted-secret]");
+            result = Regex.Replace(result, "(?i)(api[_-]?key|apikey|token|secret|password|passwd|pwd|authorization|client_secret|access_token|refresh_token)\\s*[:=]\\s*[^\\s,;\\}\\]]+", "$1=[redacted-secret]");
+            result = Regex.Replace(result, "[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{10,}", "[redacted-jwt]");
+            result = Regex.Replace(result, "[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}", "[redacted-email]");
+            result = Regex.Replace(result, "(?i)https?://[^\\s\"'<>]+", "[redacted-url]");
+            result = Regex.Replace(result, "\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b", "[redacted-ip]");
+            result = Regex.Replace(result, "(?i)\\b[0-9a-f]{64}\\b", "[redacted-sha256]");
+            result = Regex.Replace(result, "(?i)C:\\\\Users\\\\[^\\\\\\s\"']+", "C:\\Users\\[redacted-user]");
+            result = Regex.Replace(result, "(?i)[A-Z]:\\\\[^\\s|,\"']+", "[redacted-path]");
+            result = Regex.Replace(result, "\\\\\\\\[^\\s|,\"']+", "[redacted-unc-path]");
+            result = Regex.Replace(result, "(?i)(user|subject|target)=([^\\s|,]+)", "$1=[redacted-account]");
+            result = Regex.Replace(result, "[A-Za-z0-9+/]{80,}={0,2}", "[redacted-encoded-data]");
+            return result.Trim();
         }
 
         private static List<string> ReadWhy(IDictionary parsed)
@@ -288,6 +407,7 @@ namespace ArcaneEDR
                     return "";
                 }
 
+                string remoteContext = ExtractRemoteContext(parsed);
                 return "timestamp_utc=" + Read(parsed, "timestamp_utc") +
                     " system_local_time=" + SanitizeToken(Read(parsed, "system_local_time")) +
                     " rule_id=" + SanitizeToken(ruleId) +
@@ -295,6 +415,7 @@ namespace ArcaneEDR
                     " maintenance_context=" + SanitizeToken(Read(parsed, "maintenance_context")) +
                     " severity=" + SanitizeToken(Read(parsed, "severity")) +
                     " score=" + score.ToString(CultureInfo.InvariantCulture) +
+                    (String.IsNullOrWhiteSpace(remoteContext) ? "" : " remote_context=\"" + remoteContext + "\"") +
                     " title=" + SanitizeText(Read(parsed, "title"));
             }
             catch
@@ -470,6 +591,7 @@ namespace ArcaneEDR
         public string Title;
         public bool MaintenanceContext;
         public bool AgentContext;
+        public string RemoteContext;
         public List<string> Why = new List<string>();
     }
 
@@ -493,6 +615,7 @@ namespace ArcaneEDR
         private readonly Dictionary<string, AlertAggregateBucket> byCategory = new Dictionary<string, AlertAggregateBucket>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, AlertAggregateBucket> byRule = new Dictionary<string, AlertAggregateBucket>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, AlertAggregateBucket> bySeverity = new Dictionary<string, AlertAggregateBucket>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, AlertAggregateBucket> byRemoteContext = new Dictionary<string, AlertAggregateBucket>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, AlertReasonBucket> byReason = new Dictionary<string, AlertReasonBucket>(StringComparer.OrdinalIgnoreCase);
 
         public void Add(CompactAlertRecord record)
@@ -519,6 +642,10 @@ namespace ArcaneEDR
             Increment(byCategory, record.Category, record);
             Increment(byRule, record.RuleId, record);
             Increment(bySeverity, record.Severity, record);
+            if (!String.IsNullOrWhiteSpace(record.RemoteContext))
+            {
+                Increment(byRemoteContext, record.RemoteContext, record);
+            }
 
             if (record.Score >= SignificantScore)
             {
@@ -552,6 +679,7 @@ namespace ArcaneEDR
             AppendBuckets(builder, "by_severity", SortedBuckets(bySeverity), 6, false);
             AppendBuckets(builder, "by_category", SortedBuckets(byCategory), 8, false);
             AppendBuckets(builder, "top_rules_score_60_plus", SignificantRuleBuckets(), 8, true);
+            AppendBuckets(builder, "top_remote_context_score_60_plus", SignificantRemoteContextBuckets(), 8, true);
             AppendReasons(builder, "top_reasons_score_60_plus", SortedReasons(byReason), 6);
             return builder.ToString();
         }
@@ -640,6 +768,21 @@ namespace ArcaneEDR
         {
             List<AlertAggregateBucket> result = new List<AlertAggregateBucket>();
             foreach (AlertAggregateBucket bucket in byRule.Values)
+            {
+                if (bucket.MaxScore >= SignificantScore)
+                {
+                    result.Add(bucket);
+                }
+            }
+
+            SortBuckets(result);
+            return result;
+        }
+
+        private List<AlertAggregateBucket> SignificantRemoteContextBuckets()
+        {
+            List<AlertAggregateBucket> result = new List<AlertAggregateBucket>();
+            foreach (AlertAggregateBucket bucket in byRemoteContext.Values)
             {
                 if (bucket.MaxScore >= SignificantScore)
                 {

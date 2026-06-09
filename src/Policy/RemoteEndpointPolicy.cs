@@ -105,13 +105,26 @@ namespace ArcaneEDR
             {
                 string key = Key(entry.Key);
                 if (!key.Equals("policies", StringComparison.OrdinalIgnoreCase) &&
-                    !key.Equals("rules", StringComparison.OrdinalIgnoreCase))
+                    !key.Equals("rules", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("remote_endpoint_policies", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("remoteEndpointPolicies", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("detection_policies", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("detectionPolicies", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("allowlists", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("blocklists", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("response_policy", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("responsePolicy", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("schema", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("version", StringComparison.OrdinalIgnoreCase) &&
+                    !key.Equals("description", StringComparison.OrdinalIgnoreCase))
                 {
                     policy.Warnings.Add("Remote endpoint policy root contains an unknown field: " + key);
                 }
             }
 
-            object policies = Value(root, "policies");
+            object policies = Value(root, "remote_endpoint_policies");
+            if (policies == null) policies = Value(root, "remoteEndpointPolicies");
+            if (policies == null) policies = Value(root, "policies");
             if (policies == null) policies = Value(root, "rules");
             return policies as IList;
         }
@@ -294,6 +307,7 @@ namespace ArcaneEDR
                 if (HasScore) return ClampScore(Score);
                 if (Action.Equals("block", StringComparison.OrdinalIgnoreCase)) return 95;
                 if (Action.Equals("critical", StringComparison.OrdinalIgnoreCase)) return 90;
+                if (Action.Equals("observe", StringComparison.OrdinalIgnoreCase)) return 10;
                 return 0;
             }
         }
@@ -323,6 +337,7 @@ namespace ArcaneEDR
         public readonly List<string> RegistrableDomains = new List<string>();
         public readonly List<string> Countries = new List<string>();
         public readonly List<string> CountryNot = new List<string>();
+        public readonly List<string> CountryLookupStatuses = new List<string>();
         public readonly List<string> TextContains = new List<string>();
         public bool HasCountryMissingCriterion;
         public bool CountryMissing;
@@ -351,6 +366,7 @@ namespace ArcaneEDR
                 if (RegistrableDomains.Count > 0) count++;
                 if (Countries.Count > 0) count++;
                 if (CountryNot.Count > 0) count++;
+                if (CountryLookupStatuses.Count > 0) count++;
                 if (HasCountryMissingCriterion) count++;
                 if (TextContains.Count > 0) count++;
                 return count;
@@ -359,7 +375,7 @@ namespace ArcaneEDR
 
         public bool HasCountryCriteria
         {
-            get { return Countries.Count > 0 || CountryNot.Count > 0 || HasCountryMissingCriterion; }
+            get { return Countries.Count > 0 || CountryNot.Count > 0 || CountryLookupStatuses.Count > 0 || HasCountryMissingCriterion; }
         }
 
         public bool HasOwnerCriteria
@@ -413,6 +429,7 @@ namespace ArcaneEDR
             if (RegistrableDomains.Count > 0 && !TextPatternMatcher.IsMatch(endpoint.RegistrableDomain, RegistrableDomains)) return false;
             if (Countries.Count > 0 && !AnyCountryMatches(endpoint.RemoteCountry, Countries)) return false;
             if (CountryNot.Count > 0 && !CountryNotMatches(endpoint.RemoteCountry, CountryNot)) return false;
+            if (CountryLookupStatuses.Count > 0 && !TextPatternMatcher.IsMatch(endpoint.RemoteCountryLookupStatus, CountryLookupStatuses)) return false;
             if (HasCountryMissingCriterion && CountryMissing != IsCountryMissing(endpoint)) return false;
             if (TextContains.Count > 0 && !TextPatternMatcher.IsMatch(RemoteEndpointText(endpoint), TextContains)) return false;
 
@@ -454,6 +471,7 @@ namespace ArcaneEDR
             else if (field.Equals("registrable_domain", StringComparison.OrdinalIgnoreCase)) AddTextValues(match.RegistrableDomains, values, ruleId, field, policy);
             else if (field.Equals("country", StringComparison.OrdinalIgnoreCase)) AddRange(match.Countries, values, true);
             else if (field.Equals("country_not", StringComparison.OrdinalIgnoreCase)) AddRange(match.CountryNot, values, true);
+            else if (field.Equals("country_lookup", StringComparison.OrdinalIgnoreCase)) AddTextValues(match.CountryLookupStatuses, values, ruleId, field, policy);
             else if (field.Equals("text_contains", StringComparison.OrdinalIgnoreCase)) AddTextValues(match.TextContains, values, ruleId, field, policy);
         }
 
@@ -501,6 +519,7 @@ namespace ArcaneEDR
             if (normalized.Equals("registrable_domain", StringComparison.OrdinalIgnoreCase)) return "registrable_domain";
             if (normalized.Equals("country", StringComparison.OrdinalIgnoreCase)) return "country";
             if (normalized.Equals("country_not", StringComparison.OrdinalIgnoreCase)) return "country_not";
+            if (normalized.Equals("country_lookup", StringComparison.OrdinalIgnoreCase)) return "country_lookup";
             if (normalized.Equals("country_missing", StringComparison.OrdinalIgnoreCase)) return "country_missing";
             if (normalized.Equals("text_contains", StringComparison.OrdinalIgnoreCase)) return "text_contains";
             return "";
@@ -667,6 +686,11 @@ namespace ArcaneEDR
         public bool IsCritical
         {
             get { return Action.Equals("critical", StringComparison.OrdinalIgnoreCase); }
+        }
+
+        public bool IsObserve
+        {
+            get { return Action.Equals("observe", StringComparison.OrdinalIgnoreCase); }
         }
 
         public bool IsHighSignal

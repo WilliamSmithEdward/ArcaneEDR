@@ -52,8 +52,27 @@ coverage unless the operator explicitly scopes them out. The GUI should stay in
 lockstep with the service feature set instead of becoming a stale wrapper around
 older config.
 
-Current active milestone: `v0.8.0` planning. `v0.7.0` is released and deployed
-locally.
+Current active milestone: `v0.8.0` planning. `v0.7.1` is the current
+`v0.7.x` patch release candidate for unified policy and endpoint-enrichment
+hardening.
+
+Recently completed `v0.7.1` patch:
+
+- Unified allowlists, blocklists, response policy, remote endpoint policy, and
+  detection tuning into one `PolicyFile` JSON surface.
+- Added product-default Arcane EDR service self-traffic suppression/allowing so
+  clean service health and enrichment activity does not page the operator while
+  preserving local evidence where appropriate.
+- Added default trusted-owner remote context for major providers such as
+  Microsoft and Cloudflare before non-US country escalation, while leaving
+  process, command-line, RAT, risky-port, and other suspicious signals
+  alertable.
+- Added local country-block enrichment plus optional `ip-api` and `ipwhois`
+  hooks for country/owner/ASN fallback when RDAP is missing or incomplete.
+- Added redacted remote enrichment context to compact AI analysis payloads and
+  changed the OpenAI default secret name to `OpenAIAPIKey_ArcaneEDR`.
+- Removed old split policy config keys from the supported config surface; they
+  now fail validation loudly and are no longer read from INI.
 
 Recently completed `v0.7.0` gate:
 
@@ -355,9 +374,10 @@ Progress:
 - Reduced duplicate network context by suppressing the generic
   `NET-EGRESS-NEW-UNTRUSTED` alert when a more specific endpoint finding has
   already explained the same connection.
-- Added process-specific outbound port tuning via `ProcessAllowedOutboundPorts`
-  so nonstandard ports can be treated as normal for a named process without
-  globally allowlisting the port for every process.
+- Added process-specific outbound port tuning, now surfaced through
+  `allowlists.process_allowed_outbound_ports` in `PolicyFile`, so nonstandard
+  ports can be treated as normal for a named process without globally
+  allowlisting the port for every process.
 - Added explicit high-signal LAN lateral movement classification:
   `NET-LAN-INBOUND-LATERAL-PORT` for inferred private-network inbound sessions
   to local lateral/admin listeners, and `NET-LAN-EGRESS-LATERAL-PORT` for
@@ -574,10 +594,11 @@ Progress:
   termination require separate opt-in config, and active response requires the
   local response ledger.
 - Added a response policy layer so active response requires explicit
-  `ResponseAllowedRuleIds` or `ResponseAllowedCategories` entries, while
-  blocked rule/category lists and protected process names keep agent, test,
-  health, AI, baseline, response-follow-up, browser, Git, development, and core
-  Windows processes out of automatic containment by default.
+  `response_policy.allowed_rule_ids` or
+  `response_policy.allowed_categories` entries in `PolicyFile`, while blocked
+  rule/category lists and protected process names keep agent, test, health, AI,
+  baseline, response-follow-up, browser, Git, development, and core Windows
+  processes out of automatic containment by default.
 - Added `ArcaneEDR_BLOCK_<response-id>` firewall rule naming, response-ledger
   mapping back to the trigger alert, and `ArcaneEDR.exe --response-firewall` for
   listing or removing Arcane-owned firewall block rules.
@@ -745,10 +766,10 @@ Rule modules:
 
 User-friendly granular detection policy:
 
-- Add a structured policy file, for example `config\policy-rules.json`, for
-  machine-specific allow/block tuning without hardcoding local software into
-  the product. Initial runtime support completed with an ignored local
-  `DetectionPolicyFile`, tracked example template, validation, and recent-alert
+- Add a structured unified policy file, for example
+  `config\arcane-policy.json`, for machine-specific allow/block/trust tuning
+  without hardcoding local software into the product. Runtime support now uses
+  one `PolicyFile` with tracked example template, validation, and recent-alert
   preview command.
 - Keep normal cases field-based rather than regex-based. Supported match fields
   should include process name, parent process, signer, path prefix, command

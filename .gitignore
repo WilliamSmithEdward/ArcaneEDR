@@ -15,6 +15,7 @@ tools/
 # Local configuration overrides
 config/ArcaneEDR.config
 config/Deployment.config
+config/arcane-policy.json
 config/policy-rules.json
 config/remote-endpoint-policy.json
 *.local.config

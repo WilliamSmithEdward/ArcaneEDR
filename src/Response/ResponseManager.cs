@@ -157,7 +157,7 @@ namespace ArcaneEDR
 
             if (!hasAllowPolicy)
             {
-                return ResponsePolicyDecision.Deny("no ResponseAllowedRuleIds or ResponseAllowedCategories configured");
+                return ResponsePolicyDecision.Deny("no response_policy.allowed_rule_ids or response_policy.allowed_categories configured");
             }
 
             if (ContainsConfigured(config.ResponseAllowedRuleIds, ruleId) ||

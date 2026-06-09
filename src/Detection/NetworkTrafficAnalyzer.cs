@@ -294,6 +294,9 @@ namespace ArcaneEDR
                 return;
             }
 
+            bool firstSeenProcessRemoteIp = ObserveProcessRemoteIp(endpoint);
+            int endpointAlertStart = alerts.Count;
+
             if (remotePolicy.IsHighSignal)
             {
                 alerts.Add(RemoteEndpointPolicyAlert(endpoint, remotePolicy));
@@ -318,6 +321,8 @@ namespace ArcaneEDR
             {
                 AnalyzePrivateTcpConnection(endpoint, inboundToLocalListener, trustedProcess, alerts);
             }
+
+            ApplyObservedRemotePolicy(endpoint, remotePolicy, firstSeenProcessRemoteIp, alerts, endpointAlertStart);
         }
 
         private void AnalyzePrivateTcpConnection(
@@ -567,8 +572,99 @@ namespace ArcaneEDR
                     45,
                     "This process connected to a destination not previously observed in the local baseline.",
                     "Low severity by itself. Correlate with process lineage, destination reputation, and command-line context.",
-                    endpoint));
+                endpoint));
             }
+        }
+
+        private bool ObserveProcessRemoteIp(NetworkEndpoint endpoint)
+        {
+            if (baselineStore == null || endpoint == null || endpoint.RemoteAddress == null) return false;
+
+            string processRemoteIp = endpoint.ProcessName + "|" + endpoint.RemoteAddress;
+            return baselineStore.Observe("process-remote-ip", processRemoteIp);
+        }
+
+        private void ApplyObservedRemotePolicy(
+            NetworkEndpoint endpoint,
+            RemoteEndpointPolicyDecision remotePolicy,
+            bool firstSeenProcessRemoteIp,
+            List<Alert> alerts,
+            int endpointAlertStart)
+        {
+            if (remotePolicy == null || !remotePolicy.IsObserve || !remotePolicy.Matched || remotePolicy.Score <= 0)
+            {
+                return;
+            }
+
+            List<string> pairedContext = ObservedRemotePolicyPairingContext(alerts, endpointAlertStart);
+            if (firstSeenProcessRemoteIp)
+            {
+                pairedContext.Insert(0, "first-seen app/remote-IP pair");
+            }
+
+            if (pairedContext.Count > 0)
+            {
+                alerts.Add(ObservedRemotePolicyCriticalAlert(endpoint, remotePolicy, pairedContext));
+                return;
+            }
+
+            for (int index = endpointAlertStart; index < alerts.Count; index++)
+            {
+                ApplyObservedRemotePolicyScore(alerts[index], remotePolicy);
+            }
+        }
+
+        private static List<string> ObservedRemotePolicyPairingContext(List<Alert> alerts, int endpointAlertStart)
+        {
+            List<string> result = new List<string>();
+            if (alerts == null) return result;
+
+            for (int index = Math.Max(0, endpointAlertStart); index < alerts.Count; index++)
+            {
+                Alert alert = alerts[index];
+                if (!IsStrongObservedPolicyPair(alert)) continue;
+
+                string ruleId = alert.RuleId ?? "";
+                if (!ContainsText(result, ruleId)) result.Add(ruleId);
+            }
+
+            return result;
+        }
+
+        private static bool IsStrongObservedPolicyPair(Alert alert)
+        {
+            if (alert == null) return false;
+            string ruleId = alert.RuleId ?? "";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixRat)) return true;
+            if (AlertRuleTaxonomy.IsDnsRule(ruleId)) return true;
+            return alert.Score >= 75;
+        }
+
+        private static bool ContainsText(List<string> values, string expected)
+        {
+            if (values == null || String.IsNullOrWhiteSpace(expected)) return false;
+            foreach (string value in values)
+            {
+                if (expected.Equals(value, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+
+            return false;
+        }
+
+        private static void ApplyObservedRemotePolicyScore(Alert alert, RemoteEndpointPolicyDecision remotePolicy)
+        {
+            if (alert == null || remotePolicy == null || remotePolicy.Score <= 0) return;
+
+            int boostedScore = alert.Score + remotePolicy.Score;
+            if (boostedScore > 89) boostedScore = 89;
+            if (boostedScore > alert.Score)
+            {
+                alert.SetScore(boostedScore);
+            }
+
+            string policyContext = "remote_endpoint_policy=" + SafePolicyToken(remotePolicy.RuleId) + ":" + SafePolicyToken(remotePolicy.Action);
+            alert.AddPolicyContext(policyContext);
+            alert.AddWhy("Observed remote endpoint policy added review weight: " + Compact(remotePolicy.Reason, 140) + ".");
         }
 
         private void AnalyzeBeaconing(NetworkEndpoint endpoint, DateTime timestampUtc, RemoteEndpointPolicyDecision remotePolicy, List<Alert> alerts)
@@ -712,6 +808,37 @@ namespace ArcaneEDR
             return alert;
         }
 
+        private static Alert ObservedRemotePolicyCriticalAlert(
+            NetworkEndpoint endpoint,
+            RemoteEndpointPolicyDecision decision,
+            List<string> pairedContext)
+        {
+            string action = decision.Action ?? "";
+            string policyContext = "remote_endpoint_policy=" + SafePolicyToken(decision.RuleId) + ":" + SafePolicyToken(action);
+            string paired = JoinContext(pairedContext);
+            string body = "Observed remote endpoint policy matched id=" + SafePolicyToken(decision.RuleId) +
+                " action=" + SafePolicyToken(action) +
+                " reason=" + Compact(decision.Reason, 180) + ". " +
+                "Escalated because it was paired with: " + paired + ". " +
+                RemoteContextSentence(endpoint);
+            Alert alert = Alert.FromEndpoint(
+                AlertRuleTaxonomy.RuleNetworkRemotePolicyCritical,
+                "Observed remote endpoint context escalated by paired signal",
+                90,
+                body,
+                "Review the process, parent, command line, and destination. If this destination is expected, add a narrower trust or observe rule above this policy entry.",
+                endpoint);
+            alert.CooldownKey = AlertRuleTaxonomy.RuleNetworkRemotePolicyCritical + "|observed|" +
+                SafePolicyToken(decision.RuleId) + "|" +
+                SafePolicyToken(endpoint.ProcessName) + "|" +
+                (endpoint.RemoteAddress == null ? "" : endpoint.RemoteAddress.ToString()) + "|" +
+                endpoint.RemotePort.ToString(CultureInfo.InvariantCulture);
+            alert.AddPolicyContext(policyContext);
+            alert.AddWhy("Observed remote endpoint policy became critical because it was paired with: " + paired + ".");
+            alert.EntitySummary = AppendEntity(alert.EntitySummary, "policy=" + policyContext);
+            return alert;
+        }
+
         private bool HasStrongSuspiciousEndpointContext(NetworkEndpoint endpoint, bool trustedProcess, bool riskyRemotePort, RemoteEndpointPolicyDecision remotePolicy)
         {
             if (endpoint == null) return false;
@@ -793,6 +920,12 @@ namespace ArcaneEDR
         {
             if (String.IsNullOrWhiteSpace(value)) return addition;
             return value + " " + addition;
+        }
+
+        private static string JoinContext(List<string> values)
+        {
+            if (values == null || values.Count == 0) return "unspecified paired context";
+            return String.Join(", ", values.ToArray());
         }
 
         private static string Compact(string value, int maxLength)

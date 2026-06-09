@@ -37,12 +37,18 @@ Rule IDs include `NET-EGRESS-*`, `NET-LISTEN-*`, `NET-INBOUND-*`,
 - Remote context enrichment: Arcane can add local DNS names and optional
   reverse-DNS/RDAP owner context such as best-effort ASN, ASN org, rDNS, DNS names,
   resolved domain, approximate registrable domain, and country. Country is
-  registry-derived context, not proof of physical origin. Ordered remote endpoint
-  policy entries in `RemoteEndpointPolicyFile` handle remote allow, trust, block,
-  and critical country/owner/domain/CIDR decisions. First enabled match wins.
-  The default example policy marks country missing after RDAP and countries other
-  than `US` as critical. SNI is reserved for future telemetry and remains empty
-  unless a collector supplies it.
+  registry/geolocation context, not proof of physical origin. Local country
+  blocks are tried first, RDAP is used for registry owner/ASN context, and
+  optional geolocation providers fill country or owner/ASN gaps when enabled.
+  Ordered remote endpoint policy entries in `remote_endpoint_policies` inside
+  `PolicyFile` handle remote allow, trust, block, and critical
+  country/owner/domain/CIDR decisions. First enabled match wins.
+  The default example policy observes ordinary country-unavailable outcomes as
+  review weight, escalates fully unresolved local/provider geolocation plus
+  DNS/domain fall-through to critical, and also escalates country-unavailable
+  context when paired with first-seen app/IP context or another stronger
+  endpoint signal; countries other than `US` remain critical. SNI is reserved
+  for future telemetry and remains empty unless a collector supplies it.
 - Duplicate reduction: the generic `NET-EGRESS-NEW-UNTRUSTED` context is not
   emitted when a more specific endpoint finding already explains the same
   connection, such as direct-IP web egress, DoH bypass, LOLBin/RMM egress,
@@ -52,17 +58,24 @@ Rule IDs include `NET-EGRESS-*`, `NET-LISTEN-*`, `NET-INBOUND-*`,
   a local listener on configured lateral/admin ports, and
   `NET-LAN-EGRESS-LATERAL-PORT` when an untrusted process connects outbound to
   those ports on a private-network host.
-- Tuning knobs: `AllowedListeningPorts`, `AllowedOutboundPorts`,
-  `ProcessAllowedOutboundPorts`, `HighRiskRemotePorts`, `TrustedProcesses`,
-  `AllowedDnsResolvers`, `ConnectionBurstThreshold`,
+- Tuning knobs: `allowlists.allowed_listening_ports`,
+  `allowlists.allowed_outbound_ports`,
+  `allowlists.process_allowed_outbound_ports`, `HighRiskRemotePorts`,
+  `allowlists.trusted_processes`, `allowlists.allowed_dns_resolvers`,
+  `ConnectionBurstThreshold`,
   `BeaconMinimumSamples`, `BeaconMaxAverageIntervalSeconds`,
   `BeaconMaxJitterRatio`, `EnableRemoteEndpointEnrichment`,
+  `EnableRemoteEndpointCountryBlockEnrichment`,
+  `RemoteEndpointCountryBlocksDirectory`,
+  `EnableRemoteEndpointIpApiGeolocation`,
+  `EnableRemoteEndpointIpWhoisGeolocation`,
+  `RemoteEndpointGeoProviderMaxLookupsPerPoll`,
   `EnableRemoteEndpointReverseDns`, `EnableRemoteEndpointRdapEnrichment`,
-  `EnableRemoteEndpointPolicy`, `RemoteEndpointPolicyFile`, and low-value
+  `EnableRemoteEndpointPolicy`, `PolicyFile`, and low-value
   repeat dampening settings.
-  `ProcessAllowedOutboundPorts` is useful when a specific trusted process has a
-  normal nonstandard destination port that should not make that port globally
-  normal for every process.
+  `allowlists.process_allowed_outbound_ports` is useful when a specific trusted
+  process has a normal nonstandard destination port that should not make that
+  port globally normal for every process.
 - Safe test: `scripts\simulate-detection.cmd -Scenario UnexpectedListener`.
   This opens a localhost-only TCP listener and should produce
   `NET-LISTEN-TCP-LOCALHOST-UNEXPECTED`.
@@ -116,8 +129,9 @@ Rule IDs include `PERSIST-*`.
   entries are common RAT persistence mechanisms.
 - Common false positives: software installers, driver updates, Windows feature
   tasks, legitimate remote-support tools, and expected admin maintenance.
-- Tuning knobs: `TrustedPersistenceNamePrefixes`,
-  `TrustedPersistencePathIndicators`, `TrustedPersistenceSignerSubjects`,
+- Tuning knobs: `allowlists.trusted_persistence_name_prefixes`,
+  `allowlists.trusted_persistence_path_indicators`,
+  `allowlists.trusted_persistence_signer_subjects`,
   `KnownRmmProcesses`, `UserWritablePathIndicators`, and baseline/reputation
   settings.
 - Trust handling: service and scheduled-task changes can be classified as
@@ -323,8 +337,8 @@ Rule IDs include `*-IOC-*`, `CUSTOM-*`, and configured custom rule IDs.
   higher-confidence than generic heuristic signals.
 - Common false positives: stale indicators, shared infrastructure, or broad
   custom terms.
-- Tuning knobs: `BlockedDomains`, `BlockedHashes`,
-  `RemoteEndpointPolicyFile`, `EnableCustomRules`, and `CustomRulesFile`.
+- Tuning knobs: `blocklists.blocked_domains`, `blocklists.blocked_hashes`,
+  `PolicyFile`, `EnableCustomRules`, and `CustomRulesFile`.
 - Safe test: add a temporary lab-only custom rule, then remove it.
 - Expected alert shape: `why` explains indicator or custom-rule matching.
 
