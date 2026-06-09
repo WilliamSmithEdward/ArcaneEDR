@@ -366,4 +366,6 @@ Rule IDs include `SERVICE-*`, `APP-*`, and `AI-*`.
 - Expected alert shape: `why` explains service lifecycle, integrity, compact AI
   analysis context, or daily report generation. Daily reports use a dedicated
   report layout with near-top critical-priority local signal callouts rather
-  than the generic alert email template.
+  than the generic alert email template. Daily reports and service lifecycle
+  notifications bypass shared/provider hourly alert caps so scheduled reporting
+  and restart/recovery notices do not compete with alert bursts.

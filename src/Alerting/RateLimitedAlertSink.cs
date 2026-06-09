@@ -32,8 +32,11 @@ namespace ArcaneEDR
 
         public bool Send(Alert alert)
         {
+            bool hourlyLimitExempt = alert != null &&
+                (AlertRuleTaxonomy.IsDailySummaryRule(alert.RuleId) ||
+                    AlertRuleTaxonomy.IsServiceLifecycleRule(alert.RuleId));
             Prune();
-            if (maxPerHour > 0 && sends.Count >= maxPerHour)
+            if (!hourlyLimitExempt && maxPerHour > 0 && sends.Count >= maxPerHour)
             {
                 logger.Warn("Skipping alert sink " + providerName +
                     " because provider hourly limit " + maxPerHour.ToString(CultureInfo.InvariantCulture) +
@@ -46,8 +49,12 @@ namespace ArcaneEDR
                 return false;
             }
 
-            sends.Enqueue(DateTime.UtcNow);
-            Prune();
+            if (!hourlyLimitExempt)
+            {
+                sends.Enqueue(DateTime.UtcNow);
+                Prune();
+            }
+
             return true;
         }
 

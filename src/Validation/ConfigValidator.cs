@@ -619,6 +619,14 @@ namespace ArcaneEDR
                 Fail(errors, "RemoteEndpointGeoProviderMaxLookupsPerPoll must not be negative.");
             }
 
+            foreach (string country in config.AllowedRemoteCountries)
+            {
+                if (!IsTwoLetterCountryCode(country))
+                {
+                    Fail(errors, "allowlists.allowed_remote_countries contains an invalid country code: " + country);
+                }
+            }
+
             if (config.EnableRemoteEndpointCountryBlockEnrichment &&
                 (String.IsNullOrWhiteSpace(config.RemoteEndpointCountryBlocksDirectory) ||
                     !Directory.Exists(config.RemoteEndpointCountryBlocksDirectory)))
@@ -643,6 +651,12 @@ namespace ArcaneEDR
             }
 
             ValidateRemoteEndpointPolicy(config, errors, warnings);
+        }
+
+        private static bool IsTwoLetterCountryCode(string value)
+        {
+            if (String.IsNullOrWhiteSpace(value) || value.Length != 2) return false;
+            return Char.IsLetter(value[0]) && Char.IsLetter(value[1]);
         }
 
         private static void ValidateRemoteEndpointPolicy(MonitorConfig config, List<string> errors, List<string> warnings)

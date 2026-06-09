@@ -57,10 +57,11 @@ $config = Join-Path $destination "config"
 $scripts = Join-Path $destination "scripts"
 $docs = Join-Path $destination "docs"
 $tools = Join-Path $destination "tools"
+$assets = Join-Path $destination "src\Assets"
 
 & (Join-Path $PSScriptRoot "build.ps1")
 
-New-Item -ItemType Directory -Force -Path $bin, $config, $scripts, $docs, $tools | Out-Null
+New-Item -ItemType Directory -Force -Path $bin, $config, $scripts, $docs, $tools, $assets | Out-Null
 
 Copy-Item -LiteralPath (Join-Path $root "bin\$executableName") -Destination $bin -Force
 $sourceConfig = Join-Path $root "config\ArcaneEDR.config"
@@ -88,6 +89,9 @@ Copy-Item -LiteralPath (Join-Path $root "config\arcaneedr-sysmon.xml") -Destinat
 Copy-Item -LiteralPath (Join-Path $root "config\custom-rules.json") -Destination $config -Force
 Copy-Item -LiteralPath (Join-Path $root "config\arcane-policy.example.json") -Destination $config -Force
 Copy-Item -LiteralPath (Join-Path $root "README.md") -Destination $destination -Force
+if (Test-Path (Join-Path $root "src\Assets")) {
+    Copy-Item -Path (Join-Path $root "src\Assets\*") -Destination $assets -Force
+}
 Copy-Item -Path (Join-Path $root "docs\*.md") -Destination $docs -Force
 Copy-Item -Path (Join-Path $root "scripts\*.ps1") -Destination $scripts -Force
 Copy-Item -Path (Join-Path $root "scripts\*.cmd") -Destination $scripts -Force

@@ -1,5 +1,9 @@
 # Arcane EDR
 
+<p align="center">
+  <img src="src/Assets/square_logo.png" alt="Arcane EDR logo" width="280">
+</p>
+
 Arcane EDR is a lightweight Windows service for making unattended agent
 workstations safer while still allowing fast, bleeding-edge work. It is built
 for sandbox hosts, AI-agent boxes, and small environments where autonomous tools
@@ -508,6 +512,7 @@ Sample context options include `--sample-process`, `--sample-parent`,
 Network port allowlists are in `allowlists.allowed_listening_ports`,
 `allowlists.allowed_outbound_ports`, and
 `allowlists.process_allowed_outbound_ports` inside `PolicyFile`.
+Remote country allowlisting is in `allowlists.allowed_remote_countries`.
 
 Remote endpoint enrichment adds DNS-derived names and remote owner/ASN/country
 context to network alerts. Country is best-effort registry/geolocation data,
@@ -545,7 +550,9 @@ major provider ownership such as Microsoft or Cloudflare as trusted remote
 context before country-based escalation, treats fully unresolved country/domain
 context after enabled local or provider geolocation enrichment as critical,
 observes ordinary country-unavailable outcomes as a score enhancer, and treats
-countries other than `US` as critical when no earlier trust rule matched.
+countries outside `allowlists.allowed_remote_countries` as critical when no
+earlier trust rule matched. Default allowed countries are `US`, `CA`, `GB`,
+`IE`, `DE`, `NL`, `FR`, `SE`, `CH`, `AU`, `NZ`, `JP`, and `SG`.
 Country unavailable also becomes critical when paired with first-seen app/IP
 context or another stronger suspicious endpoint signal.
 
@@ -555,9 +562,11 @@ context or another stronger suspicious endpoint signal.
 reads those files locally; it does not download country data at runtime.
 `RemoteEndpointGeoProviderMaxLookupsPerPoll` caps combined `ip-api` and
 `ipwhois` requests per poll so free/non-commercial endpoints are not hammered.
-Arcane tries local country blocks first, then RDAP for registry owner/ASN
-context, then these optional providers only when country or useful owner/ASN
-context is still missing.
+Arcane tries local country blocks first. If the resolved country is in
+`allowlists.allowed_remote_countries`, Arcane does not need RDAP, `ip-api`, or
+`ipwhois` owner/company context for that endpoint. Otherwise it tries RDAP for
+registry owner/ASN context, then these optional providers only when country or
+useful owner/ASN context is still missing.
 
 ```json
 {
@@ -735,7 +744,7 @@ MinimumEmailScore=60
 ExternalAlertProviderMinimumScores=
 ExternalAlertProviderMaxPerHour=
 ExternalAlertMaxPerDispatch=3
-ExternalAlertMaxPerHour=12
+ExternalAlertMaxPerHour=24
 BrevoApiKeyEnvironmentVariable=<configured env var>
 BrevoSenderEmail=<verified sender>
 BrevoRecipientEmail=<recipient>
@@ -773,9 +782,14 @@ alert log, incident grouping, or daily report context.
 
 `ExternalAlertProviderMaxPerHour` adds optional per-provider hourly caps after
 global rate limits. Use it to keep a noisy provider quiet while still allowing
-another configured sink to receive eligible alerts.
+another configured sink to receive eligible alerts. Daily summary reports are
+not counted against provider hourly caps. Service lifecycle notifications are
+also exempt so crash recovery and restart notices are not hidden by alert
+bursts.
 `ExternalAlertMaxPerHour` is the shared runtime cap for normal detection
-alerts, direct service/report/AI notifications, and retry deliveries.
+alerts, AI notifications, and retry deliveries. Daily summary reports and
+service lifecycle notifications bypass this cap so scheduled reports and
+restart/recovery notices do not compete with alert bursts.
 
 SMTP:
 
@@ -881,6 +895,9 @@ posts the redacted JSON report payload to `DailyReportWebhookUrl`. Use
 `DailyReportDestinations=LocalArchive` for archive-only reporting while keeping
 real-time alerts enabled, or `DailyReportDestinations=LocalArchive,Webhook` for
 archive plus report-specific webhook delivery.
+Daily reports delivered through `ExternalAlertSinks` bypass shared and
+provider-specific hourly alert caps, but still require a configured external
+sink.
 Supported destination names are `ExternalAlertSinks`, `LocalArchive`, and
 `Webhook`.
 

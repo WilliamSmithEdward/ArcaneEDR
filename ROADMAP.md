@@ -52,9 +52,18 @@ coverage unless the operator explicitly scopes them out. The GUI should stay in
 lockstep with the service feature set instead of becoming a stale wrapper around
 older config.
 
-Current active milestone: `v0.8.0` planning. `v0.7.1` is the current
-`v0.7.x` patch release candidate for unified policy and endpoint-enrichment
-hardening.
+Current active milestone: `v0.8.0` planning. `v0.7.2` is the current
+`v0.7.x` patch release for remote endpoint enrichment, report delivery, and
+unified policy hardening.
+
+Recently completed `v0.7.2` patch:
+
+- Added default allowed remote countries for common legitimate cloud-hosting
+  regions and skipped owner/company lookup when local country data already
+  resolves to one of those countries.
+- Raised the default external hourly alert cap from 12 to 24.
+- Kept daily reports and service lifecycle notifications from being blocked by
+  shared or provider-specific hourly alert caps.
 
 Recently completed `v0.7.1` patch:
 

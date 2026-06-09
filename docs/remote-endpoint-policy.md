@@ -14,14 +14,16 @@ The default example policy treats these conditions differently:
 
 - Arcane EDR service self-traffic: allow before generic network analysis.
 - Known major provider owner context, such as Microsoft or Cloudflare: trust
-  before non-US country escalation.
+  before non-allowed-country escalation.
+- Countries in `allowlists.allowed_remote_countries` are acceptable country
+  context. They do not need owner/company enrichment when the country is known.
 - Local country-block enrichment was enabled, no country was found, and no
   DNS/domain identity was available: critical. The same applies when configured
   geolocation providers such as `ip-api` or `ipwhois` are tried and still no
   country or DNS/domain identity is available.
 - Country remains unavailable, but some identity context is present or local
   country/geolocation enrichment is not enabled: observe and add review weight.
-- RDAP country is anything other than `US`: critical.
+- Remote country is outside `allowlists.allowed_remote_countries`: critical.
 
 Country is best-effort registry data, not proof of physical origin. RDAP
 enrichment discloses investigated remote IPs to the configured RDAP lookup
@@ -46,6 +48,12 @@ Arcane reads the files locally and does not download country data at runtime.
 Country-block data is administrative/delegation context; keep treating it as a
 triage signal, not proof of physical server location.
 
+If local country blocks resolve a country listed in
+`allowlists.allowed_remote_countries`, Arcane skips RDAP, `ip-api`, and
+`ipwhois` owner/company lookup for that endpoint. That avoids external lookups
+for common cloud-hosting countries while leaving unrelated suspicious process,
+port, command-line, RAT/RMM, and blocked-indicator signals alertable.
+
 ## Optional Geolocation Providers
 
 `EnableRemoteEndpointIpApiGeolocation=true` enables the configurable
@@ -57,9 +65,10 @@ requires the provider's paid/commercial plan.
 These providers are used as bounded enrichment sources, not as blocking
 dependencies. `RemoteEndpointGeoProviderMaxLookupsPerPoll` caps combined
 `ip-api` and `ipwhois` requests per poll. Arcane tries local country blocks
-first, then RDAP for registry owner/ASN context, then these providers only when
-country or useful owner/ASN context is still missing. If a provider is enabled
-but the cap prevents a lookup, Arcane records country lookup status as
+first, then stops if the country is in `allowlists.allowed_remote_countries`.
+Otherwise it tries RDAP for registry owner/ASN context, then these providers
+only when country or useful owner/ASN context is still missing. If a provider
+is enabled but the cap prevents a lookup, Arcane records country lookup status as
 `deferred-after-*` rather than `missing-after-*`, so the default
 fully-unresolved critical policy does not fire before the enabled source has
 actually been tried.

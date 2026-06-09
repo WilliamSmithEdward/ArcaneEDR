@@ -74,7 +74,8 @@ New-Item -ItemType Directory -Force -Path `
     (Join-Path $stage "bin"), `
     (Join-Path $stage "config"), `
     (Join-Path $stage "scripts"), `
-    (Join-Path $stage "docs") | Out-Null
+    (Join-Path $stage "docs"), `
+    (Join-Path $stage "src\Assets") | Out-Null
 
 Copy-Item -LiteralPath (Join-Path $root "bin\$executableName") -Destination (Join-Path $stage "bin") -Force
 Copy-Item -LiteralPath (Join-Path $root "config\ArcaneEDR.example.config") -Destination (Join-Path $stage "config") -Force
@@ -85,6 +86,9 @@ Copy-Item -LiteralPath (Join-Path $root "config\arcane-policy.example.json") -De
 Copy-Item -Path (Join-Path $root "scripts\*.ps1") -Destination (Join-Path $stage "scripts") -Force
 Copy-Item -Path (Join-Path $root "scripts\*.cmd") -Destination (Join-Path $stage "scripts") -Force
 Copy-Item -Path (Join-Path $root "docs\*.md") -Destination (Join-Path $stage "docs") -Force
+if (Test-Path (Join-Path $root "src\Assets")) {
+    Copy-Item -Path (Join-Path $root "src\Assets\*") -Destination (Join-Path $stage "src\Assets") -Force
+}
 Copy-Item -LiteralPath (Join-Path $root "README.md") -Destination $stage -Force
 Copy-Item -LiteralPath (Join-Path $root "ROADMAP.md") -Destination $stage -Force
 Copy-Item -LiteralPath (Join-Path $root "LICENSE") -Destination $stage -Force

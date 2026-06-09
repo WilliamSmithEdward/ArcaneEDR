@@ -10,8 +10,8 @@ tuning, copy it to an ignored local policy file and point `PolicyFile` there.
 ## Sections
 
 - `allowlists`: expected listening ports, expected outbound ports, process
-  specific outbound ports, trusted processes, allowed DNS resolvers, and trusted
-  persistence name/path/signer context.
+  specific outbound ports, trusted processes, allowed DNS resolvers, allowed
+  remote countries, and trusted persistence name/path/signer context.
 - `blocklists`: blocked domains and blocked hashes.
 - `response_policy`: active-response allow/block/protected-process gates.
 - `remote_endpoint_policies`: ordered remote allow, trust, block, critical, and
@@ -30,7 +30,10 @@ The default policy:
 - Suppresses external delivery for clean `SERVICE-STARTED` notifications while
   preserving local health evidence.
 - Trusts known major provider ownership context, such as Microsoft and
-  Cloudflare, before non-US country escalation.
+  Cloudflare, before non-allowed-country escalation.
+- Treats countries in `allowlists.allowed_remote_countries` as acceptable
+  country context and skips owner/company lookup when one of those countries is
+  already known.
 - Escalates fully unresolved country plus missing DNS/domain identity after
   enabled local/provider enrichment.
 - Treats ordinary country-unavailable context as an observe score enhancer.

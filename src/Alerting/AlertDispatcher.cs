@@ -110,7 +110,8 @@ namespace ArcaneEDR
                 return;
             }
 
-            if (IsExternalHourlyLimitReached())
+            bool hourlyLimitExempt = IsExternalHourlyLimitExempt(annotatedAlert);
+            if (!hourlyLimitExempt && IsExternalHourlyLimitReached())
             {
                 WarnThrottled("hourly limit reached");
                 return;
@@ -119,7 +120,7 @@ namespace ArcaneEDR
             string failureReason;
             if (TrySendExternalAlert(annotatedAlert, out failureReason))
             {
-                RememberExternalSend();
+                if (!hourlyLimitExempt) RememberExternalSend();
             }
             else
             {
@@ -200,7 +201,8 @@ namespace ArcaneEDR
         private bool TrySendExternalRetry(Alert alert, out string failureReason)
         {
             failureReason = "";
-            if (IsExternalHourlyLimitReached())
+            bool hourlyLimitExempt = IsExternalHourlyLimitExempt(alert);
+            if (!hourlyLimitExempt && IsExternalHourlyLimitReached())
             {
                 WarnThrottled("hourly limit reached");
                 return false;
@@ -208,7 +210,7 @@ namespace ArcaneEDR
 
             if (TrySendExternalAlert(alert, out failureReason))
             {
-                RememberExternalSend();
+                if (!hourlyLimitExempt) RememberExternalSend();
                 return true;
             }
 
@@ -294,6 +296,13 @@ namespace ArcaneEDR
         private bool IsExternalHourlyLimitReachedWithoutPrune()
         {
             return config.ExternalAlertMaxPerHour > 0 && externalSends.Count >= config.ExternalAlertMaxPerHour;
+        }
+
+        private static bool IsExternalHourlyLimitExempt(Alert alert)
+        {
+            return alert != null &&
+                (AlertRuleTaxonomy.IsDailySummaryRule(alert.RuleId) ||
+                    AlertRuleTaxonomy.IsServiceLifecycleRule(alert.RuleId));
         }
 
         private void RememberExternalSend()

@@ -54,6 +54,21 @@
       "StartMenuExperienceHost.exe"
     ],
     "allowed_dns_resolvers": [],
+    "allowed_remote_countries": [
+      "US",
+      "CA",
+      "GB",
+      "IE",
+      "DE",
+      "NL",
+      "FR",
+      "SE",
+      "CH",
+      "AU",
+      "NZ",
+      "JP",
+      "SG"
+    ],
     "trusted_persistence_name_prefixes": [
       "\\Microsoft\\Windows\\",
       "MDCoreSvc",
@@ -168,13 +183,27 @@
       }
     },
     {
-      "id": "default-critical-non-us-country",
+      "id": "default-critical-non-allowed-country",
       "enabled": true,
       "action": "critical",
       "score": 90,
-      "reason": "Remote endpoint country is outside the default US-only country policy and no earlier trust rule matched.",
+      "reason": "Remote endpoint country is outside the default allowed-country policy and no earlier trust rule matched.",
       "match": {
-        "country_not": "US"
+        "country_not": [
+          "US",
+          "CA",
+          "GB",
+          "IE",
+          "DE",
+          "NL",
+          "FR",
+          "SE",
+          "CH",
+          "AU",
+          "NZ",
+          "JP",
+          "SG"
+        ]
       }
     },
     {

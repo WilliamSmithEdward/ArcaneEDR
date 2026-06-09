@@ -618,17 +618,7 @@ namespace ArcaneEDR
 
         private static string NormalizeCountry(string value)
         {
-            if (String.IsNullOrWhiteSpace(value)) return "";
-
-            string trimmed = value.Trim();
-            if (trimmed.Equals("USA", StringComparison.OrdinalIgnoreCase) ||
-                trimmed.Equals("United States", StringComparison.OrdinalIgnoreCase) ||
-                trimmed.Equals("United States of America", StringComparison.OrdinalIgnoreCase))
-            {
-                return "US";
-            }
-
-            return trimmed.ToUpperInvariant();
+            return MonitorConfig.NormalizeCountryCode(value);
         }
 
         private static bool ReadBoolValue(object value, bool fallback)

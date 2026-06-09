@@ -86,7 +86,8 @@ namespace ArcaneEDR
                 }
             }
 
-            if (config.EnableRemoteEndpointRdapEnrichment &&
+            if (!HasAllowedRemoteCountry(enrichment) &&
+                config.EnableRemoteEndpointRdapEnrichment &&
                 rdapLookups < Math.Max(0, config.RemoteEndpointRdapMaxLookupsPerPoll))
             {
                 rdapLookups++;
@@ -277,14 +278,20 @@ namespace ArcaneEDR
             return geoProviderLookups < Math.Max(0, config.RemoteEndpointGeoProviderMaxLookupsPerPoll);
         }
 
-        private static bool NeedsGeoProviderEnrichment(RemoteEndpointEnrichment enrichment)
+        private bool NeedsGeoProviderEnrichment(RemoteEndpointEnrichment enrichment)
         {
             if (enrichment == null) return false;
 
             if (String.IsNullOrWhiteSpace(enrichment.Country)) return true;
+            if (HasAllowedRemoteCountry(enrichment)) return false;
             if (String.IsNullOrWhiteSpace(enrichment.Owner)) return true;
             return String.IsNullOrWhiteSpace(enrichment.Asn) &&
                 String.IsNullOrWhiteSpace(enrichment.AsnOrg);
+        }
+
+        private bool HasAllowedRemoteCountry(RemoteEndpointEnrichment enrichment)
+        {
+            return enrichment != null && config.IsAllowedRemoteCountry(enrichment.Country);
         }
 
         private void ApplyIpApi(IPAddress address, RemoteEndpointEnrichment enrichment)
@@ -716,10 +723,7 @@ namespace ArcaneEDR
 
         private static string NormalizeCountryCode(string value)
         {
-            if (String.IsNullOrWhiteSpace(value)) return "";
-
-            string trimmed = value.Trim();
-            return trimmed.Length == 2 ? trimmed.ToUpperInvariant() : trimmed;
+            return MonitorConfig.NormalizeCountryCode(value);
         }
 
         private static string NormalizeAsn(string value)

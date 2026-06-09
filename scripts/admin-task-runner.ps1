@@ -140,8 +140,9 @@ function Publish-Arcane {
     $scripts = Join-Path $PublishedRoot "scripts"
     $docs = Join-Path $PublishedRoot "docs"
     $tools = Join-Path $PublishedRoot "tools"
+    $assets = Join-Path $PublishedRoot "src\Assets"
 
-    New-Item -ItemType Directory -Force -Path $bin, $config, $scripts, $docs, $tools | Out-Null
+    New-Item -ItemType Directory -Force -Path $bin, $config, $scripts, $docs, $tools, $assets | Out-Null
     Copy-Item -LiteralPath $builtExe -Destination (Join-Path $bin $executableName) -Force
 
     $sourceConfig = Join-Path $SourceRoot "config\ArcaneEDR.config"
@@ -170,6 +171,9 @@ function Publish-Arcane {
     Copy-IfExists -Source (Join-Path $SourceRoot "README.md") -Destination $PublishedRoot
     Copy-IfExists -Source (Join-Path $SourceRoot "ROADMAP.md") -Destination $PublishedRoot
     Copy-IfExists -Source (Join-Path $SourceRoot "LICENSE") -Destination $PublishedRoot
+    if (Test-Path -LiteralPath (Join-Path $SourceRoot "src\Assets")) {
+        Copy-Item -Path (Join-Path $SourceRoot "src\Assets\*") -Destination $assets -Force
+    }
     Copy-Item -Path (Join-Path $SourceRoot "docs\*.md") -Destination $docs -Force
     Copy-Item -Path (Join-Path $SourceRoot "scripts\*.ps1") -Destination $scripts -Force
     Copy-Item -Path (Join-Path $SourceRoot "scripts\*.cmd") -Destination $scripts -Force

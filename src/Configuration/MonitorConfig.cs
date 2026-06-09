@@ -28,7 +28,7 @@ namespace ArcaneEDR
         public Dictionary<string, int> ExternalAlertProviderMinimumScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> ExternalAlertProviderMaxPerHour = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public int ExternalAlertMaxPerDispatch = 3;
-        public int ExternalAlertMaxPerHour = 12;
+        public int ExternalAlertMaxPerHour = 24;
         public HashSet<string> ExternalAlertSuppressionTermGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public bool EnableLowValueRepeatDampening = true;
         public int LowValueRepeatDampeningMaximumScore = 60;
@@ -228,6 +228,7 @@ namespace ArcaneEDR
         public string AgentActivityLedgerFile = "ArcaneAgentActivity.jsonl";
         public int AgentActivityLedgerMinimumScore = 60;
         public HashSet<IPAddress> AllowedDnsResolvers = new HashSet<IPAddress>();
+        public HashSet<string> AllowedRemoteCountries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public bool EnforceAuthorizedDnsResolvers;
         public bool EnableRemoteEndpointEnrichment = true;
         public bool EnableRemoteEndpointCountryBlockEnrichment;
@@ -555,6 +556,7 @@ namespace ArcaneEDR
             if (TryPolicyValue(allowlists, "process_allowed_outbound_ports", out value)) config.ProcessAllowedOutboundPorts = PolicyProcessPortMap(value);
             if (TryPolicyValue(allowlists, "trusted_processes", out value)) config.TrustedProcesses = PolicyStringSet(value);
             if (TryPolicyValue(allowlists, "allowed_dns_resolvers", out value)) config.AllowedDnsResolvers = PolicyIpSet(value);
+            if (TryPolicyValue(allowlists, "allowed_remote_countries", out value)) config.AllowedRemoteCountries = PolicyCountrySet(value);
             if (TryPolicyValue(allowlists, "trusted_persistence_name_prefixes", out value)) config.TrustedPersistenceNamePrefixes = PolicyStringSet(value);
             if (TryPolicyValue(allowlists, "trusted_persistence_path_indicators", out value)) config.TrustedPersistencePathIndicators = PolicyStringSet(value);
             if (TryPolicyValue(allowlists, "trusted_persistence_signer_subjects", out value)) config.TrustedPersistenceSignerSubjects = PolicyStringSet(value);
@@ -708,9 +710,64 @@ namespace ArcaneEDR
             return result;
         }
 
+        private static HashSet<string> PolicyCountrySet(object value)
+        {
+            HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string item in PolicyStringSet(value))
+            {
+                string normalized = NormalizeCountryCode(item);
+                if (normalized.Length > 0)
+                {
+                    result.Add(normalized);
+                }
+            }
+
+            return result;
+        }
+
         public bool IsAllowedDnsResolver(IPAddress address)
         {
             return AllowedDnsResolvers.Contains(address);
+        }
+
+        public bool IsAllowedRemoteCountry(string country)
+        {
+            string normalized = NormalizeCountryCode(country);
+            return normalized.Length > 0 && AllowedRemoteCountries.Contains(normalized);
+        }
+
+        public static string NormalizeCountryCode(string value)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return "";
+
+            string trimmed = value.Trim();
+            if (trimmed.Equals("USA", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("United States", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("United States of America", StringComparison.OrdinalIgnoreCase))
+            {
+                return "US";
+            }
+
+            if (trimmed.Equals("Canada", StringComparison.OrdinalIgnoreCase)) return "CA";
+            if (trimmed.Equals("UK", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("United Kingdom", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("Great Britain", StringComparison.OrdinalIgnoreCase))
+            {
+                return "GB";
+            }
+
+            if (trimmed.Equals("Ireland", StringComparison.OrdinalIgnoreCase)) return "IE";
+            if (trimmed.Equals("Germany", StringComparison.OrdinalIgnoreCase)) return "DE";
+            if (trimmed.Equals("Netherlands", StringComparison.OrdinalIgnoreCase)) return "NL";
+            if (trimmed.Equals("France", StringComparison.OrdinalIgnoreCase)) return "FR";
+            if (trimmed.Equals("Sweden", StringComparison.OrdinalIgnoreCase)) return "SE";
+            if (trimmed.Equals("Switzerland", StringComparison.OrdinalIgnoreCase)) return "CH";
+            if (trimmed.Equals("Australia", StringComparison.OrdinalIgnoreCase)) return "AU";
+            if (trimmed.Equals("New Zealand", StringComparison.OrdinalIgnoreCase)) return "NZ";
+            if (trimmed.Equals("Japan", StringComparison.OrdinalIgnoreCase)) return "JP";
+            if (trimmed.Equals("Singapore", StringComparison.OrdinalIgnoreCase)) return "SG";
+
+            return trimmed.ToUpperInvariant();
         }
 
         public bool IsDohProvider(IPAddress address)
