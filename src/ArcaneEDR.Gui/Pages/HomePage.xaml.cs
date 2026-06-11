@@ -29,7 +29,7 @@ public sealed partial class HomePage : Page
             "Overview help",
             "Overview is the first review screen.\n\n" +
             "Review priorities call out service state, validation failures, critical alerts, high-score alerts, and repeated suppressed patterns from the last 24 hours.\n\n" +
-            "Configuration blockers shows only validation failures and warnings so you can fix setup issues before interpreting telemetry gaps.\n\n" +
+            "Configuration validation shows real blockers separately from warnings that can happen when the GUI is not running elevated.\n\n" +
             "Use Refresh after service restarts, MSI installs, or local config edits.");
     }
 
@@ -48,7 +48,8 @@ public sealed partial class HomePage : Page
 
         ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--validate-config");
         string validationText = result.CombinedText();
-        OutputText.Text = ExtractValidationBlockers(validationText);
+        ValidationHeadingText.Text = ArcaneValidationView.Heading(validationText);
+        OutputText.Text = ArcaneValidationView.BuildOverviewText(validationText);
 
         List<ArcaneAlertRecord> alerts = ArcaneAlertStore.ReadAlerts();
         RecommendationsList.ItemsSource = ArcaneAlertStore.BuildRecommendations(alerts, health, validationText);
@@ -75,16 +76,4 @@ public sealed partial class HomePage : Page
             "Most frequent rule=" + topRule;
     }
 
-    private static string ExtractValidationBlockers(string validationText)
-    {
-        List<string> lines = validationText
-            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
-            .Where(line =>
-                line.IndexOf("[FAIL]", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                line.IndexOf("[WARN]", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                line.IndexOf("summary", StringComparison.OrdinalIgnoreCase) >= 0)
-            .ToList();
-
-        return lines.Count == 0 ? "No validation blockers reported." : String.Join(Environment.NewLine, lines);
-    }
 }

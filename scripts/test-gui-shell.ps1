@@ -36,6 +36,10 @@ $appCode = Get-Content -LiteralPath (Join-Path $root "src\ArcaneEDR.Gui\App.xaml
 $settingsXaml = Get-Content -LiteralPath (Join-Path $root "src\ArcaneEDR.Gui\Pages\SettingsPage.xaml") -Raw
 $settingsCode = Get-Content -LiteralPath (Join-Path $root "src\ArcaneEDR.Gui\Pages\SettingsPage.xaml.cs") -Raw
 $startupSettings = Get-Content -LiteralPath (Join-Path $root "src\ArcaneEDR.Gui\Services\GuiStartupSettings.cs") -Raw
+$homeXaml = Get-Content -LiteralPath (Join-Path $root "src\ArcaneEDR.Gui\Pages\HomePage.xaml") -Raw
+$homeCode = Get-Content -LiteralPath (Join-Path $root "src\ArcaneEDR.Gui\Pages\HomePage.xaml.cs") -Raw
+$alertStoreCode = Get-Content -LiteralPath (Join-Path $root "src\ArcaneEDR.Gui\Services\ArcaneAlertStore.cs") -Raw
+$validationView = Get-Content -LiteralPath (Join-Path $root "src\ArcaneEDR.Gui\Services\ArcaneValidationView.cs") -Raw
 
 Assert-NotContains $mainWindow 'PaneTitle="Arcane EDR"' "Navigation pane branding"
 Assert-Contains $mainWindow '<NavigationView.PaneHeader>' "Navigation pane header"
@@ -57,5 +61,15 @@ Assert-Contains $startupSettings 'Registry.CurrentUser' "Current-user startup re
 Assert-Contains $appCode 'GuiStartupSettings.IsStartupLaunch' "Startup launch detection"
 Assert-Contains $appCode '!isWindowsLoginStartup || !settings.StartMinimizedOnWindowsLogin' "Normal launch shows window"
 Assert-Contains $appCode '_window.ShowAndActivate();' "Normal launch window activation"
+
+Assert-Contains $homeXaml 'ValidationHeadingText' "Overview validation heading"
+Assert-Contains $homeCode 'ArcaneValidationView.BuildOverviewText' "Overview validation formatter"
+Assert-Contains $alertStoreCode 'ArcaneValidationView.HasErrors' "Overview recommendation validation parser"
+Assert-Contains $validationView 'Validation summary:' "Validation summary parser"
+Assert-Contains $validationView 'No configuration blockers found.' "Warning-only validation copy"
+Assert-Contains $validationView 'StartsWith("Validation summary:"' "Precise summary line match"
+Assert-Contains $validationView 'Maintenance > Validate Admin' "Admin validation warning guidance"
+Assert-NotContains $homeCode 'IndexOf("error(s)"' "Validation false-positive parser"
+Assert-NotContains $homeCode 'IndexOf("summary"' "Validation broad summary parser"
 
 Write-Host "GUI shell oracle passed."

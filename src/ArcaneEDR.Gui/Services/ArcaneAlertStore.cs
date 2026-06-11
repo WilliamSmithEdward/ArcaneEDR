@@ -140,14 +140,13 @@ internal static class ArcaneAlertStore
             });
         }
 
-        if (validationText.IndexOf("[FAIL]", StringComparison.OrdinalIgnoreCase) >= 0 ||
-            validationText.IndexOf("error(s)", StringComparison.OrdinalIgnoreCase) >= 0)
+        if (ArcaneValidationView.HasErrors(validationText))
         {
             recommendations.Add(new ArcaneOverviewRecommendation
             {
                 Priority = "High",
                 Title = "Configuration validation needs review",
-                Detail = FirstMatchingLine(validationText, "[FAIL]") ?? "Open Configuration and resolve validation errors."
+                Detail = ArcaneValidationView.FirstFailureLine(validationText) ?? "Open Configuration and resolve validation errors."
             });
         }
 
@@ -252,19 +251,6 @@ internal static class ArcaneAlertStore
         if (!String.IsNullOrWhiteSpace(alert.Country)) parts.Add("country=" + alert.Country);
         if (!String.IsNullOrWhiteSpace(alert.Company)) parts.Add("company=" + alert.Company);
         return String.Join("; ", parts);
-    }
-
-    private static string? FirstMatchingLine(string text, string token)
-    {
-        foreach (string line in text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None))
-        {
-            if (line.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return line.Trim();
-            }
-        }
-
-        return null;
     }
 
     private static DateTime ParseTimestamp(string value)
