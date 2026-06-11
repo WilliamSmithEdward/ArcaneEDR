@@ -18,19 +18,25 @@ internal static class ScrollInputRouter
 
     private static void RouteWheel(FrameworkElement root, PointerRoutedEventArgs args)
     {
-        if (args.Handled)
-        {
-            return;
-        }
-
         int delta = args.GetCurrentPoint(root).Properties.MouseWheelDelta;
         if (delta == 0)
         {
             return;
         }
 
-        ScrollViewer? target = FindScrollableAncestor(args.OriginalSource as DependencyObject, delta) ??
-            FindScrollableDescendant(root, delta);
+        DependencyObject? original = args.OriginalSource as DependencyObject;
+        ScrollViewer? nearest = FindNearestScrollViewerAncestor(original);
+        if (args.Handled && nearest != null && CanScroll(nearest, delta))
+        {
+            return;
+        }
+
+        ScrollViewer? target = FindScrollableAncestor(ParentOf(nearest) ?? original, delta);
+        if (target == null && !args.Handled)
+        {
+            target = FindScrollableDescendant(root, delta);
+        }
+
         if (target == null)
         {
             return;
@@ -46,6 +52,21 @@ internal static class ScrollInputRouter
         args.Handled = true;
     }
 
+    private static ScrollViewer? FindNearestScrollViewerAncestor(DependencyObject? current)
+    {
+        while (current != null)
+        {
+            if (current is ScrollViewer scrollViewer)
+            {
+                return scrollViewer;
+            }
+
+            current = ParentOf(current);
+        }
+
+        return null;
+    }
+
     private static ScrollViewer? FindScrollableAncestor(DependencyObject? current, int delta)
     {
         while (current != null)
@@ -55,7 +76,7 @@ internal static class ScrollInputRouter
                 return scrollViewer;
             }
 
-            current = VisualTreeHelper.GetParent(current);
+            current = ParentOf(current);
         }
 
         return null;
@@ -98,5 +119,10 @@ internal static class ScrollInputRouter
         if (value < min) return min;
         if (value > max) return max;
         return value;
+    }
+
+    private static DependencyObject? ParentOf(DependencyObject? current)
+    {
+        return current == null ? null : VisualTreeHelper.GetParent(current);
     }
 }
