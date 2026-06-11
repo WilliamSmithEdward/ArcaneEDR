@@ -24,7 +24,7 @@
             <StackPanel Spacing="8">
                 <TextBlock FontWeight="SemiBold" Text="Current Arcane paths" />
                 <Border MinHeight="220" Style="{StaticResource ConsolePanelStyle}">
-                    <TextBlock x:Name="SettingsPathText" Style="{StaticResource ConsoleTextStyle}" />
+                    <TextBox x:Name="SettingsPathText" Style="{StaticResource ConsoleTextBoxStyle}" />
                 </Border>
             </StackPanel>
         </StackPanel>

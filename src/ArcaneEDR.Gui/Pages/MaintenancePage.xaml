@@ -166,7 +166,7 @@
             <StackPanel Spacing="8">
                 <TextBlock FontWeight="SemiBold" Text="Maintenance output" />
                 <Border MinHeight="560" Style="{StaticResource ConsolePanelStyle}">
-                    <TextBlock x:Name="MaintenanceOutputText" Style="{StaticResource ConsoleTextStyle}" />
+                    <TextBox x:Name="MaintenanceOutputText" Style="{StaticResource ConsoleTextBoxStyle}" />
                 </Border>
             </StackPanel>
         </StackPanel>

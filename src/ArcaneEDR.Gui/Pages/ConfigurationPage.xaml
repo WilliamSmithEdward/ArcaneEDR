@@ -296,11 +296,11 @@
                     <StackPanel Spacing="8">
                         <TextBlock FontWeight="SemiBold" Text="Resolved paths" />
                         <Border MinHeight="130" Style="{StaticResource ConsolePanelStyle}">
-                            <TextBlock x:Name="PathText" Style="{StaticResource ConsoleTextStyle}" />
+                            <TextBox x:Name="PathText" Style="{StaticResource ConsoleTextBoxStyle}" />
                         </Border>
                         <TextBlock FontWeight="SemiBold" Text="Validation" />
                         <Border MinHeight="430" Style="{StaticResource ConsolePanelStyle}">
-                            <TextBlock x:Name="ValidationText" Style="{StaticResource ConsoleTextStyle}" />
+                            <TextBox x:Name="ValidationText" Style="{StaticResource ConsoleTextBoxStyle}" />
                         </Border>
                     </StackPanel>
                 </ScrollViewer>

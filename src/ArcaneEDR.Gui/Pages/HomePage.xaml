@@ -142,7 +142,7 @@
             <StackPanel Spacing="8">
                 <TextBlock FontWeight="SemiBold" Text="Configuration blockers" />
                 <Border MinHeight="170" Style="{StaticResource ConsolePanelStyle}">
-                    <TextBlock x:Name="OutputText" Style="{StaticResource ConsoleTextStyle}" />
+                    <TextBox x:Name="OutputText" Style="{StaticResource ConsoleTextBoxStyle}" />
                 </Border>
             </StackPanel>
         </StackPanel>

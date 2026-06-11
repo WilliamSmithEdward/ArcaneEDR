@@ -67,7 +67,7 @@
             <StackPanel Spacing="8">
                 <TextBlock FontWeight="SemiBold" Text="Policy output" />
                 <Border MinHeight="520" Style="{StaticResource ConsolePanelStyle}">
-                    <TextBlock x:Name="PolicyOutputText" Style="{StaticResource ConsoleTextStyle}" />
+                    <TextBox x:Name="PolicyOutputText" Style="{StaticResource ConsoleTextBoxStyle}" />
                 </Border>
             </StackPanel>
         </StackPanel>

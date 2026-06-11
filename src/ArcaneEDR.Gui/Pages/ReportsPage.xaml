@@ -63,7 +63,7 @@
             <StackPanel Spacing="8">
                 <TextBlock FontWeight="SemiBold" Text="Report output" />
                 <Border MinHeight="560" Style="{StaticResource ConsolePanelStyle}">
-                    <TextBlock x:Name="ReportOutputText" Style="{StaticResource ConsoleTextStyle}" />
+                    <TextBox x:Name="ReportOutputText" Style="{StaticResource ConsoleTextBoxStyle}" />
                 </Border>
             </StackPanel>
         </StackPanel>

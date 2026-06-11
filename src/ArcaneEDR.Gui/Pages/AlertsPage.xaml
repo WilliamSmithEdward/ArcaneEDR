@@ -173,7 +173,7 @@
                     </Grid>
 
                     <Border Grid.Row="2" MinHeight="120" Style="{StaticResource ConsolePanelStyle}">
-                        <TextBlock x:Name="SelectedAlertText" Style="{StaticResource ConsoleTextStyle}" />
+                        <TextBox x:Name="SelectedAlertText" Style="{StaticResource ConsoleTextBoxStyle}" />
                     </Border>
                 </Grid>
             </TabViewItem>
@@ -184,7 +184,7 @@
                         <TextBlock FontWeight="SemiBold" Text="Configured alert context" />
                         <TextBlock x:Name="AlertConfigContextText" TextWrapping="Wrap" />
                         <Border MinHeight="360" Style="{StaticResource ConsolePanelStyle}">
-                            <TextBlock x:Name="VolumeText" Style="{StaticResource ConsoleTextStyle}" />
+                            <TextBox x:Name="VolumeText" Style="{StaticResource ConsoleTextBoxStyle}" />
                         </Border>
                     </StackPanel>
                 </ScrollViewer>
@@ -193,7 +193,7 @@
             <TabViewItem Header="Raw JSONL" IsClosable="False">
                 <ScrollViewer>
                     <Border MinHeight="520" Style="{StaticResource ConsolePanelStyle}">
-                        <TextBlock x:Name="RecentAlertsText" Style="{StaticResource ConsoleTextStyle}" />
+                        <TextBox x:Name="RecentAlertsText" Style="{StaticResource ConsoleTextBoxStyle}" />
                     </Border>
                 </ScrollViewer>
             </TabViewItem>
