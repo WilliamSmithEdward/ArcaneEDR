@@ -1,6 +1,6 @@
 # GUI And MSI Install
 
-Arcane EDR `v0.8.0` includes a WinUI operator console and a WiX MSI package.
+Arcane EDR `v0.8.x` includes a WinUI operator console and a WiX MSI package.
 
 ## Build
 
@@ -20,12 +20,26 @@ Artifacts are written to `artifacts`:
 - `ArcaneEDR-<version>.msi`
 - `ArcaneEDR-<version>.msi.sha256.txt`
 
+## Admin Task Refresh
+
+If you are upgrading an existing local deployment from a pre-GUI build, refresh
+the elevated admin bridge once from an elevated PowerShell session before using
+`PublishRestart`:
+
+```powershell
+.\scripts\install-admin-tasks.cmd
+```
+
+This updates the protected runner under `C:\ProgramData\ArcaneEDR\AdminTasks`
+so it excludes the WinUI source tree during service builds and embeds the
+Arcane icon into the service/CLI executable.
+
 ## Install
 
 Run the MSI from an elevated installer prompt or by approving UAC:
 
 ```powershell
-msiexec.exe /i .\artifacts\ArcaneEDR-0.8.0.msi /l*v .\artifacts\ArcaneEDR-0.8.0-install.log
+msiexec.exe /i .\artifacts\ArcaneEDR-0.8.1.msi /l*v .\artifacts\ArcaneEDR-0.8.1-install.log
 ```
 
 The MSI installs:

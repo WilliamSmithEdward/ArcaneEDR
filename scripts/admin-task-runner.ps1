@@ -91,6 +91,11 @@ function Invoke-ArcaneBuild {
     $guiRoot = Join-Path $srcRoot "ArcaneEDR.Gui"
     $bin = Join-Path $SourceRoot "bin"
     $out = Join-Path $bin $executableName
+    $icon = Join-Path $SourceRoot "src\Assets\icon.ico"
+    $iconArgument = @()
+    if (Test-Path -LiteralPath $icon) {
+        $iconArgument = @("/win32icon:$icon")
+    }
     $compiler = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 
     if (!(Test-Path -LiteralPath $compiler)) {
@@ -112,6 +117,7 @@ function Invoke-ArcaneBuild {
 
     Write-TaskLog "Building $out"
     & $compiler /nologo /optimize+ /target:exe /out:$out `
+        $iconArgument `
         /reference:System.ServiceProcess.dll `
         /reference:System.Configuration.Install.dll `
         /reference:System.Management.dll `

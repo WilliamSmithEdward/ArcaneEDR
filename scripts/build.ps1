@@ -64,6 +64,11 @@ $out = if ([System.String]::IsNullOrWhiteSpace($OutputPath)) {
     }
 }
 $compiler = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+$icon = Join-Path $root "src\Assets\icon.ico"
+$iconArgument = @()
+if (Test-Path -LiteralPath $icon) {
+    $iconArgument = @("/win32icon:$icon")
+}
 
 if (!(Test-Path $compiler)) {
     $compiler = "$env:WINDIR\Microsoft.NET\Framework\v4.0.30319\csc.exe"
@@ -76,6 +81,7 @@ if (!(Test-Path $compiler)) {
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $out) | Out-Null
 
 & $compiler /nologo /optimize+ /target:exe /out:$out `
+    $iconArgument `
     /reference:System.ServiceProcess.dll `
     /reference:System.Configuration.Install.dll `
     /reference:System.Management.dll `
