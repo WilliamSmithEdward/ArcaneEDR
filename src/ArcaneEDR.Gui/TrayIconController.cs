@@ -4,18 +4,23 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using ArcaneEDR_Gui.Services;
+using WinRT.Interop;
 
 namespace ArcaneEDR_Gui;
 
 internal sealed class TrayIconController : IDisposable
 {
     private const int IconId = 1;
+    private const uint WmNull = 0x0000;
+    private const uint WmUser = 0x0400;
     private const uint WmApp = 0x8000;
     private const uint WmTrayIcon = WmApp + 1;
     private const uint WmContextMenu = 0x007B;
     private const uint WmLButtonUp = 0x0202;
     private const uint WmLButtonDblClk = 0x0203;
     private const uint WmRButtonUp = 0x0205;
+    private const uint NinSelect = WmUser;
+    private const uint NinKeySelect = WmUser + 1;
     private const uint NimAdd = 0x00000000;
     private const uint NimModify = 0x00000001;
     private const uint NimDelete = 0x00000002;
@@ -55,6 +60,7 @@ internal sealed class TrayIconController : IDisposable
     private readonly TrayWndProc _wndProc;
     private readonly string _className;
     private readonly IntPtr _instance;
+    private readonly IntPtr _ownerWindow;
     private IntPtr _messageWindow;
     private IntPtr _iconHandle;
     private bool _ownsIcon;
@@ -66,6 +72,7 @@ internal sealed class TrayIconController : IDisposable
         _wndProc = WndProc;
         _className = "ArcaneEDRTrayWindow-" + Environment.ProcessId.ToString();
         _instance = GetModuleHandle(null);
+        _ownerWindow = WindowNative.GetWindowHandle(window);
 
         RegisterMessageWindow();
         AddIcon();
@@ -184,16 +191,22 @@ internal sealed class TrayIconController : IDisposable
     {
         if (message == WmTrayIcon)
         {
-            uint mouseMessage = unchecked((uint)lParam.ToInt64());
-            if (mouseMessage is WmLButtonUp or WmLButtonDblClk)
+            uint notification = LowWord(lParam);
+            uint iconId = HighWord(lParam);
+            if (iconId != 0 && iconId != IconId)
+            {
+                return IntPtr.Zero;
+            }
+
+            if (notification is NinSelect or NinKeySelect or WmLButtonUp or WmLButtonDblClk)
             {
                 ShowWindow();
                 return IntPtr.Zero;
             }
 
-            if (mouseMessage is WmRButtonUp or WmContextMenu)
+            if (notification is WmContextMenu or WmRButtonUp)
             {
-                ShowContextMenu();
+                ShowContextMenu(NotificationPoint(wParam));
                 return IntPtr.Zero;
             }
         }
@@ -201,7 +214,7 @@ internal sealed class TrayIconController : IDisposable
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
 
-    private void ShowContextMenu()
+    private void ShowContextMenu(Point point)
     {
         IntPtr menu = CreatePopupMenu();
         if (menu == IntPtr.Zero)
@@ -228,9 +241,15 @@ internal sealed class TrayIconController : IDisposable
             AppendMenu(menu, MfSeparator, UIntPtr.Zero, null);
             AppendMenu(menu, MfString, new UIntPtr(CmdExit), "Exit Tray");
 
-            GetCursorPos(out Point point);
-            SetForegroundWindow(_messageWindow);
-            int command = TrackPopupMenuEx(menu, TpmRightButton | TpmReturnCmd, point.X, point.Y, _messageWindow, IntPtr.Zero);
+            if (point.X == 0 && point.Y == 0)
+            {
+                GetCursorPos(out point);
+            }
+
+            IntPtr owner = _ownerWindow == IntPtr.Zero ? _messageWindow : _ownerWindow;
+            SetForegroundWindow(owner);
+            int command = TrackPopupMenuEx(menu, TpmRightButton | TpmReturnCmd, point.X, point.Y, owner, IntPtr.Zero);
+            PostMessage(owner, WmNull, IntPtr.Zero, IntPtr.Zero);
             ExecuteCommand(command);
         }
         finally
@@ -376,6 +395,26 @@ internal sealed class TrayIconController : IDisposable
         return value.Substring(0, maxLength - 3) + "...";
     }
 
+    private static uint LowWord(IntPtr value)
+    {
+        return unchecked((uint)value.ToInt64()) & 0xFFFF;
+    }
+
+    private static uint HighWord(IntPtr value)
+    {
+        return (unchecked((uint)value.ToInt64()) >> 16) & 0xFFFF;
+    }
+
+    private static Point NotificationPoint(IntPtr wParam)
+    {
+        int value = unchecked((int)wParam.ToInt64());
+        return new Point
+        {
+            X = (short)(value & 0xFFFF),
+            Y = (short)((value >> 16) & 0xFFFF)
+        };
+    }
+
     private delegate IntPtr TrayWndProc(IntPtr hWnd, uint message, IntPtr wParam, IntPtr lParam);
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -486,4 +525,7 @@ internal sealed class TrayIconController : IDisposable
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern int TrackPopupMenuEx(IntPtr hMenu, uint flags, int x, int y, IntPtr hWnd, IntPtr tpm);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 }
