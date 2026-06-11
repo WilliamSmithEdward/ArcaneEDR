@@ -33,9 +33,15 @@ public partial class App : Application
     {
         try
         {
+            GuiUserSettings settings = GuiStartupSettings.LoadSaveAndApply();
+            bool isWindowsLoginStartup = GuiStartupSettings.IsStartupLaunch(args.Arguments);
+
             _window = new MainWindow();
             _trayIcon = new TrayIconController(_window);
-            _window.ShowAndActivate();
+            if (!isWindowsLoginStartup || !settings.StartMinimizedOnWindowsLogin)
+            {
+                _window.ShowAndActivate();
+            }
         }
         catch (Exception ex)
         {

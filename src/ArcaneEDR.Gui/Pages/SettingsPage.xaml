@@ -15,6 +15,27 @@
         <StackPanel Padding="{StaticResource PagePadding}" Spacing="16">
             <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Settings" />
             <Border Style="{StaticResource SectionCardStyle}">
+                <StackPanel Spacing="12">
+                    <TextBlock FontWeight="SemiBold" Text="Windows startup" />
+                    <ToggleSwitch
+                        x:Name="StartOnLoginSwitch"
+                        Header="Start on Windows login"
+                        OffContent="Off"
+                        OnContent="On"
+                        Toggled="StartupSwitch_Toggled" />
+                    <ToggleSwitch
+                        x:Name="StartMinimizedSwitch"
+                        Header="Start minimized to tray on Windows login"
+                        OffContent="Off"
+                        OnContent="On"
+                        Toggled="StartupSwitch_Toggled" />
+                    <TextBlock
+                        x:Name="StartupStatusText"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource SectionCardStyle}">
                 <StackPanel Spacing="10">
                     <TextBlock FontWeight="SemiBold" Text="Theme" />
                     <ComboBox x:Name="ThemeBox" SelectionChanged="ThemeBox_SelectionChanged" SelectedIndex="0">
