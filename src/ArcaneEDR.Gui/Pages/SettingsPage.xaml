@@ -9,9 +9,9 @@
     mc:Ignorable="d">
 
     <ScrollViewer>
-        <StackPanel Padding="28,18,28,28" Spacing="16">
+        <StackPanel Padding="{StaticResource PagePadding}" Spacing="16">
             <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Settings" />
-            <Border Padding="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
+            <Border Style="{StaticResource SectionCardStyle}">
                 <StackPanel Spacing="10">
                     <TextBlock FontWeight="SemiBold" Text="Theme" />
                     <ComboBox x:Name="ThemeBox" SelectionChanged="ThemeBox_SelectionChanged" SelectedIndex="0">
@@ -21,14 +21,12 @@
                     </ComboBox>
                 </StackPanel>
             </Border>
-            <TextBox
-                x:Name="SettingsPathText"
-                AcceptsReturn="True"
-                FontFamily="Consolas"
-                Header="Current Arcane paths"
-                IsReadOnly="True"
-                MinHeight="220"
-                TextWrapping="NoWrap" />
+            <StackPanel Spacing="8">
+                <TextBlock FontWeight="SemiBold" Text="Current Arcane paths" />
+                <Border MinHeight="220" Style="{StaticResource ConsolePanelStyle}">
+                    <TextBlock x:Name="SettingsPathText" Style="{StaticResource ConsoleTextStyle}" />
+                </Border>
+            </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </Page>

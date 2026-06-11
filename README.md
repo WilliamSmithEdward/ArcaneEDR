@@ -17,8 +17,9 @@ qualified alerts through modular notification paths. The goal is practical
 host-level safety without needing to set up or pay for a full enterprise EDR,
 SIEM, MDM, or SOC deployment.
 
-The project intentionally uses .NET Framework and built-in Windows components
-only, so it can be built on a Windows host without downloading NuGet packages.
+The service/CLI core intentionally uses .NET Framework and built-in Windows
+components. The operator GUI is a self-contained .NET 10 / WinUI 3 application
+with its runtime payload included in release builds.
 
 See [docs/project-mission.md](docs/project-mission.md) for the project mission.
 See [docs/release-deployment-policy.md](docs/release-deployment-policy.md) for
@@ -156,7 +157,7 @@ counts with:
 - `src\Alerting`: handles alert cooldowns and provider-specific delivery sinks.
 - `src\Policy`: unified policy models and scoped policy evaluation.
 - `src\Presentation`: shared alert presentation models for email, reports, CLI, and future GUI surfaces.
-- `src\ArcaneEDR.Gui`: WinUI 3 operator console for health, alerts, policy, reports, configuration, maintenance, and support workflows.
+- `src\ArcaneEDR.Gui`: self-contained .NET 10 / WinUI 3 operator console for health, alerts, policy, reports, configuration, maintenance, and support workflows.
 - `src\Response`: optional firewall block and process termination actions.
 - `src\Runtime`: service polling, health, and integrity checks.
 - `src\Configuration`: loads allowlists, thresholds, alert settings, and rule options.
@@ -198,16 +199,20 @@ Build the WiX MSI installer:
 .\scripts\build-msi.cmd
 ```
 
-Publish to the destination configured in local `config\Deployment.config`, or
-the example deployment config when no local config exists:
+For operator installs and upgrades, prefer the MSI so the service, GUI, Start
+menu shortcut, installer state, and uninstall path stay aligned.
+
+For source development or break-glass repair, publish to the destination
+configured in local `config\Deployment.config`, or the example deployment
+config when no local config exists:
 
 ```powershell
 .\scripts\publish.ps1
 ```
 
-The published folder contains the executable, config files, docs, Sysmon config,
-and install scripts. If a published `config\ArcaneEDR.config` already exists,
-publish preserves it and writes the source config as
+The script-published folder contains the executable, config files, docs, Sysmon
+config, and install scripts. If a published `config\ArcaneEDR.config` already
+exists, publish preserves it and writes the source config as
 `config\ArcaneEDR.example.config`. Use `-OverwriteConfig` only when replacing a
 live runtime config is intentional.
 

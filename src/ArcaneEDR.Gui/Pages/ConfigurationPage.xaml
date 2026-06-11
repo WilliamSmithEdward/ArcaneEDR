@@ -7,68 +7,281 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <ScrollViewer>
-        <StackPanel Padding="28,18,28,28" Spacing="16">
-            <Grid ColumnSpacing="12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel>
-                    <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Configuration" />
-                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Local config, validation, and deployment paths" />
+    <Grid Padding="{StaticResource PagePadding}" RowSpacing="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Configuration" />
+                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Edit runtime, deployment, and policy settings with validation" />
+            </StackPanel>
+            <Button Grid.Column="1" Click="Validate_Click" ToolTipService.ToolTip="Validate configuration">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon FontSize="16" Glyph="&#xE73E;" />
+                    <TextBlock Text="Validate" />
                 </StackPanel>
-                <Button Grid.Column="1" Click="Validate_Click" ToolTipService.ToolTip="Validate configuration">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon FontSize="16" Glyph="&#xE73E;" />
-                        <TextBlock Text="Validate" />
+            </Button>
+            <Button Grid.Column="2" Click="OpenConfig_Click" ToolTipService.ToolTip="Open runtime config">
+                <FontIcon FontSize="16" Glyph="&#xE8A5;" />
+            </Button>
+            <Button Grid.Column="3" Click="OpenFolder_Click" ToolTipService.ToolTip="Open config folder">
+                <FontIcon FontSize="16" Glyph="&#xE838;" />
+            </Button>
+        </Grid>
+
+        <TabView Grid.Row="1">
+            <TabViewItem Header="Guided" IsClosable="False">
+                <ScrollViewer>
+                    <StackPanel Spacing="14">
+                        <InfoBar
+                            IsOpen="True"
+                            Severity="Informational"
+                            Title="Validation is the source of truth"
+                            Message="Saves update the real Arcane config files, create timestamped backups, then run the service validator." />
+
+                        <Grid ColumnSpacing="12" RowSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Border Style="{StaticResource SectionCardStyle}">
+                                <StackPanel Spacing="10">
+                                    <TextBlock FontWeight="SemiBold" Text="Operating mode" />
+                                    <ComboBox x:Name="ResponseModeBox" Header="Response mode">
+                                        <ComboBoxItem Content="AlertOnly" />
+                                        <ComboBoxItem Content="DryRunBlockRemoteIp" />
+                                        <ComboBoxItem Content="DryRunTerminateProcess" />
+                                        <ComboBoxItem Content="DryRunBlockAndTerminate" />
+                                        <ComboBoxItem Content="BlockRemoteIp" />
+                                        <ComboBoxItem Content="TerminateProcess" />
+                                        <ComboBoxItem Content="BlockAndTerminate" />
+                                    </ComboBox>
+                                    <TextBox x:Name="ResponseMinimumScoreBox" Header="Response minimum score" />
+                                    <ToggleSwitch x:Name="FirewallResponseSwitch" Header="Enable firewall block response" />
+                                    <ToggleSwitch x:Name="ProcessTerminationSwitch" Header="Enable process termination response" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Style="{StaticResource SectionCardStyle}">
+                                <StackPanel Spacing="10">
+                                    <TextBlock FontWeight="SemiBold" Text="External alerting" />
+                                    <ComboBox x:Name="ExternalAlertProviderBox" Header="Provider">
+                                        <ComboBoxItem Content="Disabled" />
+                                        <ComboBoxItem Content="Brevo" />
+                                        <ComboBoxItem Content="Smtp" />
+                                        <ComboBoxItem Content="Webhook" />
+                                        <ComboBoxItem Content="GenericHttpApi" />
+                                        <ComboBoxItem Content="LocalJsonl" />
+                                        <ComboBoxItem Content="WindowsEventLog" />
+                                    </ComboBox>
+                                    <TextBox x:Name="MinimumEmailScoreBox" Header="Minimum external alert score" />
+                                    <ToggleSwitch x:Name="DailySummarySwitch" Header="Enable daily summary" />
+                                    <ToggleSwitch x:Name="ServiceStartSwitch" Header="Notify on service start" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Row="1" Style="{StaticResource SectionCardStyle}">
+                                <StackPanel Spacing="10">
+                                    <TextBlock FontWeight="SemiBold" Text="AI review" />
+                                    <ToggleSwitch x:Name="AIAnalysisSwitch" Header="Enable AI analysis" />
+                                    <TextBox x:Name="AIProviderBox" Header="Providers" />
+                                    <TextBox x:Name="AIModelBox" Header="Model" />
+                                    <TextBox x:Name="AIEnvVarBox" Header="API key environment variable" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource SectionCardStyle}">
+                                <StackPanel Spacing="10">
+                                    <TextBlock FontWeight="SemiBold" Text="Remote enrichment" />
+                                    <ToggleSwitch x:Name="CountryBlocksSwitch" Header="Country blocks" />
+                                    <ToggleSwitch x:Name="RdapSwitch" Header="RDAP owner / ASN" />
+                                    <ToggleSwitch x:Name="IpApiSwitch" Header="ip-api.com hook" />
+                                    <ToggleSwitch x:Name="IpWhoisSwitch" Header="ipwhois.io / ipwho.is hook" />
+                                    <TextBox x:Name="GeoMaxLookupsBox" Header="External geo lookups per poll" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Row="2" Style="{StaticResource SectionCardStyle}">
+                                <StackPanel Spacing="10">
+                                    <TextBlock FontWeight="SemiBold" Text="Baseline and agent context" />
+                                    <ToggleSwitch x:Name="BaselineLearningSwitch" Header="Baseline learning mode" />
+                                    <TextBox x:Name="AgentProcessNamesBox" Header="Agent process names" />
+                                    <TextBox x:Name="AgentWorkspaceRootsBox" Header="Agent workspace roots" />
+                                    <TextBox x:Name="AgentPublishRootsBox" Header="Agent publish roots" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource SectionCardStyle}">
+                                <StackPanel Spacing="10">
+                                    <TextBlock FontWeight="SemiBold" Text="Paths" />
+                                    <TextBox x:Name="LogDirectoryBox" Header="Log directory" />
+                                    <TextBox x:Name="PolicyFileBox" Header="Policy file" />
+                                    <TextBox x:Name="DestinationRootBox" Header="Deployment destination root" />
+                                    <TextBox x:Name="ExecutableNameBox" Header="Executable name" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <Button Click="SaveGuided_Click" HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon FontSize="16" Glyph="&#xE74E;" />
+                                <TextBlock Text="Save Guided Settings" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
-                </Button>
-                <Button Grid.Column="2" Click="OpenConfig_Click" ToolTipService.ToolTip="Open runtime config">
-                    <FontIcon FontSize="16" Glyph="&#xE8A5;" />
-                </Button>
-                <Button Grid.Column="3" Click="OpenFolder_Click" ToolTipService.ToolTip="Open config folder">
-                    <FontIcon FontSize="16" Glyph="&#xE838;" />
-                </Button>
-            </Grid>
+                </ScrollViewer>
+            </TabViewItem>
 
-            <TextBox
-                x:Name="PathText"
-                AcceptsReturn="True"
-                FontFamily="Consolas"
-                Header="Resolved paths"
-                IsReadOnly="True"
-                MinHeight="150"
-                TextWrapping="NoWrap" />
+            <TabViewItem Header="Advanced Keys" IsClosable="False">
+                <Grid RowSpacing="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid ColumnSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="ConfigSourceFilterBox" Header="Source" SelectedIndex="0" SelectionChanged="ConfigFilter_Changed">
+                            <ComboBoxItem Content="Any" />
+                            <ComboBoxItem Content="Runtime" />
+                            <ComboBoxItem Content="Deployment" />
+                        </ComboBox>
+                        <ComboBox x:Name="ConfigCategoryFilterBox" Grid.Column="1" Header="Category" SelectedIndex="0" SelectionChanged="ConfigFilter_Changed" />
+                        <TextBox
+                            x:Name="ConfigSearchBox"
+                            Grid.Column="2"
+                            Header="Search"
+                            PlaceholderText="key, value, category, description"
+                            TextChanged="ConfigSearchBox_TextChanged" />
+                    </Grid>
 
-            <TextBox
-                x:Name="ValidationText"
-                AcceptsReturn="True"
-                FontFamily="Consolas"
-                Header="Validation"
-                IsReadOnly="True"
-                MinHeight="430"
-                TextWrapping="NoWrap" />
+                    <ListView x:Name="ConfigEntriesList" Grid.Row="1">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Padding="8,6" ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="130" />
+                                        <ColumnDefinition Width="220" />
+                                        <ColumnDefinition Width="2*" />
+                                        <ColumnDefinition Width="2*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Category}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Key}" TextTrimming="CharacterEllipsis" />
+                                    <TextBox Grid.Column="3" Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Grid.Column="4" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Description}" TextWrapping="Wrap" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
 
-            <Border Padding="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
-                <StackPanel Spacing="10">
-                    <TextBlock FontWeight="SemiBold" Text="Reset local config" />
-                    <InfoBar
-                        IsOpen="True"
-                        Severity="Warning"
-                        Title="Reset replaces operator-owned local settings"
-                        Message="Use this only when you intentionally want defaults to replace local recipients, provider choices, thresholds, allowlists, policy tuning, baseline choices, and machine-specific paths." />
-                    <CheckBox x:Name="ResetConfirmBox" Content="I understand this will back up then replace local runtime and deployment config with defaults." />
-                    <Button Click="ResetConfig_Click">
+                    <Button Grid.Row="2" Click="SaveAdvanced_Click" HorizontalAlignment="Left">
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon FontSize="16" Glyph="&#xE777;" />
-                            <TextBlock Text="Reset to Defaults" />
+                            <FontIcon FontSize="16" Glyph="&#xE74E;" />
+                            <TextBlock Text="Save Advanced Keys" />
                         </StackPanel>
                     </Button>
-                </StackPanel>
-            </Border>
-        </StackPanel>
-    </ScrollViewer>
+                </Grid>
+            </TabViewItem>
+
+            <TabViewItem Header="Policy JSON" IsClosable="False">
+                <Grid RowSpacing="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid ColumnSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button Click="FormatPolicy_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon FontSize="16" Glyph="&#xE70F;" />
+                                <TextBlock Text="Format" />
+                            </StackPanel>
+                        </Button>
+                        <Button Grid.Column="1" Click="SavePolicy_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon FontSize="16" Glyph="&#xE74E;" />
+                                <TextBlock Text="Save Policy" />
+                            </StackPanel>
+                        </Button>
+                        <Button Grid.Column="2" Click="OpenPolicy_Click" ToolTipService.ToolTip="Open policy file">
+                            <FontIcon FontSize="16" Glyph="&#xE8A5;" />
+                        </Button>
+                    </Grid>
+
+                    <TextBox
+                        x:Name="PolicyJsonText"
+                        Grid.Row="1"
+                        AcceptsReturn="True"
+                        FontFamily="Consolas"
+                        FontSize="13"
+                        TextWrapping="NoWrap"
+                        ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                        ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                </Grid>
+            </TabViewItem>
+
+            <TabViewItem Header="Validation" IsClosable="False">
+                <ScrollViewer>
+                    <StackPanel Spacing="8">
+                        <TextBlock FontWeight="SemiBold" Text="Resolved paths" />
+                        <Border MinHeight="130" Style="{StaticResource ConsolePanelStyle}">
+                            <TextBlock x:Name="PathText" Style="{StaticResource ConsoleTextStyle}" />
+                        </Border>
+                        <TextBlock FontWeight="SemiBold" Text="Validation" />
+                        <Border MinHeight="430" Style="{StaticResource ConsolePanelStyle}">
+                            <TextBlock x:Name="ValidationText" Style="{StaticResource ConsoleTextStyle}" />
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabViewItem>
+
+            <TabViewItem Header="Reset" IsClosable="False">
+                <ScrollViewer>
+                    <Border Style="{StaticResource SectionCardStyle}">
+                        <StackPanel Spacing="10">
+                            <TextBlock FontWeight="SemiBold" Text="Reset local config" />
+                            <InfoBar
+                                IsOpen="True"
+                                Severity="Warning"
+                                Title="Reset replaces operator-owned local settings"
+                                Message="Use this only when you intentionally want defaults to replace local recipients, provider choices, thresholds, allowlists, policy tuning, baseline choices, and machine-specific paths." />
+                            <CheckBox x:Name="ResetConfirmBox" Content="I understand this will back up then replace local runtime and deployment config with defaults." />
+                            <Button Click="ResetConfig_Click" HorizontalAlignment="Left">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon FontSize="16" Glyph="&#xE777;" />
+                                    <TextBlock Text="Reset to Defaults" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </ScrollViewer>
+            </TabViewItem>
+        </TabView>
+    </Grid>
 </Page>

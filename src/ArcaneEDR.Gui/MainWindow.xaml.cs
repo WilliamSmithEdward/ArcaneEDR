@@ -1,8 +1,9 @@
+using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using System.IO;
 using ArcaneEDR_Gui.Pages;
+using WinRT.Interop;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -15,25 +16,22 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
 
-        ExtendsContentIntoTitleBar = true;
-        SetTitleBar(AppTitleBar);
-        AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
-        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
-        if (File.Exists(iconPath))
-        {
-            AppWindow.SetIcon(iconPath);
-        }
+        ApplyWindowIcon();
         NavFrame.Navigate(typeof(HomePage));
     }
 
-    private void TitleBar_PaneToggleRequested(TitleBar sender, object args)
+    private void ApplyWindowIcon()
     {
-        NavView.IsPaneOpen = !NavView.IsPaneOpen;
-    }
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
+        if (!File.Exists(iconPath))
+        {
+            return;
+        }
 
-    private void TitleBar_BackRequested(TitleBar sender, object args)
-    {
-        NavFrame.GoBack();
+        var windowHandle = WindowNative.GetWindowHandle(this);
+        var windowId = Win32Interop.GetWindowIdFromWindow(windowHandle);
+        var appWindow = AppWindow.GetFromWindowId(windowId);
+        appWindow.SetIcon(iconPath);
     }
 
     private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)

@@ -8,7 +8,7 @@
     mc:Ignorable="d">
 
     <ScrollViewer>
-        <StackPanel Padding="28,18,28,28" Spacing="16">
+        <StackPanel Padding="{StaticResource PagePadding}" Spacing="16">
             <Grid ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -40,14 +40,12 @@
                 </Button>
             </Grid>
 
-            <TextBox
-                x:Name="ReportOutputText"
-                AcceptsReturn="True"
-                FontFamily="Consolas"
-                Header="Report output"
-                IsReadOnly="True"
-                MinHeight="560"
-                TextWrapping="NoWrap" />
+            <StackPanel Spacing="8">
+                <TextBlock FontWeight="SemiBold" Text="Report output" />
+                <Border MinHeight="560" Style="{StaticResource ConsolePanelStyle}">
+                    <TextBlock x:Name="ReportOutputText" Style="{StaticResource ConsoleTextStyle}" />
+                </Border>
+            </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </Page>

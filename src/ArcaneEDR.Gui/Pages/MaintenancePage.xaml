@@ -8,7 +8,7 @@
     mc:Ignorable="d">
 
     <ScrollViewer>
-        <StackPanel Padding="28,18,28,28" Spacing="16">
+        <StackPanel Padding="{StaticResource PagePadding}" Spacing="16">
             <Grid ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -37,33 +37,105 @@
                 </Button>
             </Grid>
 
-            <Grid ColumnSpacing="12">
+            <Grid ColumnSpacing="10" RowSpacing="10">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <Button Click="ValidateAdmin_Click">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE73E;" />
                         <TextBlock Text="Validate Admin" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="1" Click="PublishRestart_Click">
+                <Button Grid.Column="1" Click="InstallService_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE896;" />
+                        <TextBlock Text="Install Service" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="2" Click="InstallSysmon_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE950;" />
+                        <TextBlock Text="Install Sysmon" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="3" Click="PublishRestart_Click">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE777;" />
                         <TextBlock Text="Publish Restart" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="2" Click="ResponseFirewall_Click">
+                <Button Grid.Column="4" Click="UninstallService_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE74D;" />
+                        <TextBlock Text="Uninstall Service" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Row="1" Click="PollOnce_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE895;" />
+                        <TextBlock Text="Poll Once" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Row="1" Grid.Column="1" Click="TestHealth_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE9D9;" />
+                        <TextBlock Text="Test Health" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Row="1" Grid.Column="2" Click="TestAlert_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xEA8F;" />
+                        <TextBlock Text="Test Alert" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Row="1" Grid.Column="3" Click="PreviewAi_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE8A5;" />
+                        <TextBlock Text="AI Payload" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Row="1" Grid.Column="4" Click="TestAi_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE946;" />
+                        <TextBlock Text="Test AI" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Row="2" Click="ResponseFirewall_Click">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE9D9;" />
                         <TextBlock Text="Firewall Ledger" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="3" Click="SupportBundle_Click">
+                <Button Grid.Row="2" Grid.Column="1" Click="ClearFirewall_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE711;" />
+                        <TextBlock Text="Clear Firewall" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Row="2" Grid.Column="2" Click="AgentActivity_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE8D4;" />
+                        <TextBlock Text="Agent Activity" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Row="2" Grid.Column="3" Click="Incidents_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE7BA;" />
+                        <TextBlock Text="Incidents" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Row="2" Grid.Column="4" Click="SupportBundle_Click">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE7C3;" />
                         <TextBlock Text="Support Bundle" />
@@ -71,14 +143,12 @@
                 </Button>
             </Grid>
 
-            <TextBox
-                x:Name="MaintenanceOutputText"
-                AcceptsReturn="True"
-                FontFamily="Consolas"
-                Header="Maintenance output"
-                IsReadOnly="True"
-                MinHeight="560"
-                TextWrapping="NoWrap" />
+            <StackPanel Spacing="8">
+                <TextBlock FontWeight="SemiBold" Text="Maintenance output" />
+                <Border MinHeight="560" Style="{StaticResource ConsolePanelStyle}">
+                    <TextBlock x:Name="MaintenanceOutputText" Style="{StaticResource ConsoleTextStyle}" />
+                </Border>
+            </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </Page>

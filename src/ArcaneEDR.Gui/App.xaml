@@ -8,9 +8,31 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
-                <!-- Other merged dictionaries here -->
             </ResourceDictionary.MergedDictionaries>
-            <!-- Other app resources here -->
+            <Thickness x:Key="PagePadding">28,22,28,28</Thickness>
+            <Thickness x:Key="CardPadding">16</Thickness>
+            <CornerRadius x:Key="ControlCornerRadius">6</CornerRadius>
+            <x:Double x:Key="CardSpacing">14</x:Double>
+            <Style x:Key="SectionCardStyle" TargetType="Border">
+                <Setter Property="Padding" Value="{StaticResource CardPadding}" />
+                <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
+                <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+            </Style>
+            <Style x:Key="ConsolePanelStyle" TargetType="Border">
+                <Setter Property="Padding" Value="12" />
+                <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
+                <Setter Property="Background" Value="{ThemeResource TextControlBackground}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+            </Style>
+            <Style x:Key="ConsoleTextStyle" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="Consolas" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="IsTextSelectionEnabled" Value="True" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

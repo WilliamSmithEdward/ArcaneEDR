@@ -8,7 +8,7 @@
     mc:Ignorable="d">
 
     <ScrollViewer>
-        <StackPanel Padding="28,18,28,28" Spacing="16">
+        <StackPanel Padding="{StaticResource PagePadding}" Spacing="16">
             <Grid ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -44,14 +44,12 @@
                 Title="JSONL evidence"
                 Message="Policy decisions tune alerting and response gates while local alert evidence remains in JSONL." />
 
-            <TextBox
-                x:Name="PolicyOutputText"
-                AcceptsReturn="True"
-                FontFamily="Consolas"
-                Header="Policy output"
-                IsReadOnly="True"
-                MinHeight="520"
-                TextWrapping="NoWrap" />
+            <StackPanel Spacing="8">
+                <TextBlock FontWeight="SemiBold" Text="Policy output" />
+                <Border MinHeight="520" Style="{StaticResource ConsolePanelStyle}">
+                    <TextBlock x:Name="PolicyOutputText" Style="{StaticResource ConsoleTextStyle}" />
+                </Border>
+            </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </Page>

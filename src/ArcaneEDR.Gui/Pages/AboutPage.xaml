@@ -9,14 +9,14 @@
     mc:Ignorable="d">
 
     <ScrollViewer>
-        <StackPanel Padding="28,18,28,28" Spacing="16">
+        <StackPanel Padding="{StaticResource PagePadding}" Spacing="16">
             <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="About" />
             <Grid ColumnSpacing="12" RowSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <Border Padding="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
+                <Border Style="{StaticResource SectionCardStyle}">
                     <StackPanel Spacing="8">
                         <TextBlock FontSize="20" FontWeight="SemiBold" Text="Arcane EDR" />
                         <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Local safety layer for unattended agent workstations" TextWrapping="WrapWholeWords" />
@@ -28,21 +28,19 @@
                         </Button>
                     </StackPanel>
                 </Border>
-                <Border Grid.Column="1" Padding="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
+                <Border Grid.Column="1" Style="{StaticResource SectionCardStyle}">
                     <StackPanel Spacing="8">
                         <TextBlock FontWeight="SemiBold" Text="Installed Context" />
                         <TextBlock x:Name="ContextText" TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Border>
             </Grid>
-            <TextBox
-                x:Name="AboutOutputText"
-                AcceptsReturn="True"
-                FontFamily="Consolas"
-                Header="Version output"
-                IsReadOnly="True"
-                MinHeight="260"
-                TextWrapping="NoWrap" />
+            <StackPanel Spacing="8">
+                <TextBlock FontWeight="SemiBold" Text="Version output" />
+                <Border MinHeight="260" Style="{StaticResource ConsolePanelStyle}">
+                    <TextBlock x:Name="AboutOutputText" Style="{StaticResource ConsoleTextStyle}" />
+                </Border>
+            </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </Page>

@@ -29,6 +29,27 @@ function Copy-Tree {
     Copy-Item -Path (Join-Path $Source "*") -Destination $Destination -Recurse -Force
 }
 
+function ConvertTo-XmlAttribute {
+    param([string]$Value)
+
+    return [System.Security.SecurityElement]::Escape($Value)
+}
+
+function New-DeterministicGuid {
+    param([string]$Value)
+
+    $md5 = [System.Security.Cryptography.MD5]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Value)
+        $hash = $md5.ComputeHash($bytes)
+        $guid = New-Object System.Guid (,$hash)
+        return "{" + $guid.ToString().ToUpperInvariant() + "}"
+    }
+    finally {
+        $md5.Dispose()
+    }
+}
+
 function New-HarvestFragment {
     param(
         [string]$DirectoryId,
@@ -38,31 +59,53 @@ function New-HarvestFragment {
         [string]$SkipRelative = ""
     )
 
-    $files = Get-ChildItem -Path $SourceRoot -Recurse -File | Sort-Object FullName
-    $componentIndex = 0
+    $script:ArcaneHarvestComponentIndex = 0
+    $script:ArcaneHarvestDirectoryIndex = 0
+    $componentIds = New-Object System.Collections.Generic.List[string]
     $xml = New-Object System.Text.StringBuilder
+
+    function Add-DirectoryContents {
+        param(
+            [string]$CurrentPath,
+            [string]$Indent
+        )
+
+        foreach ($file in Get-ChildItem -LiteralPath $CurrentPath -File | Sort-Object Name) {
+            $relative = $file.FullName.Substring($SourceRoot.Length).TrimStart('\')
+            if (![string]::IsNullOrWhiteSpace($SkipRelative) -and
+                $relative.Equals($SkipRelative, [System.StringComparison]::OrdinalIgnoreCase)) {
+                continue
+            }
+
+            $script:ArcaneHarvestComponentIndex++
+            $componentId = $ComponentGroupId + "Component" + $script:ArcaneHarvestComponentIndex.ToString("0000")
+            $fileId = $ComponentGroupId + "File" + $script:ArcaneHarvestComponentIndex.ToString("0000")
+            $guid = New-DeterministicGuid -Value ($ComponentGroupId + "|" + $relative.ToLowerInvariant())
+            $source = ConvertTo-XmlAttribute -Value $file.FullName
+            [void]$componentIds.Add($componentId)
+            [void]$xml.AppendLine("$Indent<Component Id=`"$componentId`" Guid=`"$guid`">")
+            [void]$xml.AppendLine("$Indent  <File Id=`"$fileId`" Source=`"$source`" KeyPath=`"yes`" />")
+            [void]$xml.AppendLine("$Indent</Component>")
+        }
+
+        foreach ($directory in Get-ChildItem -LiteralPath $CurrentPath -Directory | Sort-Object Name) {
+            $script:ArcaneHarvestDirectoryIndex++
+            $childDirectoryId = $ComponentGroupId + "Dir" + $script:ArcaneHarvestDirectoryIndex.ToString("0000")
+            $name = ConvertTo-XmlAttribute -Value $directory.Name
+            [void]$xml.AppendLine("$Indent<Directory Id=`"$childDirectoryId`" Name=`"$name`">")
+            Add-DirectoryContents -CurrentPath $directory.FullName -Indent ($Indent + "  ")
+            [void]$xml.AppendLine("$Indent</Directory>")
+        }
+    }
+
     [void]$xml.AppendLine('<?xml version="1.0" encoding="utf-8"?>')
     [void]$xml.AppendLine('<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">')
     [void]$xml.AppendLine('  <Fragment>')
     [void]$xml.AppendLine("    <DirectoryRef Id=`"$DirectoryId`">")
-    foreach ($file in $files) {
-        $relative = $file.FullName.Substring($SourceRoot.Length).TrimStart('\')
-        if (![string]::IsNullOrWhiteSpace($SkipRelative) -and
-            $relative.Equals($SkipRelative, [System.StringComparison]::OrdinalIgnoreCase)) {
-            continue
-        }
-
-        $componentIndex++
-        $componentId = $ComponentGroupId + "Component" + $componentIndex.ToString("0000")
-        $fileId = $ComponentGroupId + "File" + $componentIndex.ToString("0000")
-        [void]$xml.AppendLine("      <Component Id=`"$componentId`" Guid=`"*`">")
-        [void]$xml.AppendLine("        <File Id=`"$fileId`" Source=`"$($file.FullName)`" KeyPath=`"yes`" />")
-        [void]$xml.AppendLine('      </Component>')
-    }
+    Add-DirectoryContents -CurrentPath $SourceRoot -Indent "      "
     [void]$xml.AppendLine('    </DirectoryRef>')
     [void]$xml.AppendLine("    <ComponentGroup Id=`"$ComponentGroupId`">")
-    for ($index = 1; $index -le $componentIndex; $index++) {
-        $componentId = $ComponentGroupId + "Component" + $index.ToString("0000")
+    foreach ($componentId in $componentIds) {
         [void]$xml.AppendLine("      <ComponentRef Id=`"$componentId`" />")
     }
     [void]$xml.AppendLine('    </ComponentGroup>')
