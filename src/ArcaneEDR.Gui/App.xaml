@@ -33,6 +33,18 @@
                 <Setter Property="IsTextSelectionEnabled" Value="True" />
                 <Setter Property="TextWrapping" Value="Wrap" />
             </Style>
+            <Style x:Key="PageScrollViewerStyle" TargetType="ScrollViewer">
+                <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+                <Setter Property="HorizontalScrollMode" Value="Disabled" />
+                <Setter Property="IsHorizontalRailEnabled" Value="False" />
+                <Setter Property="IsHorizontalScrollChainingEnabled" Value="False" />
+                <Setter Property="IsScrollInertiaEnabled" Value="False" />
+                <Setter Property="IsVerticalRailEnabled" Value="True" />
+                <Setter Property="IsVerticalScrollChainingEnabled" Value="False" />
+                <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+                <Setter Property="VerticalScrollMode" Value="Enabled" />
+                <Setter Property="ZoomMode" Value="Disabled" />
+            </Style>
             <Style x:Key="ConsoleTextBoxStyle" TargetType="TextBox">
                 <Setter Property="AcceptsReturn" Value="True" />
                 <Setter Property="BorderThickness" Value="0" />
@@ -42,9 +54,16 @@
                 <Setter Property="MaxHeight" Value="520" />
                 <Setter Property="MinHeight" Value="96" />
                 <Setter Property="Padding" Value="0" />
-                <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+                <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+                <Setter Property="ScrollViewer.HorizontalScrollMode" Value="Disabled" />
+                <Setter Property="ScrollViewer.IsHorizontalRailEnabled" Value="False" />
+                <Setter Property="ScrollViewer.IsHorizontalScrollChainingEnabled" Value="False" />
+                <Setter Property="ScrollViewer.IsScrollInertiaEnabled" Value="False" />
+                <Setter Property="ScrollViewer.IsVerticalScrollChainingEnabled" Value="False" />
                 <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
-                <Setter Property="TextWrapping" Value="NoWrap" />
+                <Setter Property="ScrollViewer.VerticalScrollMode" Value="Enabled" />
+                <Setter Property="ScrollViewer.ZoomMode" Value="Disabled" />
+                <Setter Property="TextWrapping" Value="Wrap" />
             </Style>
         </ResourceDictionary>
     </Application.Resources>

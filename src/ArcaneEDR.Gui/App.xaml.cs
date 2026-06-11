@@ -35,6 +35,6 @@ public partial class App : Application
     {
         _window = new MainWindow();
         _trayIcon = new TrayIconController(_window);
-        _window.Activate();
+        _window.ShowAndActivate();
     }
 }

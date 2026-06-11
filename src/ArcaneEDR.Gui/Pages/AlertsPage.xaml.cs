@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using ArcaneEDR_Gui.Controls;
 using ArcaneEDR_Gui.Services;
 
 namespace ArcaneEDR_Gui.Pages;
@@ -12,10 +13,14 @@ public sealed partial class AlertsPage : Page
     private List<ArcaneAlertRecord> allAlerts = new List<ArcaneAlertRecord>();
     private double externalThreshold = 60;
     private bool loaded;
+    private string sortColumn = "Time";
+    private bool sortAscending;
 
     public AlertsPage()
     {
         InitializeComponent();
+        ConfigureResizeHandles();
+        UpdateSortIndicators();
         Loaded += async (_, _) =>
         {
             loaded = true;
@@ -58,9 +63,57 @@ public sealed partial class AlertsPage : Page
 
     private void AlertsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        SelectedAlertText.Text = AlertsList.SelectedItem is ArcaneAlertRecord alert
-            ? BuildSelectedAlertText(alert)
-            : "Select an alert to inspect its local evidence.";
+        ShowSelectedAlert(AlertsList.SelectedItem as ArcaneAlertRecord);
+    }
+
+    private void SortHeader_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.Tag is not string column)
+        {
+            return;
+        }
+
+        if (sortColumn.Equals(column, StringComparison.OrdinalIgnoreCase))
+        {
+            sortAscending = !sortAscending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortAscending = DefaultSortAscending(column);
+        }
+
+        UpdateSortIndicators();
+        ApplyFilters();
+    }
+
+    private void ConfigureResizeHandles()
+    {
+        TimeColumnResizeHandle.ResizeDelta += ColumnResizeHandle_ResizeDelta;
+        RuleColumnResizeHandle.ResizeDelta += ColumnResizeHandle_ResizeDelta;
+        CategoryColumnResizeHandle.ResizeDelta += ColumnResizeHandle_ResizeDelta;
+        ScoreColumnResizeHandle.ResizeDelta += ColumnResizeHandle_ResizeDelta;
+        CountryColumnResizeHandle.ResizeDelta += ColumnResizeHandle_ResizeDelta;
+        ProcessColumnResizeHandle.ResizeDelta += ColumnResizeHandle_ResizeDelta;
+        CompanyColumnResizeHandle.ResizeDelta += ColumnResizeHandle_ResizeDelta;
+        TitleColumnResizeHandle.ResizeDelta += ColumnResizeHandle_ResizeDelta;
+
+        AlertDetailsResizeHandle.ResizeDelta += AlertDetailsResizeHandle_ResizeDelta;
+    }
+
+    private void ColumnResizeHandle_ResizeDelta(object? sender, ResizeDeltaEventArgs e)
+    {
+        if (sender is FrameworkElement element && element.Tag is string column)
+        {
+            ((AlertTableColumnWidths)Resources["AlertColumnWidths"]).Resize(column, e.HorizontalChange);
+        }
+    }
+
+    private void AlertDetailsResizeHandle_ResizeDelta(object? sender, ResizeDeltaEventArgs e)
+    {
+        double nextHeight = AlertDetailsRow.Height.Value - e.VerticalChange;
+        nextHeight = Math.Max(140, Math.Min(520, nextHeight));
+        AlertDetailsRow.Height = new GridLength(nextHeight);
     }
 
     private async System.Threading.Tasks.Task RefreshAsync()
@@ -146,26 +199,24 @@ public sealed partial class AlertsPage : Page
         List<ArcaneAlertRecord> rows = Sort(filtered).Take(1000).ToList();
         AlertsList.ItemsSource = rows;
         TableSummaryText.Text = rows.Count + " visible of " + allAlerts.Count +
-            " loaded rows. External threshold filter uses MinimumEmailScore=" + externalThreshold + ".";
-        SelectedAlertText.Text = rows.Count == 0
-            ? "No alerts match the current filters."
-            : BuildSelectedAlertText(rows[0]);
+            " loaded rows. Sorted by " + SortLabel(sortColumn) + " " + (sortAscending ? "ascending" : "descending") +
+            ". External threshold filter uses MinimumEmailScore=" + externalThreshold + ".";
         AlertsList.SelectedIndex = rows.Count == 0 ? -1 : 0;
+        ShowSelectedAlert(rows.Count == 0 ? null : rows[0]);
     }
 
     private IEnumerable<ArcaneAlertRecord> Sort(IEnumerable<ArcaneAlertRecord> source)
     {
-        string sort = ComboText(SortBox, "Time");
-        bool asc = ComboText(SortDirectionBox, "Desc").Equals("Asc", StringComparison.OrdinalIgnoreCase);
-
-        IOrderedEnumerable<ArcaneAlertRecord> ordered = sort switch
+        IOrderedEnumerable<ArcaneAlertRecord> ordered = sortColumn switch
         {
-            "Score" => asc ? source.OrderBy(alert => alert.Score) : source.OrderByDescending(alert => alert.Score),
-            "Rule" => asc ? source.OrderBy(alert => alert.RuleId) : source.OrderByDescending(alert => alert.RuleId),
-            "Category" => asc ? source.OrderBy(alert => alert.Category) : source.OrderByDescending(alert => alert.Category),
-            "Country" => asc ? source.OrderBy(alert => alert.Country) : source.OrderByDescending(alert => alert.Country),
-            "Company" => asc ? source.OrderBy(alert => alert.Company) : source.OrderByDescending(alert => alert.Company),
-            _ => asc ? source.OrderBy(alert => alert.TimestampUtc) : source.OrderByDescending(alert => alert.TimestampUtc)
+            "Score" => sortAscending ? source.OrderBy(alert => alert.Score) : source.OrderByDescending(alert => alert.Score),
+            "Rule" => sortAscending ? source.OrderBy(alert => alert.RuleId) : source.OrderByDescending(alert => alert.RuleId),
+            "Category" => sortAscending ? source.OrderBy(alert => alert.Category) : source.OrderByDescending(alert => alert.Category),
+            "Country" => sortAscending ? source.OrderBy(alert => alert.Country) : source.OrderByDescending(alert => alert.Country),
+            "Process" => sortAscending ? source.OrderBy(alert => alert.Process) : source.OrderByDescending(alert => alert.Process),
+            "Company" => sortAscending ? source.OrderBy(alert => alert.Company) : source.OrderByDescending(alert => alert.Company),
+            "Title" => sortAscending ? source.OrderBy(alert => alert.Title) : source.OrderByDescending(alert => alert.Title),
+            _ => sortAscending ? source.OrderBy(alert => alert.TimestampUtc) : source.OrderByDescending(alert => alert.TimestampUtc)
         };
 
         return ordered.ThenByDescending(alert => alert.Score);
@@ -239,14 +290,97 @@ public sealed partial class AlertsPage : Page
         return value.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
-    private static string BuildSelectedAlertText(ArcaneAlertRecord alert)
+    private void ShowSelectedAlert(ArcaneAlertRecord? alert)
     {
-        return "UTC=" + alert.TimestampUtc.ToString("u") + Environment.NewLine +
-            "Rule=" + alert.RuleId + " Category=" + alert.Category + " Severity=" + alert.Severity + " Score=" + alert.Score + Environment.NewLine +
-            "Process=" + alert.Process + " RemoteIp=" + alert.RemoteIp + " Country=" + alert.Country + " Company=" + alert.Company + Environment.NewLine +
+        if (alert == null)
+        {
+            SelectedAlertHintText.Text = "No selection";
+            SelectedAlertMetadataText.Text = "No alerts match the current filters.";
+            SelectedAlertEvidenceText.Text = "";
+            return;
+        }
+
+        SelectedAlertHintText.Text = alert.RuleId + " score " + alert.Score;
+        SelectedAlertMetadataText.Text = BuildSelectedAlertMetadataText(alert);
+        SelectedAlertEvidenceText.Text = BuildSelectedAlertEvidenceText(alert);
+    }
+
+    private void UpdateSortIndicators()
+    {
+        TimeSortIndicator.Text = "";
+        RuleSortIndicator.Text = "";
+        CategorySortIndicator.Text = "";
+        ScoreSortIndicator.Text = "";
+        CountrySortIndicator.Text = "";
+        ProcessSortIndicator.Text = "";
+        CompanySortIndicator.Text = "";
+        TitleSortIndicator.Text = "";
+
+        string indicator = sortAscending ? "\u25B2" : "\u25BC";
+        switch (sortColumn)
+        {
+            case "Rule":
+                RuleSortIndicator.Text = indicator;
+                break;
+            case "Category":
+                CategorySortIndicator.Text = indicator;
+                break;
+            case "Score":
+                ScoreSortIndicator.Text = indicator;
+                break;
+            case "Country":
+                CountrySortIndicator.Text = indicator;
+                break;
+            case "Process":
+                ProcessSortIndicator.Text = indicator;
+                break;
+            case "Company":
+                CompanySortIndicator.Text = indicator;
+                break;
+            case "Title":
+                TitleSortIndicator.Text = indicator;
+                break;
+            default:
+                TimeSortIndicator.Text = indicator;
+                break;
+        }
+    }
+
+    private static bool DefaultSortAscending(string column)
+    {
+        return !column.Equals("Time", StringComparison.OrdinalIgnoreCase) &&
+            !column.Equals("Score", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string SortLabel(string column)
+    {
+        return column.Equals("Time", StringComparison.OrdinalIgnoreCase) ? "system time" : column.ToLowerInvariant();
+    }
+
+    private static string BuildSelectedAlertMetadataText(ArcaneAlertRecord alert)
+    {
+        return "SystemTime=" + alert.SystemTimeDisplay + Environment.NewLine +
+            "UTC=" + alert.TimestampUtc.ToString("u") + Environment.NewLine +
+            "Rule=" + alert.RuleId + Environment.NewLine +
+            "Category=" + alert.Category + Environment.NewLine +
+            "Severity=" + alert.Severity + Environment.NewLine +
+            "Score=" + alert.Score + Environment.NewLine +
+            "Title=" + alert.Title + Environment.NewLine +
+            "Process=" + alert.Process + Environment.NewLine +
+            "RemoteIp=" + alert.RemoteIp + Environment.NewLine +
+            "Country=" + alert.Country + Environment.NewLine +
+            "Company=" + alert.Company + Environment.NewLine +
+            "MaintenanceContext=" + alert.MaintenanceContext + Environment.NewLine +
+            "ExternalSuppressed=" + alert.ExternalSuppressedByPolicy + Environment.NewLine +
+            "ExternalForced=" + alert.ExternalForcedByPolicy + Environment.NewLine +
             "Policy=" + alert.PolicyContext + Environment.NewLine +
-            "MaintenanceContext=" + alert.MaintenanceContext + " ExternalSuppressed=" + alert.ExternalSuppressedByPolicy + " ExternalForced=" + alert.ExternalForcedByPolicy + Environment.NewLine +
-            "Recommendation=" + alert.Recommendation + Environment.NewLine +
-            "Entity=" + alert.Entity;
+            "Recommendation=" + alert.Recommendation;
+    }
+
+    private static string BuildSelectedAlertEvidenceText(ArcaneAlertRecord alert)
+    {
+        return "Entity=" + alert.Entity + Environment.NewLine + Environment.NewLine +
+            "Body=" + alert.Body + Environment.NewLine + Environment.NewLine +
+            "RawJson=" + alert.RawJson;
     }
 }

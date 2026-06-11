@@ -29,6 +29,20 @@ internal sealed class ArcaneAlertRecord
     public string Body { get; set; } = "";
     public string RawJson { get; set; } = "";
 
+    public string SystemTimeDisplay
+    {
+        get
+        {
+            if (TimestampUtc > DateTime.MinValue)
+            {
+                DateTime local = TimeZoneInfo.ConvertTimeFromUtc(TimestampUtc, TimeZoneInfo.Local);
+                return local.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+            }
+
+            return LocalTime;
+        }
+    }
+
     public string Summary => String.IsNullOrWhiteSpace(Process)
         ? Title
         : Process + " - " + Title;

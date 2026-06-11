@@ -17,20 +17,20 @@
             IsBackButtonVisible="Collapsed"
             IsPaneToggleButtonVisible="False"
             PaneDisplayMode="Auto"
-            PaneTitle="Arcane EDR"
             SelectionChanged="NavView_SelectionChanged">
             <NavigationView.PaneHeader>
                 <Grid
-                    MinHeight="64"
-                    Margin="6,10,12,20"
-                    ColumnSpacing="14">
+                    MinHeight="72"
+                    Margin="14,12,12,18"
+                    ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="56" />
+                        <ColumnDefinition Width="52" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Image
                         Width="48"
                         Height="48"
+                        HorizontalAlignment="Left"
                         VerticalAlignment="Center"
                         Source="ms-appx:///Assets/Square44x44Logo.png" />
                     <StackPanel
@@ -40,11 +40,13 @@
                         <TextBlock
                             FontSize="15"
                             FontWeight="SemiBold"
+                            MaxLines="1"
                             Text="Arcane EDR"
                             TextTrimming="CharacterEllipsis" />
                         <TextBlock
                             FontSize="12"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            MaxLines="1"
                             Text="Local operator console"
                             TextTrimming="CharacterEllipsis" />
                     </StackPanel>

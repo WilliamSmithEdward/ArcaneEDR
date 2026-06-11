@@ -3,9 +3,50 @@
     x:Class="ArcaneEDR_Gui.Pages.AlertsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:ArcaneEDR_Gui.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
+
+    <Page.Resources>
+        <controls:AlertTableColumnWidths x:Key="AlertColumnWidths" />
+        <Style x:Key="AlertHeaderButtonStyle" TargetType="Button">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="MinHeight" Value="36" />
+            <Setter Property="Padding" Value="8,7" />
+        </Style>
+        <Style x:Key="AlertCellTextStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style x:Key="ColumnResizeHandleStyle" TargetType="controls:CursorResizeHandle">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="controls:CursorResizeHandle">
+                        <Grid Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                            <StackPanel
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="2">
+                                <Rectangle
+                                    Width="2"
+                                    Height="18"
+                                    Fill="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                    Opacity="0.7"
+                                    RadiusX="1"
+                                    RadiusY="1" />
+                            </StackPanel>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Page.Resources>
 
     <Grid Padding="{StaticResource PagePadding}" RowSpacing="14">
         <Grid.RowDefinitions>
@@ -56,8 +97,6 @@
                 <ColumnDefinition Width="120" />
                 <ColumnDefinition Width="130" />
                 <ColumnDefinition Width="150" />
-                <ColumnDefinition Width="150" />
-                <ColumnDefinition Width="130" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
@@ -77,21 +116,9 @@
                 <ComboBoxItem Content="Low" />
             </ComboBox>
             <ComboBox x:Name="CategoryBox" Grid.Column="2" Header="Category" SelectedIndex="0" SelectionChanged="Filter_Changed" />
-            <ComboBox x:Name="SortBox" Grid.Column="3" Header="Sort" SelectedIndex="0" SelectionChanged="Filter_Changed">
-                <ComboBoxItem Content="Time" />
-                <ComboBoxItem Content="Score" />
-                <ComboBoxItem Content="Rule" />
-                <ComboBoxItem Content="Category" />
-                <ComboBoxItem Content="Country" />
-                <ComboBoxItem Content="Company" />
-            </ComboBox>
-            <ComboBox x:Name="SortDirectionBox" Grid.Column="4" Header="Direction" SelectedIndex="0" SelectionChanged="Filter_Changed">
-                <ComboBoxItem Content="Desc" />
-                <ComboBoxItem Content="Asc" />
-            </ComboBox>
             <CheckBox
                 x:Name="ExternalCandidatesBox"
-                Grid.Column="5"
+                Grid.Column="3"
                 VerticalAlignment="Bottom"
                 Checked="Filter_Changed"
                 Content="External threshold"
@@ -99,7 +126,7 @@
                 Unchecked="Filter_Changed" />
             <TextBox
                 x:Name="SearchBox"
-                Grid.Column="6"
+                Grid.Column="4"
                 Header="Search"
                 PlaceholderText="rule, process, company, country, remote IP"
                 TextChanged="SearchBox_TextChanged" />
@@ -111,89 +138,318 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="8" />
+                        <RowDefinition
+                            x:Name="AlertDetailsRow"
+                            Height="260"
+                            MinHeight="140" />
                     </Grid.RowDefinitions>
 
                     <TextBlock x:Name="TableSummaryText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
 
-                    <Grid Grid.Row="1" RowSpacing="4">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        <Grid Padding="8,0" ColumnSpacing="8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="1.3*" />
-                                <ColumnDefinition Width="1.1*" />
-                                <ColumnDefinition Width="0.8*" />
-                                <ColumnDefinition Width="0.6*" />
-                                <ColumnDefinition Width="0.7*" />
-                                <ColumnDefinition Width="1.1*" />
-                                <ColumnDefinition Width="1.3*" />
-                                <ColumnDefinition Width="2.4*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock FontWeight="SemiBold" Text="UTC" />
-                            <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="Rule" />
-                            <TextBlock Grid.Column="2" FontWeight="SemiBold" Text="Category" />
-                            <TextBlock Grid.Column="3" FontWeight="SemiBold" Text="Score" />
-                            <TextBlock Grid.Column="4" FontWeight="SemiBold" Text="Country" />
-                            <TextBlock Grid.Column="5" FontWeight="SemiBold" Text="Process" />
-                            <TextBlock Grid.Column="6" FontWeight="SemiBold" Text="Company" />
-                            <TextBlock Grid.Column="7" FontWeight="SemiBold" Text="Title" />
-                        </Grid>
-                        <ListView
-                            x:Name="AlertsList"
-                            Grid.Row="1"
-                            SelectionChanged="AlertsList_SelectionChanged">
-                            <ListView.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid Padding="8,7" ColumnSpacing="8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="1.3*" />
-                                            <ColumnDefinition Width="1.1*" />
-                                            <ColumnDefinition Width="0.8*" />
-                                            <ColumnDefinition Width="0.6*" />
-                                            <ColumnDefinition Width="0.7*" />
-                                            <ColumnDefinition Width="1.1*" />
-                                            <ColumnDefinition Width="1.3*" />
-                                            <ColumnDefinition Width="2.4*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock FontFamily="Consolas" Text="{Binding TimestampUtc}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="1" Text="{Binding RuleId}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="2" Text="{Binding Category}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="3" Text="{Binding Score}" />
-                                        <TextBlock Grid.Column="4" Text="{Binding Country}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="5" Text="{Binding Process}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="6" Text="{Binding Company}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="7" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ListView.ItemTemplate>
-                        </ListView>
-                    </Grid>
+                    <Border Grid.Row="1" Style="{StaticResource SectionCardStyle}">
+                        <ScrollViewer
+                            x:Name="AlertTableHorizontalScroller"
+                            HorizontalScrollBarVisibility="Auto"
+                            HorizontalScrollMode="Enabled"
+                            IsHorizontalRailEnabled="False"
+                            IsHorizontalScrollChainingEnabled="False"
+                            IsVerticalScrollChainingEnabled="False"
+                            VerticalScrollBarVisibility="Disabled"
+                            VerticalScrollMode="Disabled"
+                            ZoomMode="Disabled">
+                            <Grid
+                                MinWidth="{Binding TotalWidth, Source={StaticResource AlertColumnWidths}}"
+                                RowSpacing="4">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
 
-                    <Border Grid.Row="2" MinHeight="120" Style="{StaticResource ConsolePanelStyle}">
-                        <TextBox x:Name="SelectedAlertText" Style="{StaticResource ConsoleTextBoxStyle}" />
+                                <StackPanel
+                                    Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                    MinWidth="{Binding TotalWidth, Source={StaticResource AlertColumnWidths}}"
+                                    Orientation="Horizontal">
+                                    <Grid Width="{Binding Time, Source={StaticResource AlertColumnWidths}}">
+                                        <Button
+                                            AutomationProperties.Name="Sort by system time"
+                                            Click="SortHeader_Click"
+                                            Style="{StaticResource AlertHeaderButtonStyle}"
+                                            Tag="Time"
+                                            ToolTipService.ToolTip="Sort by system local time">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock FontWeight="SemiBold" Text="System time" />
+                                                <TextBlock
+                                                    x:Name="TimeSortIndicator"
+                                                    MinWidth="14"
+                                                    FontFamily="Segoe UI Symbol" />
+                                            </StackPanel>
+                                        </Button>
+                                        <controls:CursorResizeHandle
+                                            x:Name="TimeColumnResizeHandle"
+                                            CursorShape="SizeWestEast"
+                                            Style="{StaticResource ColumnResizeHandleStyle}"
+                                            Tag="Time"
+                                            ToolTipService.ToolTip="Resize System time column" />
+                                    </Grid>
+                                    <Grid Width="{Binding Rule, Source={StaticResource AlertColumnWidths}}">
+                                        <Button
+                                            AutomationProperties.Name="Sort by rule"
+                                            Click="SortHeader_Click"
+                                            Style="{StaticResource AlertHeaderButtonStyle}"
+                                            Tag="Rule"
+                                            ToolTipService.ToolTip="Sort by rule">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock FontWeight="SemiBold" Text="Rule" />
+                                                <TextBlock
+                                                    x:Name="RuleSortIndicator"
+                                                    MinWidth="14"
+                                                    FontFamily="Segoe UI Symbol" />
+                                            </StackPanel>
+                                        </Button>
+                                        <controls:CursorResizeHandle x:Name="RuleColumnResizeHandle" CursorShape="SizeWestEast" Style="{StaticResource ColumnResizeHandleStyle}" Tag="Rule" ToolTipService.ToolTip="Resize Rule column" />
+                                    </Grid>
+                                    <Grid Width="{Binding Category, Source={StaticResource AlertColumnWidths}}">
+                                        <Button
+                                            AutomationProperties.Name="Sort by category"
+                                            Click="SortHeader_Click"
+                                            Style="{StaticResource AlertHeaderButtonStyle}"
+                                            Tag="Category"
+                                            ToolTipService.ToolTip="Sort by category">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock FontWeight="SemiBold" Text="Category" />
+                                                <TextBlock
+                                                    x:Name="CategorySortIndicator"
+                                                    MinWidth="14"
+                                                    FontFamily="Segoe UI Symbol" />
+                                            </StackPanel>
+                                        </Button>
+                                        <controls:CursorResizeHandle x:Name="CategoryColumnResizeHandle" CursorShape="SizeWestEast" Style="{StaticResource ColumnResizeHandleStyle}" Tag="Category" ToolTipService.ToolTip="Resize Category column" />
+                                    </Grid>
+                                    <Grid Width="{Binding Score, Source={StaticResource AlertColumnWidths}}">
+                                        <Button
+                                            AutomationProperties.Name="Sort by score"
+                                            Click="SortHeader_Click"
+                                            Style="{StaticResource AlertHeaderButtonStyle}"
+                                            Tag="Score"
+                                            ToolTipService.ToolTip="Sort by score">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock FontWeight="SemiBold" Text="Score" />
+                                                <TextBlock
+                                                    x:Name="ScoreSortIndicator"
+                                                    MinWidth="14"
+                                                    FontFamily="Segoe UI Symbol" />
+                                            </StackPanel>
+                                        </Button>
+                                        <controls:CursorResizeHandle x:Name="ScoreColumnResizeHandle" CursorShape="SizeWestEast" Style="{StaticResource ColumnResizeHandleStyle}" Tag="Score" ToolTipService.ToolTip="Resize Score column" />
+                                    </Grid>
+                                    <Grid Width="{Binding Country, Source={StaticResource AlertColumnWidths}}">
+                                        <Button
+                                            AutomationProperties.Name="Sort by country"
+                                            Click="SortHeader_Click"
+                                            Style="{StaticResource AlertHeaderButtonStyle}"
+                                            Tag="Country"
+                                            ToolTipService.ToolTip="Sort by country">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock FontWeight="SemiBold" Text="Country" />
+                                                <TextBlock
+                                                    x:Name="CountrySortIndicator"
+                                                    MinWidth="14"
+                                                    FontFamily="Segoe UI Symbol" />
+                                            </StackPanel>
+                                        </Button>
+                                        <controls:CursorResizeHandle x:Name="CountryColumnResizeHandle" CursorShape="SizeWestEast" Style="{StaticResource ColumnResizeHandleStyle}" Tag="Country" ToolTipService.ToolTip="Resize Country column" />
+                                    </Grid>
+                                    <Grid Width="{Binding Process, Source={StaticResource AlertColumnWidths}}">
+                                        <Button
+                                            AutomationProperties.Name="Sort by process"
+                                            Click="SortHeader_Click"
+                                            Style="{StaticResource AlertHeaderButtonStyle}"
+                                            Tag="Process"
+                                            ToolTipService.ToolTip="Sort by process">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock FontWeight="SemiBold" Text="Process" />
+                                                <TextBlock
+                                                    x:Name="ProcessSortIndicator"
+                                                    MinWidth="14"
+                                                    FontFamily="Segoe UI Symbol" />
+                                            </StackPanel>
+                                        </Button>
+                                        <controls:CursorResizeHandle x:Name="ProcessColumnResizeHandle" CursorShape="SizeWestEast" Style="{StaticResource ColumnResizeHandleStyle}" Tag="Process" ToolTipService.ToolTip="Resize Process column" />
+                                    </Grid>
+                                    <Grid Width="{Binding Company, Source={StaticResource AlertColumnWidths}}">
+                                        <Button
+                                            AutomationProperties.Name="Sort by company"
+                                            Click="SortHeader_Click"
+                                            Style="{StaticResource AlertHeaderButtonStyle}"
+                                            Tag="Company"
+                                            ToolTipService.ToolTip="Sort by company">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock FontWeight="SemiBold" Text="Company" />
+                                                <TextBlock
+                                                    x:Name="CompanySortIndicator"
+                                                    MinWidth="14"
+                                                    FontFamily="Segoe UI Symbol" />
+                                            </StackPanel>
+                                        </Button>
+                                        <controls:CursorResizeHandle x:Name="CompanyColumnResizeHandle" CursorShape="SizeWestEast" Style="{StaticResource ColumnResizeHandleStyle}" Tag="Company" ToolTipService.ToolTip="Resize Company column" />
+                                    </Grid>
+                                    <Grid Width="{Binding Title, Source={StaticResource AlertColumnWidths}}">
+                                        <Button
+                                            AutomationProperties.Name="Sort by title"
+                                            Click="SortHeader_Click"
+                                            Style="{StaticResource AlertHeaderButtonStyle}"
+                                            Tag="Title"
+                                            ToolTipService.ToolTip="Sort by title">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock FontWeight="SemiBold" Text="Title" />
+                                                <TextBlock
+                                                    x:Name="TitleSortIndicator"
+                                                    MinWidth="14"
+                                                    FontFamily="Segoe UI Symbol" />
+                                            </StackPanel>
+                                        </Button>
+                                        <controls:CursorResizeHandle x:Name="TitleColumnResizeHandle" CursorShape="SizeWestEast" Style="{StaticResource ColumnResizeHandleStyle}" Tag="Title" ToolTipService.ToolTip="Resize Title column" />
+                                    </Grid>
+                                </StackPanel>
+
+                                <ListView
+                                    x:Name="AlertsList"
+                                    Grid.Row="1"
+                                    MinWidth="{Binding TotalWidth, Source={StaticResource AlertColumnWidths}}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                    ScrollViewer.HorizontalScrollMode="Disabled"
+                                    ScrollViewer.IsHorizontalRailEnabled="False"
+                                    ScrollViewer.IsHorizontalScrollChainingEnabled="False"
+                                    ScrollViewer.IsScrollInertiaEnabled="False"
+                                    ScrollViewer.IsVerticalScrollChainingEnabled="False"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                    ScrollViewer.VerticalScrollMode="Enabled"
+                                    ScrollViewer.ZoomMode="Disabled"
+                                    SelectionChanged="AlertsList_SelectionChanged">
+                                    <ListView.ItemContainerStyle>
+                                        <Style TargetType="ListViewItem">
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                        </Style>
+                                    </ListView.ItemContainerStyle>
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel
+                                                MinWidth="{Binding TotalWidth, Source={StaticResource AlertColumnWidths}}"
+                                                Orientation="Horizontal"
+                                                Padding="0,6">
+                                                <TextBlock
+                                                    Width="{Binding Time, Source={StaticResource AlertColumnWidths}}"
+                                                    FontFamily="Consolas"
+                                                    Style="{StaticResource AlertCellTextStyle}"
+                                                    Text="{Binding SystemTimeDisplay}" />
+                                                <TextBlock Width="{Binding Rule, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding RuleId}" />
+                                                <TextBlock Width="{Binding Category, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Category}" />
+                                                <TextBlock Width="{Binding Score, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Score}" />
+                                                <TextBlock Width="{Binding Country, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Country}" />
+                                                <TextBlock Width="{Binding Process, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Process}" />
+                                                <TextBlock Width="{Binding Company, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Company}" />
+                                                <TextBlock Width="{Binding Title, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Title}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </Grid>
+                        </ScrollViewer>
+                    </Border>
+
+                    <controls:CursorResizeHandle
+                        x:Name="AlertDetailsResizeHandle"
+                        Grid.Row="2"
+                        CursorShape="SizeNorthSouth"
+                        ToolTipService.ToolTip="Resize alert metadata panel">
+                        <controls:CursorResizeHandle.Template>
+                            <ControlTemplate TargetType="controls:CursorResizeHandle">
+                                <Grid Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                                    <StackPanel
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal"
+                                        Spacing="4">
+                                        <Rectangle
+                                            Width="28"
+                                            Height="2"
+                                            Fill="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                            Opacity="0.75"
+                                            RadiusX="1"
+                                            RadiusY="1" />
+                                        <Rectangle
+                                            Width="28"
+                                            Height="2"
+                                            Fill="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                            Opacity="0.75"
+                                            RadiusX="1"
+                                            RadiusY="1" />
+                                    </StackPanel>
+                                </Grid>
+                            </ControlTemplate>
+                        </controls:CursorResizeHandle.Template>
+                    </controls:CursorResizeHandle>
+
+                    <Border Grid.Row="3" Style="{StaticResource SectionCardStyle}">
+                        <Grid RowSpacing="8">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock FontWeight="SemiBold" Text="Alert metadata" />
+                                <TextBlock
+                                    x:Name="SelectedAlertHintText"
+                                    Grid.Column="1"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="Select an alert"
+                                    TextTrimming="CharacterEllipsis" />
+                            </Grid>
+                            <ScrollViewer
+                                Grid.Row="1"
+                                controls:PageScrollBehavior.UseReliableWheel="True"
+                                Style="{StaticResource PageScrollViewerStyle}">
+                                <StackPanel Spacing="10">
+                                    <TextBlock FontWeight="SemiBold" Text="Metadata" />
+                                    <Border Style="{StaticResource ConsolePanelStyle}">
+                                        <TextBlock x:Name="SelectedAlertMetadataText" Style="{StaticResource ConsoleTextStyle}" />
+                                    </Border>
+                                    <TextBlock FontWeight="SemiBold" Text="Evidence" />
+                                    <Border Style="{StaticResource ConsolePanelStyle}">
+                                        <TextBlock x:Name="SelectedAlertEvidenceText" Style="{StaticResource ConsoleTextStyle}" />
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
                     </Border>
                 </Grid>
             </TabViewItem>
 
             <TabViewItem Header="Volume" IsClosable="False">
-                <ScrollViewer>
+                <ScrollViewer
+                    controls:PageScrollBehavior.UseReliableWheel="True"
+                    Style="{StaticResource PageScrollViewerStyle}">
                     <StackPanel Spacing="8">
                         <TextBlock FontWeight="SemiBold" Text="Configured alert context" />
                         <TextBlock x:Name="AlertConfigContextText" TextWrapping="Wrap" />
                         <Border MinHeight="360" Style="{StaticResource ConsolePanelStyle}">
-                            <TextBox x:Name="VolumeText" Style="{StaticResource ConsoleTextBoxStyle}" />
+                            <TextBlock x:Name="VolumeText" Style="{StaticResource ConsoleTextStyle}" />
                         </Border>
                     </StackPanel>
                 </ScrollViewer>
             </TabViewItem>
 
             <TabViewItem Header="Raw JSONL" IsClosable="False">
-                <ScrollViewer>
+                <ScrollViewer
+                    controls:PageScrollBehavior.UseReliableWheel="True"
+                    Style="{StaticResource PageScrollViewerStyle}">
                     <Border MinHeight="520" Style="{StaticResource ConsolePanelStyle}">
-                        <TextBox x:Name="RecentAlertsText" Style="{StaticResource ConsoleTextBoxStyle}" />
+                        <TextBlock x:Name="RecentAlertsText" Style="{StaticResource ConsoleTextStyle}" />
                     </Border>
                 </ScrollViewer>
             </TabViewItem>

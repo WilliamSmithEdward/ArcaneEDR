@@ -225,6 +225,7 @@ if (Test-Path $msi) { Remove-Item -LiteralPath $msi -Force }
     -d GuiStage=$guiStage `
     -d LicenseRtf=$licenseRtf `
     -ext WixToolset.UI.wixext `
+    -ext WixToolset.Util.wixext `
     -out $msi `
     (Join-Path $root "installer\Product.wxs") `
     (Join-Path $root "installer\Components.wxs") `

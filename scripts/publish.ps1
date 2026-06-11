@@ -40,6 +40,49 @@ function Resolve-ConfigPath {
     return $Example
 }
 
+function Stop-ArcaneGuiIfRunning {
+    param([string]$Destination)
+
+    $guiExe = [System.IO.Path]::GetFullPath((Join-Path (Join-Path $Destination "gui") "ArcaneEDR.Gui.exe"))
+    $candidates = Get-Process -Name "ArcaneEDR.Gui" -ErrorAction SilentlyContinue
+    if (!$candidates) { return }
+
+    $matches = @()
+    foreach ($process in $candidates) {
+        $path = ""
+        try { $path = $process.Path } catch { $path = "" }
+        if ([string]::IsNullOrWhiteSpace($path) -or
+            [System.IO.Path]::GetFullPath($path).Equals($guiExe, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $matches += $process
+        }
+    }
+
+    foreach ($process in $matches) {
+        Write-Host "Closing Arcane GUI process $($process.Id)"
+        try {
+            if ($process.MainWindowHandle -ne 0) {
+                [void]$process.CloseMainWindow()
+            }
+        }
+        catch {
+            Write-Host "GUI close request failed for process $($process.Id): $($_.Exception.Message)"
+        }
+    }
+
+    $deadline = (Get-Date).AddSeconds(8)
+    do {
+        Start-Sleep -Milliseconds 250
+        $remaining = @($matches | Where-Object {
+            try { !$_.HasExited } catch { $false }
+        })
+    } while ($remaining.Count -gt 0 -and (Get-Date) -lt $deadline)
+
+    foreach ($process in $remaining) {
+        Write-Host "Force stopping Arcane GUI process $($process.Id)"
+        Stop-Process -Id $process.Id -Force
+    }
+}
+
 $root = Split-Path -Parent $PSScriptRoot
 $deploymentConfig = Resolve-ConfigPath `
     -Primary (Join-Path $root "config\Deployment.config") `
@@ -59,6 +102,8 @@ $scripts = Join-Path $destination "scripts"
 $docs = Join-Path $destination "docs"
 $tools = Join-Path $destination "tools"
 $assets = Join-Path $destination "src\Assets"
+
+Stop-ArcaneGuiIfRunning -Destination $destination
 
 New-Item -ItemType Directory -Force -Path $bin, $gui, $config, $scripts, $docs, $tools, $assets | Out-Null
 

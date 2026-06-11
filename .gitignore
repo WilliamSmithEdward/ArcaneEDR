@@ -16,6 +16,8 @@ tools/
 config/ArcaneEDR.config
 config/Deployment.config
 config/arcane-policy.json
+config/country-ip-blocks/
+config/country-ip-blocks.tar.gz
 config/policy-rules.json
 config/remote-endpoint-policy.json
 *.local.config

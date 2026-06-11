@@ -144,6 +144,68 @@ function Copy-IfExists {
     }
 }
 
+function Copy-DirectoryContentsIfExists {
+    param(
+        [string]$Source,
+        [string]$Destination
+    )
+
+    if (Test-Path -LiteralPath $Source) {
+        New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+        Copy-Item -Path (Join-Path $Source "*") -Destination $Destination -Recurse -Force
+        Write-TaskLog "Copied directory contents: $Source -> $Destination"
+    }
+}
+
+function Stop-ArcaneGuiIfRunning {
+    $guiExe = [System.IO.Path]::GetFullPath((Join-Path (Join-Path $PublishedRoot "gui") "ArcaneEDR.Gui.exe"))
+    $candidates = Get-Process -Name "ArcaneEDR.Gui" -ErrorAction SilentlyContinue
+    if (!$candidates) { return }
+
+    $matches = @()
+    foreach ($process in $candidates) {
+        $path = ""
+        try { $path = $process.Path } catch { $path = "" }
+        if ([string]::IsNullOrWhiteSpace($path) -or
+            [System.IO.Path]::GetFullPath($path).Equals($guiExe, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $matches += $process
+        }
+    }
+
+    if ($matches.Count -eq 0) { return }
+
+    foreach ($process in $matches) {
+        Write-TaskLog "Closing Arcane GUI process $($process.Id)"
+        try {
+            if ($process.MainWindowHandle -ne 0) {
+                [void]$process.CloseMainWindow()
+            }
+        }
+        catch {
+            Write-TaskLog "GUI close request failed for process $($process.Id): $($_.Exception.Message)"
+        }
+    }
+
+    $deadline = (Get-Date).AddSeconds(8)
+    do {
+        Start-Sleep -Milliseconds 250
+        $remaining = @($matches | Where-Object {
+            try { !$_.HasExited } catch { $false }
+        })
+    } while ($remaining.Count -gt 0 -and (Get-Date) -lt $deadline)
+
+    foreach ($process in $remaining) {
+        try {
+            Write-TaskLog "Force stopping Arcane GUI process $($process.Id)"
+            Stop-Process -Id $process.Id -Force
+        }
+        catch {
+            Write-TaskLog "GUI force stop failed for process $($process.Id): $($_.Exception.Message)"
+            throw
+        }
+    }
+}
+
 function Publish-Arcane {
     $deploymentConfig = Get-DeploymentConfigPath -Root $SourceRoot
     $executableName = Get-ConfigValue -Path $deploymentConfig -Name "ExecutableName" -Default "ArcaneEDR.exe"
@@ -187,6 +249,8 @@ function Publish-Arcane {
     Copy-IfExists -Source (Join-Path $SourceRoot "config\arcaneedr-sysmon.xml") -Destination $config
     Copy-IfExists -Source (Join-Path $SourceRoot "config\custom-rules.json") -Destination $config
     Copy-IfExists -Source (Join-Path $SourceRoot "config\arcane-policy.example.json") -Destination $config
+    Copy-IfExists -Source (Join-Path $SourceRoot "config\arcane-policy.json") -Destination $config
+    Copy-DirectoryContentsIfExists -Source (Join-Path $SourceRoot "config\country-ip-blocks") -Destination (Join-Path $config "country-ip-blocks")
     Copy-IfExists -Source (Join-Path $SourceRoot "README.md") -Destination $PublishedRoot
     Copy-IfExists -Source (Join-Path $SourceRoot "ROADMAP.md") -Destination $PublishedRoot
     Copy-IfExists -Source (Join-Path $SourceRoot "LICENSE") -Destination $PublishedRoot
@@ -221,11 +285,13 @@ function Start-ArcaneServiceIfInstalled {
 
 function Invoke-PublishRestart {
     Stop-ArcaneServiceIfInstalled
+    Stop-ArcaneGuiIfRunning
     Publish-Arcane
     Start-ArcaneServiceIfInstalled
 }
 
 function Invoke-InstallService {
+    Stop-ArcaneGuiIfRunning
     Publish-Arcane
 
     $runtimeConfig = Get-RuntimeConfigPath -Root $PublishedRoot

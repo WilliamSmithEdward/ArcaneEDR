@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Wix
   xmlns="http://wixtoolset.org/schemas/v4/wxs"
-  xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
+  xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
   <Package
     Name="Arcane EDR"
     Manufacturer="Arcane EDR"
@@ -13,6 +14,13 @@
     <SummaryInformation Description="Arcane EDR Windows service and operator console" />
     <MediaTemplate EmbedCab="yes" />
     <MajorUpgrade DowngradeErrorMessage="A newer version of Arcane EDR is already installed." />
+    <util:CloseApplication
+      Id="CloseArcaneGui"
+      Target="ArcaneEDR.Gui.exe"
+      CloseMessage="yes"
+      RebootPrompt="no"
+      TerminateProcess="1"
+      Timeout="8" />
 
     <Property Id="ARPPRODUCTICON" Value="ArcaneIcon.ico" />
     <Icon Id="ArcaneIcon.ico" SourceFile="$(var.GuiStage)\Assets\AppIcon.ico" />
