@@ -157,7 +157,7 @@ counts with:
 - `src\Alerting`: handles alert cooldowns and provider-specific delivery sinks.
 - `src\Policy`: unified policy models and scoped policy evaluation.
 - `src\Presentation`: shared alert presentation models for email, reports, CLI, and future GUI surfaces.
-- `src\ArcaneEDR.Gui`: self-contained .NET 10 / WinUI 3 operator console for health, alerts, policy, reports, configuration, maintenance, and support workflows.
+- `src\ArcaneEDR.Gui`: self-contained .NET 10 / WinUI 3 operator console with a persistent tray icon for health, alerts, policy, reports, configuration, maintenance, and support workflows.
 - `src\Response`: optional firewall block and process termination actions.
 - `src\Runtime`: service polling, health, and integrity checks.
 - `src\Configuration`: loads allowlists, thresholds, alert settings, and rule options.

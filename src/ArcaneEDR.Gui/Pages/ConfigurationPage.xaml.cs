@@ -39,6 +39,17 @@ public sealed partial class ConfigurationPage : Page
         ArcaneScriptRunner.OpenPath(Path.GetDirectoryName(path) ?? path);
     }
 
+    private async void Help_Click(object sender, RoutedEventArgs e)
+    {
+        await GuiHelp.ShowAsync(
+            XamlRoot,
+            "Configuration help",
+            "Guided settings cover the choices most operators need: alerting, enrichment, AI review, baseline tuning, response mode, and paths.\n\n" +
+            "Advanced Keys edits the same config files directly. Use it when a setting is not surfaced in Guided yet.\n\n" +
+            "Policy JSON controls narrow allow, suppress, raise, force, and tag decisions while preserving local evidence.\n\n" +
+            "Saves create backups and run validation. Do not paste provider secrets into config; use environment variable names.");
+    }
+
     private void OpenPolicy_Click(object sender, RoutedEventArgs e)
     {
         ArcaneScriptRunner.OpenPath(ArcanePaths.Discover().PolicyFile);
@@ -47,6 +58,19 @@ public sealed partial class ConfigurationPage : Page
     private async void SaveGuided_Click(object sender, RoutedEventArgs e)
     {
         if (config == null) return;
+
+        if (GuidedSettingsEnableResponseRisk() &&
+            !await GuiHelp.ConfirmRiskAsync(
+                XamlRoot,
+                "Enable response-capable settings?",
+                "These settings can allow Arcane to block remote IPs, terminate processes, or evaluate those actions depending on the selected response mode.\n\n" +
+                "Expected safe baseline: ResponseMode=AlertOnly with firewall and process termination response switches off.\n\n" +
+                "Continue only if you intentionally want response-capable behavior and understand the rollback path in Maintenance.",
+                "Save response settings"))
+        {
+            ValidationText.Text = "Save canceled. Response-capable settings were not written.";
+            return;
+        }
 
         ApplyGuidedToConfig(config);
         ValidationText.Text = config.Save();
@@ -197,6 +221,14 @@ public sealed partial class ConfigurationPage : Page
         bundle.SetEntry("Runtime", "PolicyFile", PolicyFileBox.Text.Trim());
         bundle.SetEntry("Deployment", "DestinationRoot", DestinationRootBox.Text.Trim());
         bundle.SetEntry("Deployment", "ExecutableName", ExecutableNameBox.Text.Trim());
+    }
+
+    private bool GuidedSettingsEnableResponseRisk()
+    {
+        string responseMode = ComboText(ResponseModeBox, "AlertOnly");
+        return !responseMode.Equals("AlertOnly", StringComparison.OrdinalIgnoreCase) ||
+            FirewallResponseSwitch.IsOn ||
+            ProcessTerminationSwitch.IsOn;
     }
 
     private void PopulateConfigCategories()

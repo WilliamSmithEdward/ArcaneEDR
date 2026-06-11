@@ -19,22 +19,42 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel>
                 <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Configuration" />
                 <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Edit runtime, deployment, and policy settings with validation" />
             </StackPanel>
-            <Button Grid.Column="1" Click="Validate_Click" ToolTipService.ToolTip="Validate configuration">
+            <Button
+                Grid.Column="1"
+                AutomationProperties.Name="Validate configuration"
+                Click="Validate_Click"
+                ToolTipService.ToolTip="Validate configuration">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <FontIcon FontSize="16" Glyph="&#xE73E;" />
                     <TextBlock Text="Validate" />
                 </StackPanel>
             </Button>
-            <Button Grid.Column="2" Click="OpenConfig_Click" ToolTipService.ToolTip="Open runtime config">
+            <Button
+                Grid.Column="2"
+                AutomationProperties.Name="Open runtime config"
+                Click="OpenConfig_Click"
+                ToolTipService.ToolTip="Open runtime config">
                 <FontIcon FontSize="16" Glyph="&#xE8A5;" />
             </Button>
-            <Button Grid.Column="3" Click="OpenFolder_Click" ToolTipService.ToolTip="Open config folder">
+            <Button
+                Grid.Column="3"
+                AutomationProperties.Name="Open config folder"
+                Click="OpenFolder_Click"
+                ToolTipService.ToolTip="Open config folder">
                 <FontIcon FontSize="16" Glyph="&#xE838;" />
+            </Button>
+            <Button
+                Grid.Column="4"
+                AutomationProperties.Name="Configuration help"
+                Click="Help_Click"
+                ToolTipService.ToolTip="Explain configuration guardrails">
+                <FontIcon FontSize="16" Glyph="&#xE897;" />
             </Button>
         </Grid>
 
@@ -62,6 +82,11 @@
                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel Spacing="10">
                                     <TextBlock FontWeight="SemiBold" Text="Operating mode" />
+                                    <InfoBar
+                                        IsOpen="True"
+                                        Severity="Warning"
+                                        Title="Active response can disrupt the workstation"
+                                        Message="Keep AlertOnly unless you intentionally want Arcane to block remote IPs or terminate processes. Saves that enable response require confirmation." />
                                     <ComboBox x:Name="ResponseModeBox" Header="Response mode">
                                         <ComboBoxItem Content="AlertOnly" />
                                         <ComboBoxItem Content="DryRunBlockRemoteIp" />
@@ -137,7 +162,11 @@
                             </Border>
                         </Grid>
 
-                        <Button Click="SaveGuided_Click" HorizontalAlignment="Left">
+                        <Button
+                            HorizontalAlignment="Left"
+                            AutomationProperties.Name="Save guided settings"
+                            Click="SaveGuided_Click"
+                            ToolTipService.ToolTip="Save guided configuration and run validation">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <FontIcon FontSize="16" Glyph="&#xE74E;" />
                                 <TextBlock Text="Save Guided Settings" />
@@ -195,7 +224,12 @@
                         </ListView.ItemTemplate>
                     </ListView>
 
-                    <Button Grid.Row="2" Click="SaveAdvanced_Click" HorizontalAlignment="Left">
+                    <Button
+                        Grid.Row="2"
+                        HorizontalAlignment="Left"
+                        AutomationProperties.Name="Save advanced keys"
+                        Click="SaveAdvanced_Click"
+                        ToolTipService.ToolTip="Save advanced configuration keys and run validation">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon FontSize="16" Glyph="&#xE74E;" />
                             <TextBlock Text="Save Advanced Keys" />
@@ -217,19 +251,30 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <Button Click="FormatPolicy_Click">
+                        <Button
+                            AutomationProperties.Name="Format policy JSON"
+                            Click="FormatPolicy_Click"
+                            ToolTipService.ToolTip="Format policy JSON without saving">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <FontIcon FontSize="16" Glyph="&#xE70F;" />
                                 <TextBlock Text="Format" />
                             </StackPanel>
                         </Button>
-                        <Button Grid.Column="1" Click="SavePolicy_Click">
+                        <Button
+                            Grid.Column="1"
+                            AutomationProperties.Name="Save policy JSON"
+                            Click="SavePolicy_Click"
+                            ToolTipService.ToolTip="Save formatted policy JSON and run validation">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <FontIcon FontSize="16" Glyph="&#xE74E;" />
                                 <TextBlock Text="Save Policy" />
                             </StackPanel>
                         </Button>
-                        <Button Grid.Column="2" Click="OpenPolicy_Click" ToolTipService.ToolTip="Open policy file">
+                        <Button
+                            Grid.Column="2"
+                            AutomationProperties.Name="Open policy file"
+                            Click="OpenPolicy_Click"
+                            ToolTipService.ToolTip="Open policy file">
                             <FontIcon FontSize="16" Glyph="&#xE8A5;" />
                         </Button>
                     </Grid>
@@ -272,7 +317,11 @@
                                 Title="Reset replaces operator-owned local settings"
                                 Message="Use this only when you intentionally want defaults to replace local recipients, provider choices, thresholds, allowlists, policy tuning, baseline choices, and machine-specific paths." />
                             <CheckBox x:Name="ResetConfirmBox" Content="I understand this will back up then replace local runtime and deployment config with defaults." />
-                            <Button Click="ResetConfig_Click" HorizontalAlignment="Left">
+                            <Button
+                                HorizontalAlignment="Left"
+                                AutomationProperties.Name="Reset to defaults"
+                                Click="ResetConfig_Click"
+                                ToolTipService.ToolTip="Back up and replace local config with defaults">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon FontSize="16" Glyph="&#xE777;" />
                                     <TextBlock Text="Reset to Defaults" />

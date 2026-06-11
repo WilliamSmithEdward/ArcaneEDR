@@ -22,6 +22,17 @@ public sealed partial class HomePage : Page
         await RefreshAsync();
     }
 
+    private async void Help_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+    {
+        await GuiHelp.ShowAsync(
+            XamlRoot,
+            "Overview help",
+            "Overview is the first review screen.\n\n" +
+            "Review priorities call out service state, validation failures, critical alerts, high-score alerts, and repeated suppressed patterns from the last 24 hours.\n\n" +
+            "Configuration blockers shows only validation failures and warnings so you can fix setup issues before interpreting telemetry gaps.\n\n" +
+            "Use Refresh after service restarts, MSI installs, or local config edits.");
+    }
+
     private async System.Threading.Tasks.Task RefreshAsync()
     {
         ArcaneHealthSnapshot health = ArcaneStateReader.ReadHealth();

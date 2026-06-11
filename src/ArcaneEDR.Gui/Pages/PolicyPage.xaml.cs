@@ -35,6 +35,16 @@ public sealed partial class PolicyPage : Page
         ArcaneScriptRunner.OpenPath(ArcanePaths.Discover().PolicyFile);
     }
 
+    private async void Help_Click(object sender, RoutedEventArgs e)
+    {
+        await GuiHelp.ShowAsync(
+            XamlRoot,
+            "Policy help",
+            "Policy rules are the safest place for narrow local tuning because they can lower, suppress externally, raise, force, or tag specific patterns without deleting local alert evidence.\n\n" +
+            "Inspect validates the policy file shape. Preview tests a sample match so you can check deterministic behavior before relying on a rule.\n\n" +
+            "Use suppress_external for repeated benign notifications when you still want local logs, daily report context, and support bundle evidence.");
+    }
+
     private async System.Threading.Tasks.Task InspectAsync()
     {
         ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--policy-inspect");

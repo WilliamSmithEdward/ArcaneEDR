@@ -33,6 +33,17 @@ public sealed partial class AlertsPage : Page
         ArcaneScriptRunner.OpenPath(ArcanePaths.Discover().LogDirectory);
     }
 
+    private async void Help_Click(object sender, RoutedEventArgs e)
+    {
+        await GuiHelp.ShowAsync(
+            XamlRoot,
+            "Alerts help",
+            "The Alerts table is local evidence first: filtering or grouping changes what you see in the GUI, not what Arcane preserves in JSONL.\n\n" +
+            "Use External threshold to focus on entries that would normally qualify for external notification under the current MinimumEmailScore.\n\n" +
+            "Country and company values come from enrichment. Missing company data is not proof of compromise; pair it with process, rule, score, country, and policy context.\n\n" +
+            "Raw JSONL is available for exact evidence when you need to copy or inspect the underlying record.");
+    }
+
     private void Filter_Changed(object sender, RoutedEventArgs e)
     {
         if (!loaded) return;

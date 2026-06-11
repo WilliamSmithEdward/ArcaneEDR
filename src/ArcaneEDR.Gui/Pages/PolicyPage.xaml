@@ -12,28 +12,48 @@
             <Grid ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
                 <StackPanel>
                     <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Policy" />
                     <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Unified scoped policy" />
                 </StackPanel>
-                <Button Grid.Column="1" Click="Inspect_Click" ToolTipService.ToolTip="Inspect policy">
+                <Button
+                    Grid.Column="1"
+                    AutomationProperties.Name="Inspect policy"
+                    Click="Inspect_Click"
+                    ToolTipService.ToolTip="Inspect policy">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE721;" />
                         <TextBlock Text="Inspect" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="2" Click="Preview_Click" ToolTipService.ToolTip="Preview sample policy match">
+                <Button
+                    Grid.Column="2"
+                    AutomationProperties.Name="Preview sample policy match"
+                    Click="Preview_Click"
+                    ToolTipService.ToolTip="Preview sample policy match">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE8A5;" />
                         <TextBlock Text="Preview" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="3" Click="OpenPolicy_Click" ToolTipService.ToolTip="Open policy file">
+                <Button
+                    Grid.Column="3"
+                    AutomationProperties.Name="Open policy file"
+                    Click="OpenPolicy_Click"
+                    ToolTipService.ToolTip="Open policy file">
                     <FontIcon FontSize="16" Glyph="&#xE8A5;" />
+                </Button>
+                <Button
+                    Grid.Column="4"
+                    AutomationProperties.Name="Policy help"
+                    Click="Help_Click"
+                    ToolTipService.ToolTip="Explain policy safety model">
+                    <FontIcon FontSize="16" Glyph="&#xE897;" />
                 </Button>
             </Grid>
 

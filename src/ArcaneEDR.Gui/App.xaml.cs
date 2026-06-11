@@ -15,7 +15,8 @@ namespace ArcaneEDR_Gui;
 /// </summary>
 public partial class App : Application
 {
-    private Window? _window;
+    private MainWindow? _window;
+    private TrayIconController? _trayIcon;
     
     /// <summary>
     /// Initializes the singleton application object.  This is the first line of authored code
@@ -33,6 +34,7 @@ public partial class App : Application
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
         _window = new MainWindow();
+        _trayIcon = new TrayIconController(_window);
         _window.Activate();
     }
 }

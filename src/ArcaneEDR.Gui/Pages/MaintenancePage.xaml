@@ -12,28 +12,48 @@
             <Grid ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
                 <StackPanel>
                     <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Maintenance" />
                     <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Service upkeep, maintenance context, and response review" />
                 </StackPanel>
-                <Button Grid.Column="1" Click="StartMaintenance_Click" ToolTipService.ToolTip="Start maintenance marker">
+                <Button
+                    Grid.Column="1"
+                    AutomationProperties.Name="Start maintenance marker"
+                    Click="StartMaintenance_Click"
+                    ToolTipService.ToolTip="Start a 30 minute maintenance marker">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE768;" />
                         <TextBlock Text="Start" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="2" Click="ClearMaintenance_Click" ToolTipService.ToolTip="Clear maintenance marker">
+                <Button
+                    Grid.Column="2"
+                    AutomationProperties.Name="Clear maintenance marker"
+                    Click="ClearMaintenance_Click"
+                    ToolTipService.ToolTip="Clear the active maintenance marker">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE711;" />
                         <TextBlock Text="Clear" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="3" Click="ListMaintenance_Click" ToolTipService.ToolTip="List maintenance markers">
+                <Button
+                    Grid.Column="3"
+                    AutomationProperties.Name="List maintenance markers"
+                    Click="ListMaintenance_Click"
+                    ToolTipService.ToolTip="List maintenance markers">
                     <FontIcon FontSize="16" Glyph="&#xE8A5;" />
+                </Button>
+                <Button
+                    Grid.Column="4"
+                    AutomationProperties.Name="Maintenance help"
+                    Click="Help_Click"
+                    ToolTipService.ToolTip="Explain maintenance and system-changing actions">
+                    <FontIcon FontSize="16" Glyph="&#xE897;" />
                 </Button>
             </Grid>
 
@@ -51,91 +71,91 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <Button Click="ValidateAdmin_Click">
+                <Button Click="ValidateAdmin_Click" ToolTipService.ToolTip="Run the elevated admin validation task">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE73E;" />
                         <TextBlock Text="Validate Admin" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="1" Click="InstallService_Click">
+                <Button Grid.Column="1" Click="InstallService_Click" ToolTipService.ToolTip="Install or repair the Arcane EDR Windows service">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE896;" />
                         <TextBlock Text="Install Service" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="2" Click="InstallSysmon_Click">
+                <Button Grid.Column="2" Click="InstallSysmon_Click" ToolTipService.ToolTip="Install or configure Sysmon telemetry">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE950;" />
                         <TextBlock Text="Install Sysmon" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="3" Click="PublishRestart_Click">
+                <Button Grid.Column="3" Click="PublishRestart_Click" ToolTipService.ToolTip="Publish the current build and restart the service">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE777;" />
                         <TextBlock Text="Publish Restart" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="4" Click="UninstallService_Click">
+                <Button Grid.Column="4" Click="UninstallService_Click" ToolTipService.ToolTip="Stop and remove the Arcane EDR service">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE74D;" />
                         <TextBlock Text="Uninstall Service" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Row="1" Click="PollOnce_Click">
+                <Button Grid.Row="1" Click="PollOnce_Click" ToolTipService.ToolTip="Run one detection poll without waiting for the service loop">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE895;" />
                         <TextBlock Text="Poll Once" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Row="1" Grid.Column="1" Click="TestHealth_Click">
+                <Button Grid.Row="1" Grid.Column="1" Click="TestHealth_Click" ToolTipService.ToolTip="Send or log a health test notification">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE9D9;" />
                         <TextBlock Text="Test Health" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Row="1" Grid.Column="2" Click="TestAlert_Click">
+                <Button Grid.Row="1" Grid.Column="2" Click="TestAlert_Click" ToolTipService.ToolTip="Send or log a test alert through the configured path">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xEA8F;" />
                         <TextBlock Text="Test Alert" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Row="1" Grid.Column="3" Click="PreviewAi_Click">
+                <Button Grid.Row="1" Grid.Column="3" Click="PreviewAi_Click" ToolTipService.ToolTip="Preview the redacted AI payload without calling the provider">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE8A5;" />
                         <TextBlock Text="AI Payload" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Row="1" Grid.Column="4" Click="TestAi_Click">
+                <Button Grid.Row="1" Grid.Column="4" Click="TestAi_Click" ToolTipService.ToolTip="Call the configured AI provider with a compact test payload">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE946;" />
                         <TextBlock Text="Test AI" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Row="2" Click="ResponseFirewall_Click">
+                <Button Grid.Row="2" Click="ResponseFirewall_Click" ToolTipService.ToolTip="List Arcane-managed firewall response ledger entries">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE9D9;" />
                         <TextBlock Text="Firewall Ledger" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Row="2" Grid.Column="1" Click="ClearFirewall_Click">
+                <Button Grid.Row="2" Grid.Column="1" Click="ClearFirewall_Click" ToolTipService.ToolTip="Remove all Arcane-managed firewall response rules">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE711;" />
                         <TextBlock Text="Clear Firewall" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Row="2" Grid.Column="2" Click="AgentActivity_Click">
+                <Button Grid.Row="2" Grid.Column="2" Click="AgentActivity_Click" ToolTipService.ToolTip="Show recent agent-context activity">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE8D4;" />
                         <TextBlock Text="Agent Activity" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Row="2" Grid.Column="3" Click="Incidents_Click">
+                <Button Grid.Row="2" Grid.Column="3" Click="Incidents_Click" ToolTipService.ToolTip="Show recent incident grouping">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE7BA;" />
                         <TextBlock Text="Incidents" />
                     </StackPanel>
                 </Button>
-                <Button Grid.Row="2" Grid.Column="4" Click="SupportBundle_Click">
+                <Button Grid.Row="2" Grid.Column="4" Click="SupportBundle_Click" ToolTipService.ToolTip="Create a redacted support bundle">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE7C3;" />
                         <TextBlock Text="Support Bundle" />

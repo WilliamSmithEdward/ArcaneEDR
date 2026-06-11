@@ -134,6 +134,9 @@ before replacing local runtime and deployment config files with defaults.
 The GUI runs as a standard-user app and uses Arcane's CLI/state files for
 operator workflows:
 
+- Tray icon: left-click opens/focuses the console; right-click opens Overview,
+  Alerts, Reports, Configuration, Maintenance, validation, logs/config folders,
+  service restart with UAC, and explicit tray exit
 - Overview: service health, validation blockers, signal picture, and targeted
   review priorities
 - Alerts: filterable/sortable table, alert volume, and raw local JSONL evidence
