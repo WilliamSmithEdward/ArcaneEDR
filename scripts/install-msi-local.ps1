@@ -144,6 +144,71 @@ function Quote-MsiArgument {
     return '"' + $Value.Replace('"', '\"') + '"'
 }
 
+function New-OperatorStateBackup {
+    param(
+        [string]$InstallFolder,
+        [string]$BackupRoot
+    )
+
+    New-Item -ItemType Directory -Force -Path $BackupRoot | Out-Null
+
+    $stateNames = @(
+        "config",
+        "logs",
+        "reports",
+        "incidents",
+        "support-bundles"
+    )
+
+    foreach ($name in $stateNames) {
+        $source = Join-Path $InstallFolder $name
+        if (Test-Path -LiteralPath $source) {
+            Copy-Item -LiteralPath $source -Destination (Join-Path $BackupRoot $name) -Recurse -Force
+        }
+    }
+
+    return $BackupRoot
+}
+
+function Restore-OperatorState {
+    param(
+        [string]$BackupRoot,
+        [string]$InstallFolder
+    )
+
+    if (!(Test-Path -LiteralPath $BackupRoot)) { return }
+
+    $configBackup = Join-Path $BackupRoot "config"
+    $configDestination = Join-Path $InstallFolder "config"
+    $exampleConfigNames = @(
+        "ArcaneEDR.example.config",
+        "Deployment.example.config",
+        "arcane-policy.example.json",
+        "policy-rules.example.json",
+        "remote-endpoint-policy.example.json"
+    )
+
+    if (Test-Path -LiteralPath $configBackup) {
+        New-Item -ItemType Directory -Force -Path $configDestination | Out-Null
+        foreach ($item in Get-ChildItem -LiteralPath $configBackup -Force) {
+            if (!$item.PSIsContainer -and $exampleConfigNames -contains $item.Name) {
+                continue
+            }
+
+            Copy-Item -LiteralPath $item.FullName -Destination $configDestination -Recurse -Force
+        }
+    }
+
+    foreach ($name in @("logs", "reports", "incidents", "support-bundles")) {
+        $source = Join-Path $BackupRoot $name
+        if (Test-Path -LiteralPath $source) {
+            $destination = Join-Path $InstallFolder $name
+            New-Item -ItemType Directory -Force -Path $destination | Out-Null
+            Get-ChildItem -LiteralPath $source -Force | Copy-Item -Destination $destination -Recurse -Force
+        }
+    }
+}
+
 $root = Split-Path -Parent $PSScriptRoot
 $deploymentConfig = Resolve-ConfigPath `
     -Primary (Join-Path $root "config\Deployment.config") `
@@ -177,14 +242,16 @@ if (!$(Test-IsAdministrator)) {
 
 $resolvedMsi = Resolve-MsiPath -Root $root -RequestedPath $MsiPath
 
+$stamp = Get-Date -Format "yyyyMMddHHmmss"
 if ([string]::IsNullOrWhiteSpace($LogPath)) {
     $logRoot = "C:\Security\AdminTasks"
     New-Item -ItemType Directory -Force -Path $logRoot | Out-Null
-    $stamp = Get-Date -Format "yyyyMMddHHmmss"
     $LogPath = Join-Path $logRoot ("ArcaneEDR-msi-install-" + $stamp + ".log")
 }
 
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $LogPath) | Out-Null
+$stateBackupRoot = Join-Path (Split-Path -Parent $LogPath) ("ArcaneEDR-state-backup-" + $stamp)
+$stateBackupRoot = New-OperatorStateBackup -InstallFolder $InstallFolder -BackupRoot $stateBackupRoot
 
 $existingService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 if ($existingService -and !(Test-MsiProductRegistered)) {
@@ -209,6 +276,7 @@ $arguments = @(
 Write-Host "Installing MSI: $resolvedMsi"
 Write-Host "Install folder: $InstallFolder"
 Write-Host "MSI log: $LogPath"
+Write-Host "Operator state backup: $stateBackupRoot"
 
 $process = Start-Process -FilePath "msiexec.exe" -ArgumentList $arguments -Wait -PassThru
 if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) {
@@ -219,6 +287,15 @@ $exe = Join-Path $InstallFolder "bin\ArcaneEDR.exe"
 if (!(Test-Path -LiteralPath $exe)) {
     throw "MSI completed but service executable was not found: $exe"
 }
+
+$installedService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($installedService -and $installedService.Status -ne "Stopped") {
+    Write-Host "Stopping service $ServiceName before restoring operator config"
+    Stop-Service -Name $ServiceName -Force
+    $installedService.WaitForStatus("Stopped", "00:00:30")
+}
+
+Restore-OperatorState -BackupRoot $stateBackupRoot -InstallFolder $InstallFolder
 
 Write-Host ""
 & $exe --version
@@ -233,6 +310,12 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $svc = Get-Service -Name $ServiceName -ErrorAction Stop
+if ($svc.Status -eq "Stopped") {
+    Start-Service -Name $ServiceName
+    $svc.WaitForStatus("Running", "00:00:30")
+    $svc = Get-Service -Name $ServiceName -ErrorAction Stop
+}
+
 Write-Host ""
 Write-Host "Service $ServiceName status: $($svc.Status)"
 if ($process.ExitCode -eq 3010) {

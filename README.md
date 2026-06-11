@@ -211,9 +211,10 @@ elevated PowerShell session:
 ```
 
 The migration helper installs to the folder from `config\Deployment.config`,
-preserves local config and evidence, removes only the legacy service
-registration, and then lets MSI own future service repair, upgrade, and
-uninstall behavior.
+backs up operator state under `C:\Security\AdminTasks`, restores existing
+non-example config and local evidence after MSI lays down product files,
+removes only the legacy service registration, and then lets MSI own future
+service repair, upgrade, and uninstall behavior.
 
 For source development or break-glass repair, publish to the destination
 configured in local `config\Deployment.config`, or the example deployment

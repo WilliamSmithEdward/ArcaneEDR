@@ -95,14 +95,17 @@ The script:
 - resolves the MSI from `artifacts`
 - installs into the folder from `config\Deployment.config`, normally
   `C:\Applications\ArcaneEDR` for local operator deployments
-- preserves local config, JSONL evidence, reports, incidents, and support
-  bundles
+- creates a timestamped operator-state backup under `C:\Security\AdminTasks`
+- restores existing non-example config files and local state folders after MSI
+  product files are installed
+- preserves local JSONL evidence, reports, incidents, and support bundles
 - stops and deletes only the legacy Windows service registration when
   `-MigrateLegacyService` is supplied
 - lets MSI own the service, GUI, Start menu shortcut, repair, upgrade, and
   uninstall path after migration
 - writes a verbose MSI log under `C:\Security\AdminTasks`
 - runs `--version` and `--validate-config` after install
+- starts the service after validation
 
 ## Script-Based Deployment
 
