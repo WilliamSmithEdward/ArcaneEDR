@@ -25,9 +25,9 @@ Artifacts are written to `artifacts`:
 
 ## Admin Task Refresh
 
-If you are upgrading an existing local deployment from a pre-GUI build, refresh
-the elevated admin bridge once from an elevated PowerShell session before using
-`PublishRestart`:
+If you intentionally keep using script-based source deployment, refresh the
+elevated admin bridge once from an elevated PowerShell session before using
+`PublishRestart` on a GUI-era checkout:
 
 ```powershell
 .\scripts\install-admin-tasks.cmd
@@ -59,7 +59,7 @@ product files, and future installer checks on one coherent track.
 Run the MSI from an elevated installer prompt or by approving UAC:
 
 ```powershell
-msiexec.exe /i .\artifacts\ArcaneEDR-0.8.2.msi /l*v .\artifacts\ArcaneEDR-0.8.2-install.log
+msiexec.exe /i .\artifacts\ArcaneEDR-<version>.msi /l*v .\artifacts\ArcaneEDR-<version>-install.log
 ```
 
 The MSI installs:
@@ -72,6 +72,37 @@ The MSI installs:
 
 The MSI starts the `ArcaneEDR` service during install and stops/removes it
 during uninstall.
+
+## Legacy Local Migration
+
+Older local deployments may have a script-installed service under
+`C:\Applications\ArcaneEDR` without Windows Installer product state. Do not run
+the stale `PublishRestart` task against a GUI-era checkout unless the protected
+admin runner has been refreshed; old runners compile every `src\*.cs` file and
+will trip over the WinUI project.
+
+For this migration, use the dedicated MSI-local installer from an elevated
+PowerShell session:
+
+```powershell
+.\scripts\build-msi.cmd
+.\scripts\install-msi-local.cmd -MigrateLegacyService
+```
+
+The script:
+
+- requires an elevated PowerShell session
+- resolves the MSI from `artifacts`
+- installs into the folder from `config\Deployment.config`, normally
+  `C:\Applications\ArcaneEDR` for local operator deployments
+- preserves local config, JSONL evidence, reports, incidents, and support
+  bundles
+- stops and deletes only the legacy Windows service registration when
+  `-MigrateLegacyService` is supplied
+- lets MSI own the service, GUI, Start menu shortcut, repair, upgrade, and
+  uninstall path after migration
+- writes a verbose MSI log under `C:\Security\AdminTasks`
+- runs `--version` and `--validate-config` after install
 
 ## Script-Based Deployment
 

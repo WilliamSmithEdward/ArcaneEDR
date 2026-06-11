@@ -202,6 +202,19 @@ Build the WiX MSI installer:
 For operator installs and upgrades, prefer the MSI so the service, GUI, Start
 menu shortcut, installer state, and uninstall path stay aligned.
 
+For an older script-installed local service, migrate to MSI ownership from an
+elevated PowerShell session:
+
+```powershell
+.\scripts\build-msi.cmd
+.\scripts\install-msi-local.cmd -MigrateLegacyService
+```
+
+The migration helper installs to the folder from `config\Deployment.config`,
+preserves local config and evidence, removes only the legacy service
+registration, and then lets MSI own future service repair, upgrade, and
+uninstall behavior.
+
 For source development or break-glass repair, publish to the destination
 configured in local `config\Deployment.config`, or the example deployment
 config when no local config exists:
@@ -239,6 +252,10 @@ warning checkbox and backup-before-reset behavior.
 
 ## Install As A Windows Service
 
+MSI is the preferred operator path for installing and upgrading the service.
+Use the direct service scripts only for source development, diagnostics, or
+break-glass repair.
+
 Run PowerShell as Administrator from the published application folder:
 
 ```powershell
@@ -267,8 +284,10 @@ If you do not want to run the Codex desktop app as Administrator, you can create
 on-demand scheduled tasks for specific elevated maintenance operations. This is
 more constrained than giving a tool a general admin shell.
 
-This is the preferred elevation strategy for Arcane EDR maintenance from Codex.
-See `docs\elevation-strategy.md` for the operating model.
+This is the preferred elevation strategy for source-driven Arcane EDR
+maintenance from Codex. Once a machine is MSI-owned, prefer MSI repair/upgrade
+for normal operator changes and keep admin tasks for diagnostics or
+break-glass repair. See `docs\elevation-strategy.md` for the operating model.
 
 Run once from an elevated PowerShell session in the source repo:
 
