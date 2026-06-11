@@ -53,7 +53,7 @@ namespace ArcaneEDR
                             DateTime recordTimestampUtc = record.TimeCreated.HasValue ? record.TimeCreated.Value.ToUniversalTime() : DateTime.MinValue;
                             if (recordId > 0 && recordId <= last)
                             {
-                                if (IsLikelyLogReset(logName, recordId, recordTimestampUtc))
+                                if (EventLogRecordState.IsLikelyReset(recordId, recordTimestampUtc, last, GetLastRecordTimestampUtc(logName)))
                                 {
                                     lastRecordIds[logName] = 0;
                                     lastRecordTimestampUtc[logName] = DateTime.MinValue;
@@ -134,18 +134,6 @@ namespace ArcaneEDR
             lastRecordTimestampUtc[logName] = watermark == null ? DateTime.MinValue : watermark.TimestampUtc;
         }
 
-        private bool IsLikelyLogReset(string logName, long recordId, DateTime recordTimestampUtc)
-        {
-            long last = GetLastRecordId(logName);
-            DateTime lastTimestampUtc = GetLastRecordTimestampUtc(logName);
-            return last > 0 &&
-                recordId > 0 &&
-                recordId <= last &&
-                lastTimestampUtc != DateTime.MinValue &&
-                recordTimestampUtc != DateTime.MinValue &&
-                recordTimestampUtc > lastTimestampUtc.AddMinutes(1.0);
-        }
-
         private static WindowsAuditEvent ParseRecord(string logName, EventRecord record)
         {
             Dictionary<string, string> data = EventRecordDataReader.ReadEventData(record);
@@ -154,28 +142,17 @@ namespace ArcaneEDR
             ev.LogName = logName;
             ev.EventId = record.Id;
             ev.TimestampUtc = record.TimeCreated.HasValue ? record.TimeCreated.Value.ToUniversalTime() : DateTime.UtcNow;
-            ev.SubjectUser = CombineDomainUser(GetFirst(data, "SubjectDomainName"), GetFirst(data, "SubjectUserName"));
-            ev.TargetUser = CombineDomainUser(GetFirst(data, "TargetDomainName"), GetFirst(data, "TargetUserName", "AccountName"));
-            ev.IpAddress = GetFirst(data, "IpAddress", "ClientAddress", "WorkstationName");
-            ev.LogonType = GetFirst(data, "LogonType");
-            ev.ProcessName = GetFirst(data, "ProcessName", "NewProcessName", "Application");
-            ev.ParentProcessName = GetFirst(data, "ParentProcessName", "CreatorProcessName", "ParentImage");
-            ev.ServiceName = GetFirst(data, "ServiceName", "ServiceFileName");
-            ev.TaskName = GetFirst(data, "TaskName");
-            ev.CommandLine = GetFirst(data, "CommandLine", "ProcessCommandLine", "ServiceFileName", "ImagePath", "TaskContentNew", "TaskContent", "ActionName");
+            ev.SubjectUser = CombineDomainUser(EventRecordDataReader.GetFirst(data, "SubjectDomainName"), EventRecordDataReader.GetFirst(data, "SubjectUserName"));
+            ev.TargetUser = CombineDomainUser(EventRecordDataReader.GetFirst(data, "TargetDomainName"), EventRecordDataReader.GetFirst(data, "TargetUserName", "AccountName"));
+            ev.IpAddress = EventRecordDataReader.GetFirst(data, "IpAddress", "ClientAddress", "WorkstationName");
+            ev.LogonType = EventRecordDataReader.GetFirst(data, "LogonType");
+            ev.ProcessName = EventRecordDataReader.GetFirst(data, "ProcessName", "NewProcessName", "Application");
+            ev.ParentProcessName = EventRecordDataReader.GetFirst(data, "ParentProcessName", "CreatorProcessName", "ParentImage");
+            ev.ServiceName = EventRecordDataReader.GetFirst(data, "ServiceName", "ServiceFileName");
+            ev.TaskName = EventRecordDataReader.GetFirst(data, "TaskName");
+            ev.CommandLine = EventRecordDataReader.GetFirst(data, "CommandLine", "ProcessCommandLine", "ServiceFileName", "ImagePath", "TaskContentNew", "TaskContent", "ActionName");
             ev.Message = EventRecordDataReader.FormatDescription(record);
             return ev;
-        }
-
-        private static string GetFirst(Dictionary<string, string> data, params string[] keys)
-        {
-            foreach (string key in keys)
-            {
-                string value = EventRecordDataReader.Get(data, key);
-                if (!String.IsNullOrWhiteSpace(value)) return value;
-            }
-
-            return "";
         }
 
         private static string CombineDomainUser(string domain, string user)

@@ -662,19 +662,19 @@ namespace ArcaneEDR
                 alert.SetScore(boostedScore);
             }
 
-            string policyContext = "remote_endpoint_policy=" + SafePolicyToken(remotePolicy.RuleId) + ":" + SafePolicyToken(remotePolicy.Action);
+            string policyContext = "remote_endpoint_policy=" + TextFormatting.PolicyTokenOrUnknown(remotePolicy.RuleId) + ":" + TextFormatting.PolicyTokenOrUnknown(remotePolicy.Action);
             alert.AddPolicyContext(policyContext);
-            alert.AddWhy("Observed remote endpoint policy added review weight: " + Compact(remotePolicy.Reason, 140) + ".");
+            alert.AddWhy("Observed remote endpoint policy added review weight: " + AlertAnnotationText.CompactOrNotSpecified(remotePolicy.Reason, 140) + ".");
         }
 
         private static void ApplyTrustedRemotePolicyContext(Alert alert, RemoteEndpointPolicyDecision remotePolicy)
         {
             if (alert == null || remotePolicy == null || !remotePolicy.IsTrust || !remotePolicy.Matched) return;
 
-            string policyContext = "remote_endpoint_policy=" + SafePolicyToken(remotePolicy.RuleId) + ":" + SafePolicyToken(remotePolicy.Action);
+            string policyContext = "remote_endpoint_policy=" + TextFormatting.PolicyTokenOrUnknown(remotePolicy.RuleId) + ":" + TextFormatting.PolicyTokenOrUnknown(remotePolicy.Action);
             alert.AddPolicyContext(policyContext);
-            alert.EntitySummary = AppendEntity(alert.EntitySummary, "policy=" + policyContext);
-            alert.AddWhy("Trusted remote endpoint policy lowered only this clean network-shape alert: " + Compact(remotePolicy.Reason, 140) + ".");
+            alert.EntitySummary = AlertAnnotationText.AppendEntity(alert.EntitySummary, "policy=" + policyContext);
+            alert.AddWhy("Trusted remote endpoint policy lowered only this clean network-shape alert: " + AlertAnnotationText.CompactOrNotSpecified(remotePolicy.Reason, 140) + ".");
         }
 
         private void AnalyzeBeaconing(NetworkEndpoint endpoint, DateTime timestampUtc, RemoteEndpointPolicyDecision remotePolicy, List<Alert> alerts)
@@ -799,10 +799,10 @@ namespace ArcaneEDR
                 ? AlertRuleTaxonomy.RuleNetworkRemotePolicyBlocked
                 : AlertRuleTaxonomy.RuleNetworkRemotePolicyCritical;
             string action = decision.Action ?? "";
-            string policyContext = "remote_endpoint_policy=" + SafePolicyToken(decision.RuleId) + ":" + SafePolicyToken(action);
-            string body = "Ordered remote endpoint policy matched id=" + SafePolicyToken(decision.RuleId) +
-                " action=" + SafePolicyToken(action) +
-                " reason=" + Compact(decision.Reason, 180) + ". " +
+            string policyContext = "remote_endpoint_policy=" + TextFormatting.PolicyTokenOrUnknown(decision.RuleId) + ":" + TextFormatting.PolicyTokenOrUnknown(action);
+            string body = "Ordered remote endpoint policy matched id=" + TextFormatting.PolicyTokenOrUnknown(decision.RuleId) +
+                " action=" + TextFormatting.PolicyTokenOrUnknown(action) +
+                " reason=" + AlertAnnotationText.CompactOrNotSpecified(decision.Reason, 180) + ". " +
                 RemoteContextSentence(endpoint);
             string recommendation = decision.IsBlock
                 ? "Review the process, parent, command line, and destination immediately. If this destination is expected, add a narrower rule above this policy entry."
@@ -815,12 +815,12 @@ namespace ArcaneEDR
                 recommendation,
                 endpoint);
             alert.CooldownKey = ruleId + "|" +
-                SafePolicyToken(decision.RuleId) + "|" +
-                SafePolicyToken(endpoint.ProcessName) + "|" +
+                TextFormatting.PolicyTokenOrUnknown(decision.RuleId) + "|" +
+                TextFormatting.PolicyTokenOrUnknown(endpoint.ProcessName) + "|" +
                 (endpoint.RemoteAddress == null ? "" : endpoint.RemoteAddress.ToString()) + "|" +
                 endpoint.RemotePort.ToString(CultureInfo.InvariantCulture);
             alert.AddPolicyContext(policyContext);
-            alert.EntitySummary = AppendEntity(alert.EntitySummary, "policy=" + policyContext);
+            alert.EntitySummary = AlertAnnotationText.AppendEntity(alert.EntitySummary, "policy=" + policyContext);
             return alert;
         }
 
@@ -830,11 +830,11 @@ namespace ArcaneEDR
             List<string> pairedContext)
         {
             string action = decision.Action ?? "";
-            string policyContext = "remote_endpoint_policy=" + SafePolicyToken(decision.RuleId) + ":" + SafePolicyToken(action);
+            string policyContext = "remote_endpoint_policy=" + TextFormatting.PolicyTokenOrUnknown(decision.RuleId) + ":" + TextFormatting.PolicyTokenOrUnknown(action);
             string paired = JoinContext(pairedContext);
-            string body = "Observed remote endpoint policy matched id=" + SafePolicyToken(decision.RuleId) +
-                " action=" + SafePolicyToken(action) +
-                " reason=" + Compact(decision.Reason, 180) + ". " +
+            string body = "Observed remote endpoint policy matched id=" + TextFormatting.PolicyTokenOrUnknown(decision.RuleId) +
+                " action=" + TextFormatting.PolicyTokenOrUnknown(action) +
+                " reason=" + AlertAnnotationText.CompactOrNotSpecified(decision.Reason, 180) + ". " +
                 "Escalated because it was paired with: " + paired + ". " +
                 RemoteContextSentence(endpoint);
             Alert alert = Alert.FromEndpoint(
@@ -845,13 +845,13 @@ namespace ArcaneEDR
                 "Review the process, parent, command line, and destination. If this destination is expected, add a narrower trust or observe rule above this policy entry.",
                 endpoint);
             alert.CooldownKey = AlertRuleTaxonomy.RuleNetworkRemotePolicyCritical + "|observed|" +
-                SafePolicyToken(decision.RuleId) + "|" +
-                SafePolicyToken(endpoint.ProcessName) + "|" +
+                TextFormatting.PolicyTokenOrUnknown(decision.RuleId) + "|" +
+                TextFormatting.PolicyTokenOrUnknown(endpoint.ProcessName) + "|" +
                 (endpoint.RemoteAddress == null ? "" : endpoint.RemoteAddress.ToString()) + "|" +
                 endpoint.RemotePort.ToString(CultureInfo.InvariantCulture);
             alert.AddPolicyContext(policyContext);
             alert.AddWhy("Observed remote endpoint policy became critical because it was paired with: " + paired + ".");
-            alert.EntitySummary = AppendEntity(alert.EntitySummary, "policy=" + policyContext);
+            alert.EntitySummary = AlertAnnotationText.AppendEntity(alert.EntitySummary, "policy=" + policyContext);
             return alert;
         }
 
@@ -920,36 +920,10 @@ namespace ArcaneEDR
                 : "Remote context: " + summary + ".";
         }
 
-        private static string SafePolicyToken(string value)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return "unknown";
-            return value.Trim()
-                .Replace(" ", "_")
-                .Replace(",", "_")
-                .Replace(";", "_")
-                .Replace("|", "_")
-                .Replace("\r", "")
-                .Replace("\n", "");
-        }
-
-        private static string AppendEntity(string value, string addition)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return addition;
-            return value + " " + addition;
-        }
-
         private static string JoinContext(List<string> values)
         {
             if (values == null || values.Count == 0) return "unspecified paired context";
             return String.Join(", ", values.ToArray());
-        }
-
-        private static string Compact(string value, int maxLength)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return "not specified";
-            string compact = value.Replace("\r", " ").Replace("\n", " ").Trim();
-            if (compact.Length <= maxLength) return compact;
-            return compact.Substring(0, Math.Max(0, maxLength - 3)) + "...";
         }
 
         private bool IsAllowedOutboundPort(NetworkEndpoint endpoint)

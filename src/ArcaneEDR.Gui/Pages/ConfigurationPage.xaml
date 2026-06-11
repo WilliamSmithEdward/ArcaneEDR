@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="ArcaneEDR_Gui.Pages.ConfigurationPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <ScrollViewer>
+        <StackPanel Padding="28,18,28,28" Spacing="16">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Configuration" />
+                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Local config, validation, and deployment paths" />
+                </StackPanel>
+                <Button Grid.Column="1" Click="Validate_Click" ToolTipService.ToolTip="Validate configuration">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE73E;" />
+                        <TextBlock Text="Validate" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="2" Click="OpenConfig_Click" ToolTipService.ToolTip="Open runtime config">
+                    <FontIcon FontSize="16" Glyph="&#xE8A5;" />
+                </Button>
+                <Button Grid.Column="3" Click="OpenFolder_Click" ToolTipService.ToolTip="Open config folder">
+                    <FontIcon FontSize="16" Glyph="&#xE838;" />
+                </Button>
+            </Grid>
+
+            <TextBox
+                x:Name="PathText"
+                AcceptsReturn="True"
+                FontFamily="Consolas"
+                Header="Resolved paths"
+                IsReadOnly="True"
+                MinHeight="150"
+                TextWrapping="NoWrap" />
+
+            <TextBox
+                x:Name="ValidationText"
+                AcceptsReturn="True"
+                FontFamily="Consolas"
+                Header="Validation"
+                IsReadOnly="True"
+                MinHeight="430"
+                TextWrapping="NoWrap" />
+
+            <Border Padding="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
+                <StackPanel Spacing="10">
+                    <TextBlock FontWeight="SemiBold" Text="Reset local config" />
+                    <InfoBar
+                        IsOpen="True"
+                        Severity="Warning"
+                        Title="Reset replaces operator-owned local settings"
+                        Message="Use this only when you intentionally want defaults to replace local recipients, provider choices, thresholds, allowlists, policy tuning, baseline choices, and machine-specific paths." />
+                    <CheckBox x:Name="ResetConfirmBox" Content="I understand this will back up then replace local runtime and deployment config with defaults." />
+                    <Button Click="ResetConfig_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon FontSize="16" Glyph="&#xE777;" />
+                            <TextBlock Text="Reset to Defaults" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

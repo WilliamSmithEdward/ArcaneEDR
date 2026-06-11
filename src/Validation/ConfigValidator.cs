@@ -655,7 +655,7 @@ namespace ArcaneEDR
 
             foreach (string country in config.AllowedRemoteCountries)
             {
-                if (!IsTwoLetterCountryCode(country))
+                if (!CountryCodes.IsTwoLetterCode(country))
                 {
                     Fail(errors, "allowlists.allowed_remote_countries contains an invalid country code: " + country);
                 }
@@ -685,12 +685,6 @@ namespace ArcaneEDR
             }
 
             ValidateRemoteEndpointPolicy(config, errors, warnings);
-        }
-
-        private static bool IsTwoLetterCountryCode(string value)
-        {
-            if (String.IsNullOrWhiteSpace(value) || value.Length != 2) return false;
-            return Char.IsLetter(value[0]) && Char.IsLetter(value[1]);
         }
 
         private static void ValidateRemoteEndpointPolicy(MonitorConfig config, List<string> errors, List<string> warnings)
@@ -972,14 +966,14 @@ namespace ArcaneEDR
             {
                 Warn(warnings, "Active response is enabled while EnableResponsePolicy is false; actions will rely only on score, action gates, and target availability.");
             }
-            else if (!HasConfiguredValues(config.ResponseAllowedRuleIds) &&
-                !HasConfiguredValues(config.ResponseAllowedCategories))
+            else if (!ConfiguredValues.HasAny(config.ResponseAllowedRuleIds) &&
+                !ConfiguredValues.HasAny(config.ResponseAllowedCategories))
             {
                 Warn(warnings, "Active response is enabled but response_policy.allowed_rule_ids and response_policy.allowed_categories are empty in PolicyFile; response policy will skip all active actions.");
             }
 
             if (IsTerminateResponseMode(config.ResponseMode) &&
-                !HasConfiguredValues(config.ResponseProtectedProcessNames))
+                !ConfiguredValues.HasAny(config.ResponseProtectedProcessNames))
             {
                 Warn(warnings, "Process termination response is enabled but response_policy.protected_process_names is empty in PolicyFile.");
             }
@@ -1274,17 +1268,6 @@ namespace ArcaneEDR
         {
             return String.Equals(value, "BlockRemoteIp", StringComparison.OrdinalIgnoreCase) ||
                 String.Equals(value, "BlockAndTerminate", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static bool HasConfiguredValues(HashSet<string> values)
-        {
-            if (values == null) return false;
-            foreach (string value in values)
-            {
-                if (!String.IsNullOrWhiteSpace(value)) return true;
-            }
-
-            return false;
         }
 
         private static void ValidateRemovedConfigKeys(MonitorConfig config, List<string> errors)

@@ -39,7 +39,7 @@ namespace ArcaneEDR
                 alert.RuleId + " category=" + AlertRulePolicy.AlertCategory(alert) + " " +
                 "maintenance_context=" + alert.MaintenanceContext + " " +
                 "system_local_time=\"" + alert.SystemLocalTime + "\" " +
-                alert.Title + " | " + WhyText(alert) + body.Replace(Environment.NewLine, " | "));
+                alert.Title + " | " + AlertWhyText.JoinWithPrefix(alert, "Why: ", "; ", " | ") + body.Replace(Environment.NewLine, " | "));
             try
             {
                 AppendLine("ArcaneAlerts.jsonl", alert.ToJson());
@@ -48,12 +48,6 @@ namespace ArcaneEDR
             {
                 Write("WARN", "Alert JSONL write failed: " + ex.Message);
             }
-        }
-
-        private static string WhyText(Alert alert)
-        {
-            if (alert.Why == null || alert.Why.Count == 0) return "";
-            return "Why: " + String.Join("; ", alert.Why.ToArray()) + " | ";
         }
 
         private void Write(string level, string message)
@@ -74,23 +68,8 @@ namespace ArcaneEDR
             lock (gate)
             {
                 string path = Path.Combine(logDirectory, fileName);
-                RotateIfNeeded(path);
+                LogFileRotation.RotateIfNeeded(path, maxLogFileBytes);
                 File.AppendAllText(path, line + Environment.NewLine);
-            }
-        }
-
-        private void RotateIfNeeded(string path)
-        {
-            try
-            {
-                FileInfo file = new FileInfo(path);
-                if (!file.Exists || file.Length < maxLogFileBytes) return;
-
-                string rotated = path + "." + DateTime.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture) + ".old";
-                File.Move(path, rotated);
-            }
-            catch
-            {
             }
         }
     }

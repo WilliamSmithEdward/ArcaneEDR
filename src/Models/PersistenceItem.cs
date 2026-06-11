@@ -17,7 +17,10 @@ namespace ArcaneEDR
         {
             get
             {
-                return Safe(Type) + "|" + Safe(Name) + "|" + Safe(Path) + "|" + Safe(Command);
+                return TextFormatting.EmptyIfNull(Type) + "|" +
+                    TextFormatting.EmptyIfNull(Name) + "|" +
+                    TextFormatting.EmptyIfNull(Path) + "|" +
+                    TextFormatting.EmptyIfNull(Command);
             }
         }
 
@@ -25,13 +28,13 @@ namespace ArcaneEDR
         {
             get
             {
-                return "type=" + Safe(Type) +
-                    " name=" + Safe(Name) +
-                    " path=" + Safe(Path) +
-                    " command=" + Safe(Command) +
-                    " source=" + Safe(Source) +
-                    " signer=" + Safe(Signer) +
-                    " observed_utc=" + ObservedUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
+                return "type=" + TextFormatting.EmptyIfNull(Type) +
+                    " name=" + TextFormatting.EmptyIfNull(Name) +
+                    " path=" + TextFormatting.EmptyIfNull(Path) +
+                    " command=" + TextFormatting.EmptyIfNull(Command) +
+                    " source=" + TextFormatting.EmptyIfNull(Source) +
+                    " signer=" + TextFormatting.EmptyIfNull(Signer) +
+                    " observed_utc=" + UtcTimestamp.Format(ObservedUtc);
             }
         }
 
@@ -39,14 +42,13 @@ namespace ArcaneEDR
         {
             get
             {
-                return (Safe(Type) + " " + Safe(Name) + " " + Safe(Path) + " " +
-                    Safe(Command) + " " + Safe(Source) + " " + Safe(Signer)).Trim();
+                return (TextFormatting.EmptyIfNull(Type) + " " +
+                    TextFormatting.EmptyIfNull(Name) + " " +
+                    TextFormatting.EmptyIfNull(Path) + " " +
+                    TextFormatting.EmptyIfNull(Command) + " " +
+                    TextFormatting.EmptyIfNull(Source) + " " +
+                    TextFormatting.EmptyIfNull(Signer)).Trim();
             }
-        }
-
-        private static string Safe(string value)
-        {
-            return value == null ? "" : value;
         }
     }
 }

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="ArcaneEDR_Gui.Pages.AlertsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <ScrollViewer>
+        <StackPanel Padding="28,18,28,28" Spacing="16">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="160" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Alerts" />
+                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Local evidence and external-qualified candidates" />
+                </StackPanel>
+                <ComboBox x:Name="LookbackBox" Grid.Column="1" SelectedIndex="2">
+                    <ComboBoxItem Content="10m" />
+                    <ComboBoxItem Content="1h" />
+                    <ComboBoxItem Content="24h" />
+                    <ComboBoxItem Content="7d" />
+                </ComboBox>
+                <Button Grid.Column="2" Click="Refresh_Click" ToolTipService.ToolTip="Refresh alert volume">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE72C;" />
+                        <TextBlock Text="Refresh" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="3" Click="OpenLogs_Click" ToolTipService.ToolTip="Open log directory">
+                    <FontIcon FontSize="16" Glyph="&#xE838;" />
+                </Button>
+            </Grid>
+
+            <TextBox
+                x:Name="VolumeText"
+                AcceptsReturn="True"
+                FontFamily="Consolas"
+                Header="Alert volume"
+                IsReadOnly="True"
+                MinHeight="300"
+                TextWrapping="NoWrap" />
+
+            <TextBox
+                x:Name="RecentAlertsText"
+                AcceptsReturn="True"
+                FontFamily="Consolas"
+                Header="Recent local JSONL records"
+                IsReadOnly="True"
+                MinHeight="260"
+                TextWrapping="NoWrap" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>

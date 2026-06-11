@@ -139,19 +139,19 @@ namespace ArcaneEDR
                 DateTime timestampUtc;
                 DateTime startUtc;
                 DateTime endUtc;
-                if (!TryParseUtc(ReadString(parsed, "timestamp_utc"), out timestampUtc)) return null;
-                if (!TryParseUtc(ReadString(parsed, "start_utc"), out startUtc)) startUtc = timestampUtc;
-                if (!TryParseUtc(ReadString(parsed, "end_utc"), out endUtc)) endUtc = timestampUtc;
+                if (!UtcTimestamp.TryParse(JsonFields.ReadString(parsed, "timestamp_utc"), out timestampUtc)) return null;
+                if (!UtcTimestamp.TryParse(JsonFields.ReadString(parsed, "start_utc"), out startUtc)) startUtc = timestampUtc;
+                if (!UtcTimestamp.TryParse(JsonFields.ReadString(parsed, "end_utc"), out endUtc)) endUtc = timestampUtc;
 
                 return new MaintenanceSessionMarker
                 {
                     TimestampUtc = timestampUtc,
                     StartUtc = startUtc,
                     EndUtc = endUtc,
-                    DurationMinutes = ReadInt(parsed, "duration_minutes"),
-                    Reason = NormalizeLabel(ReadString(parsed, "reason"), "manual"),
-                    Source = NormalizeLabel(ReadString(parsed, "source"), "cli"),
-                    Cleared = ReadBool(parsed, "cleared")
+                    DurationMinutes = JsonFields.ReadInt(parsed, "duration_minutes"),
+                    Reason = NormalizeLabel(JsonFields.ReadString(parsed, "reason"), "manual"),
+                    Source = NormalizeLabel(JsonFields.ReadString(parsed, "source"), "cli"),
+                    Cleared = JsonFields.ReadBool(parsed, "cleared")
                 };
             }
             catch
@@ -168,23 +168,8 @@ namespace ArcaneEDR
             {
                 string directory = Path.GetDirectoryName(config.MaintenanceSessionMarkerFile);
                 if (!String.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
-                RotateIfNeeded(config.MaintenanceSessionMarkerFile);
+                LogFileRotation.RotateIfNeeded(config.MaintenanceSessionMarkerFile, config.MaxLogFileBytes);
                 File.AppendAllText(config.MaintenanceSessionMarkerFile, line + Environment.NewLine);
-            }
-        }
-
-        private void RotateIfNeeded(string path)
-        {
-            try
-            {
-                FileInfo file = new FileInfo(path);
-                if (!file.Exists || file.Length < config.MaxLogFileBytes) return;
-
-                string rotated = path + "." + DateTime.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture) + ".old";
-                File.Move(path, rotated);
-            }
-            catch
-            {
             }
         }
 
@@ -226,42 +211,6 @@ namespace ArcaneEDR
             return normalized.Substring(0, 80);
         }
 
-        private static bool TryParseUtc(string value, out DateTime result)
-        {
-            result = DateTime.MinValue;
-            if (String.IsNullOrWhiteSpace(value)) return false;
-
-            DateTime parsed;
-            if (!DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out parsed))
-            {
-                return false;
-            }
-
-            result = parsed.ToUniversalTime();
-            return true;
-        }
-
-        private static string ReadString(Dictionary<string, object> parsed, string key)
-        {
-            object value;
-            return parsed.TryGetValue(key, out value) && value != null ? value.ToString() : "";
-        }
-
-        private static int ReadInt(Dictionary<string, object> parsed, string key)
-        {
-            object value;
-            int result;
-            return parsed.TryGetValue(key, out value) && value != null && Int32.TryParse(value.ToString(), out result)
-                ? result
-                : 0;
-        }
-
-        private static bool ReadBool(Dictionary<string, object> parsed, string key)
-        {
-            object value;
-            bool result;
-            return parsed.TryGetValue(key, out value) && value != null && Boolean.TryParse(value.ToString(), out result) && result;
-        }
     }
 
     internal sealed class MaintenanceSessionMarker
@@ -279,25 +228,20 @@ namespace ArcaneEDR
             int remainingMinutes = Math.Max(0, (int)Math.Ceiling((EndUtc - timestampUtc.ToUniversalTime()).TotalMinutes));
             return "active_session reason=" + Safe(Reason) +
                 " remaining_minutes=" + remainingMinutes.ToString(CultureInfo.InvariantCulture) +
-                " until_utc=" + FormatUtc(EndUtc);
+                " until_utc=" + UtcTimestamp.Format(EndUtc);
         }
 
         public string ToJson()
         {
             return "{" +
-                "\"timestamp_utc\":\"" + JsonEscape(FormatUtc(TimestampUtc)) + "\"," +
-                "\"start_utc\":\"" + JsonEscape(FormatUtc(StartUtc)) + "\"," +
-                "\"end_utc\":\"" + JsonEscape(FormatUtc(EndUtc)) + "\"," +
+                "\"timestamp_utc\":\"" + JsonFields.Escape(UtcTimestamp.Format(TimestampUtc)) + "\"," +
+                "\"start_utc\":\"" + JsonFields.Escape(UtcTimestamp.Format(StartUtc)) + "\"," +
+                "\"end_utc\":\"" + JsonFields.Escape(UtcTimestamp.Format(EndUtc)) + "\"," +
                 "\"duration_minutes\":" + DurationMinutes.ToString(CultureInfo.InvariantCulture) + "," +
-                "\"reason\":\"" + JsonEscape(Safe(Reason)) + "\"," +
-                "\"source\":\"" + JsonEscape(Safe(Source)) + "\"," +
+                "\"reason\":\"" + JsonFields.Escape(Safe(Reason)) + "\"," +
+                "\"source\":\"" + JsonFields.Escape(Safe(Source)) + "\"," +
                 "\"cleared\":" + (Cleared ? "true" : "false") +
                 "}";
-        }
-
-        private static string FormatUtc(DateTime value)
-        {
-            return value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
         }
 
         private static string Safe(string value)
@@ -305,14 +249,5 @@ namespace ArcaneEDR
             return String.IsNullOrWhiteSpace(value) ? "manual" : value;
         }
 
-        private static string JsonEscape(string value)
-        {
-            if (value == null) return "";
-            return value
-                .Replace("\\", "\\\\")
-                .Replace("\"", "\\\"")
-                .Replace("\r", "\\r")
-                .Replace("\n", "\\n");
-        }
     }
 }

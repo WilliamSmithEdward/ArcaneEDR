@@ -47,7 +47,7 @@ namespace ArcaneEDR
                 RuleId = ruleId,
                 Title = title,
                 Score = score,
-                Severity = SeverityFromScore(score),
+                Severity = AlertSeverity.FromScore(score),
                 Body = body,
                 Recommendation = recommendation,
                 EntitySummary = "n/a",
@@ -65,7 +65,7 @@ namespace ArcaneEDR
                 RuleId = ruleId,
                 Title = title,
                 Score = score,
-                Severity = SeverityFromScore(score),
+                Severity = AlertSeverity.FromScore(score),
                 Body = body + Environment.NewLine + "Endpoint: " + endpoint,
                 Recommendation = recommendation,
                 EntitySummary = endpoint.EntitySummary,
@@ -83,7 +83,7 @@ namespace ArcaneEDR
                 RuleId = ruleId,
                 Title = title,
                 Score = score,
-                Severity = SeverityFromScore(score),
+                Severity = AlertSeverity.FromScore(score),
                 Body = body + Environment.NewLine + "DNS: " + dns.EntitySummary,
                 Recommendation = recommendation,
                 EntitySummary = dns.EntitySummary,
@@ -101,7 +101,7 @@ namespace ArcaneEDR
                 RuleId = ruleId,
                 Title = title,
                 Score = score,
-                Severity = SeverityFromScore(score),
+                Severity = AlertSeverity.FromScore(score),
                 Body = body + Environment.NewLine + "Process: " + process.EntitySummary,
                 Recommendation = recommendation,
                 EntitySummary = process.EntitySummary,
@@ -119,7 +119,7 @@ namespace ArcaneEDR
                 RuleId = ruleId,
                 Title = title,
                 Score = score,
-                Severity = SeverityFromScore(score),
+                Severity = AlertSeverity.FromScore(score),
                 Body = body + Environment.NewLine + "FileEvent: " + ev.EntitySummary,
                 Recommendation = recommendation,
                 EntitySummary = ev.EntitySummary,
@@ -137,7 +137,7 @@ namespace ArcaneEDR
                 RuleId = ruleId,
                 Title = title,
                 Score = score,
-                Severity = SeverityFromScore(score),
+                Severity = AlertSeverity.FromScore(score),
                 Body = body + Environment.NewLine + "PowerShell: " + ev.EntitySummary,
                 Recommendation = recommendation,
                 EntitySummary = ev.EntitySummary,
@@ -155,7 +155,7 @@ namespace ArcaneEDR
                 RuleId = ruleId,
                 Title = title,
                 Score = score,
-                Severity = SeverityFromScore(score),
+                Severity = AlertSeverity.FromScore(score),
                 Body = body + Environment.NewLine + "WindowsEvent: " + ev.EntitySummary,
                 Recommendation = recommendation,
                 EntitySummary = ev.EntitySummary,
@@ -173,7 +173,7 @@ namespace ArcaneEDR
                 RuleId = ruleId,
                 Title = title,
                 Score = score,
-                Severity = SeverityFromScore(score),
+                Severity = AlertSeverity.FromScore(score),
                 Body = body + Environment.NewLine + "Persistence: " + item.EntitySummary,
                 Recommendation = recommendation,
                 EntitySummary = item.EntitySummary,
@@ -196,7 +196,7 @@ namespace ArcaneEDR
                 RuleId = ruleId,
                 Title = title,
                 Score = score,
-                Severity = SeverityFromScore(score),
+                Severity = AlertSeverity.FromScore(score),
                 Body = body,
                 Recommendation = recommendation,
                 EntitySummary = entitySummary,
@@ -210,25 +210,25 @@ namespace ArcaneEDR
         public string ToJson()
         {
             return "{" +
-                "\"timestamp_utc\":\"" + JsonEscape(TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)) + "\"," +
-                "\"system_local_time\":\"" + JsonEscape(SystemLocalTime) + "\"," +
-                "\"system_time_zone\":\"" + JsonEscape(SystemTimeZoneId) + "\"," +
-                "\"system_utc_offset\":\"" + JsonEscape(SystemUtcOffset) + "\"," +
-                "\"rule_id\":\"" + JsonEscape(RuleId) + "\"," +
-                "\"category\":\"" + JsonEscape(Category) + "\"," +
+                "\"timestamp_utc\":\"" + JsonFields.Escape(UtcTimestamp.Format(TimestampUtc)) + "\"," +
+                "\"system_local_time\":\"" + JsonFields.Escape(SystemLocalTime) + "\"," +
+                "\"system_time_zone\":\"" + JsonFields.Escape(SystemTimeZoneId) + "\"," +
+                "\"system_utc_offset\":\"" + JsonFields.Escape(SystemUtcOffset) + "\"," +
+                "\"rule_id\":\"" + JsonFields.Escape(RuleId) + "\"," +
+                "\"category\":\"" + JsonFields.Escape(Category) + "\"," +
                 "\"maintenance_context\":" + (MaintenanceContext ? "true" : "false") + "," +
-                "\"severity\":\"" + JsonEscape(Severity) + "\"," +
+                "\"severity\":\"" + JsonFields.Escape(Severity) + "\"," +
                 "\"score\":" + Score.ToString(CultureInfo.InvariantCulture) + "," +
-                "\"title\":\"" + JsonEscape(Title) + "\"," +
+                "\"title\":\"" + JsonFields.Escape(Title) + "\"," +
                 "\"why\":" + WhyToJson() + "," +
-                "\"policy_context\":\"" + JsonEscape(PolicyContext) + "\"," +
+                "\"policy_context\":\"" + JsonFields.Escape(PolicyContext) + "\"," +
                 "\"external_suppressed_by_policy\":" + (ExternalSuppressedByPolicy ? "true" : "false") + "," +
                 "\"external_forced_by_policy\":" + (ExternalForcedByPolicy ? "true" : "false") + "," +
-                "\"body\":\"" + JsonEscape(Body) + "\"," +
-                "\"recommendation\":\"" + JsonEscape(Recommendation) + "\"," +
-                "\"entity\":\"" + JsonEscape(EntitySummary) + "\"," +
+                "\"body\":\"" + JsonFields.Escape(Body) + "\"," +
+                "\"recommendation\":\"" + JsonFields.Escape(Recommendation) + "\"," +
+                "\"entity\":\"" + JsonFields.Escape(EntitySummary) + "\"," +
                 "\"response_process_id\":" + ResponseProcessId.ToString(CultureInfo.InvariantCulture) + "," +
-                "\"response_remote_address\":\"" + JsonEscape(ResponseRemoteAddress == null ? "" : ResponseRemoteAddress.ToString()) + "\"" +
+                "\"response_remote_address\":\"" + JsonFields.Escape(ResponseRemoteAddress == null ? "" : ResponseRemoteAddress.ToString()) + "\"" +
                 "}";
         }
 
@@ -270,15 +270,7 @@ namespace ArcaneEDR
             if (score < 0) score = 0;
             if (score > 100) score = 100;
             Score = score;
-            Severity = SeverityFromScore(score);
-        }
-
-        private static string SeverityFromScore(int score)
-        {
-            if (score >= 90) return "critical";
-            if (score >= 75) return "high";
-            if (score >= 60) return "medium";
-            return "low";
+            Severity = AlertSeverity.FromScore(score);
         }
 
         private string WhyToJson()
@@ -288,7 +280,7 @@ namespace ArcaneEDR
             List<string> encoded = new List<string>();
             foreach (string reason in Why)
             {
-                encoded.Add("\"" + JsonEscape(reason) + "\"");
+                encoded.Add("\"" + JsonFields.Escape(reason) + "\"");
             }
 
             return "[" + String.Join(",", encoded.ToArray()) + "]";
@@ -333,14 +325,5 @@ namespace ArcaneEDR
             }
         }
 
-        private static string JsonEscape(string value)
-        {
-            if (value == null) return "";
-            return value
-                .Replace("\\", "\\\\")
-                .Replace("\"", "\\\"")
-                .Replace("\r", "\\r")
-                .Replace("\n", "\\n");
-        }
     }
 }

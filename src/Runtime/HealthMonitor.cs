@@ -53,7 +53,7 @@ namespace ArcaneEDR
 
             if (config.NotifyOnServiceStart)
             {
-                string body = config.ProductName + " started at " + Format(startedUtc) +
+                string body = config.ProductName + " started at " + UtcTimestamp.Format(startedUtc) +
                     Environment.NewLine + "RunId: " + runId +
                     Environment.NewLine + "Config: " + config.ConfigPath +
                     Environment.NewLine + "LogDirectory: " + config.LogDirectory;
@@ -62,8 +62,8 @@ namespace ArcaneEDR
                 {
                     body += Environment.NewLine + Environment.NewLine +
                         "Previous run did not record a clean stop." +
-                        Environment.NewLine + "PreviousStartUtc: " + Format(previousStart) +
-                        Environment.NewLine + "PreviousHeartbeatUtc: " + Format(previousHeartbeat);
+                        Environment.NewLine + "PreviousStartUtc: " + UtcTimestamp.Format(previousStart) +
+                        Environment.NewLine + "PreviousHeartbeatUtc: " + UtcTimestamp.Format(previousHeartbeat);
                 }
 
                 dispatcher.SendExternal(Alert.SystemAlert(
@@ -90,7 +90,7 @@ namespace ArcaneEDR
                     AlertRuleTaxonomy.RuleServiceStopped,
                     "Service stopped cleanly",
                     50,
-                    config.ProductName + " stopped cleanly at " + Format(DateTime.UtcNow) + ".",
+                    config.ProductName + " stopped cleanly at " + UtcTimestamp.Format(DateTime.UtcNow) + ".",
                     "No action required if this was expected.",
                     ServiceEntity()));
             }
@@ -309,16 +309,6 @@ namespace ArcaneEDR
             {
                 logger.Error("Health state save failed: " + ex.Message);
             }
-        }
-
-        private static string Format(DateTime? value)
-        {
-            return value.HasValue ? Format(value.Value) : "";
-        }
-
-        private static string Format(DateTime value)
-        {
-            return value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
         }
 
         private string ServiceEntity()

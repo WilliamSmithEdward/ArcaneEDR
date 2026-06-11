@@ -102,10 +102,10 @@ namespace ArcaneEDR
                 {
                     foreach (ManagementObject service in searcher.Get())
                     {
-                        string name = ReadString(service, "Name");
-                        string display = ReadString(service, "DisplayName");
-                        string path = ReadString(service, "PathName");
-                        string startMode = ReadString(service, "StartMode");
+                        string name = WmiFields.ReadString(service, "Name");
+                        string display = WmiFields.ReadString(service, "DisplayName");
+                        string path = WmiFields.ReadString(service, "PathName");
+                        string startMode = WmiFields.ReadString(service, "StartMode");
                         if (!startMode.Equals("Auto", StringComparison.OrdinalIgnoreCase) &&
                             !startMode.Equals("Automatic", StringComparison.OrdinalIgnoreCase))
                         {
@@ -244,12 +244,6 @@ namespace ArcaneEDR
         private static string Get(List<string> values, int index)
         {
             return index >= 0 && index < values.Count ? values[index] : "";
-        }
-
-        private static string ReadString(ManagementObject obj, string name)
-        {
-            object value = obj[name];
-            return value == null ? "" : value.ToString();
         }
 
         private PersistenceItem Create(string type, string name, string path, string command, string source)

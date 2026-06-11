@@ -151,7 +151,7 @@ namespace ArcaneEDR
                     ? provider.AnalyzeDailyReport(payload)
                     : provider.Analyze(payload);
 
-                AiProviderAnalysisOutcome outcome = ResultOutcome(provider.ProviderName, result, "completed", "");
+                AiProviderAnalysisOutcome outcome = AiAnalysisProviderSupport.ToOutcome(provider.ProviderName, result, "completed", "");
                 return new ProviderRunResult(result, outcome);
             }
             catch (Exception ex)
@@ -169,24 +169,10 @@ namespace ArcaneEDR
             }
         }
 
-        private static AiProviderAnalysisOutcome ResultOutcome(string providerName, AiAnalysisResult result, string status, string error)
-        {
-            AiProviderAnalysisOutcome outcome = new AiProviderAnalysisOutcome();
-            outcome.ProviderName = providerName;
-            outcome.Status = status;
-            outcome.Alertable = result.Alertable;
-            outcome.Score = result.Score;
-            outcome.Title = result.Title;
-            outcome.Summary = result.Summary;
-            outcome.RecommendedAction = result.RecommendedAction;
-            outcome.Error = error;
-            return outcome;
-        }
-
         private static string BuildAggregateSummary(List<AiProviderAnalysisOutcome> outcomes, AiAnalysisResult strongest)
         {
             StringBuilder builder = new StringBuilder();
-            builder.Append(Safe(strongest.Summary));
+            builder.Append(TextFormatting.EmptyIfNull(strongest.Summary));
             builder.Append(" Provider consensus: ");
 
             List<string> parts = new List<string>();
@@ -194,13 +180,13 @@ namespace ArcaneEDR
             {
                 if (outcome.Status.Equals("completed", StringComparison.OrdinalIgnoreCase))
                 {
-                    parts.Add(Safe(outcome.ProviderName) +
+                    parts.Add(TextFormatting.EmptyIfNull(outcome.ProviderName) +
                         " score " + outcome.Score.ToString(CultureInfo.InvariantCulture) +
                         (outcome.Alertable ? " flagged" : " not flagged"));
                 }
                 else
                 {
-                    parts.Add(Safe(outcome.ProviderName) + " failed");
+                    parts.Add(TextFormatting.EmptyIfNull(outcome.ProviderName) + " failed");
                 }
             }
 
@@ -208,10 +194,6 @@ namespace ArcaneEDR
             return builder.ToString();
         }
 
-        private static string Safe(string value)
-        {
-            return value == null ? "" : value;
-        }
     }
 
     internal sealed class ProviderRunResult

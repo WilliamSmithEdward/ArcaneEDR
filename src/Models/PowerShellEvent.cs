@@ -43,21 +43,21 @@ namespace ArcaneEDR
                     " record_id=" + RecordId.ToString(CultureInfo.InvariantCulture) +
                     " pid=" + ProcessId.ToString(CultureInfo.InvariantCulture) +
                     " thread_id=" + ThreadId.ToString(CultureInfo.InvariantCulture) +
-                    " process=" + Safe(ProcessName) +
-                    " process_path=" + Safe(ProcessPath) +
-                    " process_command_line=" + Compact(ProcessCommandLine) +
-                    " parent=" + Safe(ParentProcessName) +
+                    " process=" + TextFormatting.EmptyIfNull(ProcessName) +
+                    " process_path=" + TextFormatting.EmptyIfNull(ProcessPath) +
+                    " process_command_line=" + TextFormatting.CompactOrEmpty(ProcessCommandLine, 500) +
+                    " parent=" + TextFormatting.EmptyIfNull(ParentProcessName) +
                     " parent_pid=" + ParentProcessId.ToString(CultureInfo.InvariantCulture) +
-                    " parent_path=" + Safe(ParentProcessPath) +
-                    " parent_command_line=" + Compact(ParentCommandLine) +
-                    " process_user=" + Safe(ProcessUser) +
-                    " process_sha256=" + Safe(ProcessSha256) +
-                    " process_signer=" + Safe(ProcessSigner) +
-                    " user=" + Safe(User) +
-                    " command=" + Safe(CommandName) +
-                    " host_application=" + Safe(HostApplication) +
-                    " script_block=" + Compact(ScriptBlockText) +
-                    " message=" + Compact(Message);
+                    " parent_path=" + TextFormatting.EmptyIfNull(ParentProcessPath) +
+                    " parent_command_line=" + TextFormatting.CompactOrEmpty(ParentCommandLine, 500) +
+                    " process_user=" + TextFormatting.EmptyIfNull(ProcessUser) +
+                    " process_sha256=" + TextFormatting.EmptyIfNull(ProcessSha256) +
+                    " process_signer=" + TextFormatting.EmptyIfNull(ProcessSigner) +
+                    " user=" + TextFormatting.EmptyIfNull(User) +
+                    " command=" + TextFormatting.EmptyIfNull(CommandName) +
+                    " host_application=" + TextFormatting.EmptyIfNull(HostApplication) +
+                    " script_block=" + TextFormatting.CompactOrEmpty(ScriptBlockText, 500) +
+                    " message=" + TextFormatting.CompactOrEmpty(Message, 500);
             }
         }
 
@@ -65,22 +65,14 @@ namespace ArcaneEDR
         {
             get
             {
-                return (Safe(HostApplication) + " " + Safe(CommandName) + " " +
-                    Safe(ScriptBlockText) + " " + Safe(Message) + " " +
-                    Safe(ProcessName) + " " + Safe(ParentProcessName)).Trim();
+                return (TextFormatting.EmptyIfNull(HostApplication) + " " +
+                    TextFormatting.EmptyIfNull(CommandName) + " " +
+                    TextFormatting.EmptyIfNull(ScriptBlockText) + " " +
+                    TextFormatting.EmptyIfNull(Message) + " " +
+                    TextFormatting.EmptyIfNull(ProcessName) + " " +
+                    TextFormatting.EmptyIfNull(ParentProcessName)).Trim();
             }
         }
 
-        private static string Safe(string value)
-        {
-            return value == null ? "" : value;
-        }
-
-        private static string Compact(string value)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return "";
-            string compact = value.Replace("\r", " ").Replace("\n", " ").Trim();
-            return compact.Length <= 500 ? compact : compact.Substring(0, 500) + "...";
-        }
     }
 }

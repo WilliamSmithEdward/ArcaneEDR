@@ -11,10 +11,10 @@ namespace ArcaneEDR
         public static int PrintSummary(string baseDirectory, string[] args)
         {
             MonitorConfig config = MonitorConfig.Load(baseDirectory);
-            TimeSpan lookback = ParseLookback(args, TimeSpan.FromHours(24));
+            TimeSpan lookback = InvestigationConsoleOptions.ParseLookback(args, TimeSpan.FromHours(24));
             string alertsPath = Path.Combine(config.LogDirectory, "ArcaneAlerts.jsonl");
 
-            Console.WriteLine("Alert volume from the last " + Describe(lookback) + " using " + alertsPath);
+            Console.WriteLine("Alert volume from the last " + InvestigationConsoleOptions.Describe(lookback) + " using " + alertsPath);
             if (!File.Exists(alertsPath))
             {
                 Console.WriteLine("No alert log found.");
@@ -100,20 +100,20 @@ namespace ArcaneEDR
                 if (parsed == null) return null;
 
                 Alert alert = new Alert();
-                alert.RuleId = ReadString(parsed, "rule_id");
-                alert.Category = ReadString(parsed, "category");
-                alert.Severity = ReadString(parsed, "severity");
-                alert.Score = ReadInt(parsed, "score");
-                alert.Title = ReadString(parsed, "title");
-                alert.Body = ReadString(parsed, "body");
-                alert.EntitySummary = ReadString(parsed, "entity");
-                alert.MaintenanceContext = ReadBool(parsed, "maintenance_context");
-                alert.ExternalSuppressedByPolicy = ReadBool(parsed, "external_suppressed_by_policy");
-                alert.ExternalForcedByPolicy = ReadBool(parsed, "external_forced_by_policy");
-                alert.PolicyContext = ReadString(parsed, "policy_context");
+                alert.RuleId = JsonFields.ReadString(parsed, "rule_id");
+                alert.Category = JsonFields.ReadString(parsed, "category");
+                alert.Severity = JsonFields.ReadString(parsed, "severity");
+                alert.Score = JsonFields.ReadInt(parsed, "score");
+                alert.Title = JsonFields.ReadString(parsed, "title");
+                alert.Body = JsonFields.ReadString(parsed, "body");
+                alert.EntitySummary = JsonFields.ReadString(parsed, "entity");
+                alert.MaintenanceContext = JsonFields.ReadBool(parsed, "maintenance_context");
+                alert.ExternalSuppressedByPolicy = JsonFields.ReadBool(parsed, "external_suppressed_by_policy");
+                alert.ExternalForcedByPolicy = JsonFields.ReadBool(parsed, "external_forced_by_policy");
+                alert.PolicyContext = JsonFields.ReadString(parsed, "policy_context");
 
                 DateTime timestampUtc;
-                if (!TryParseUtc(ReadString(parsed, "timestamp_utc"), out timestampUtc))
+                if (!UtcTimestamp.TryParse(JsonFields.ReadString(parsed, "timestamp_utc"), out timestampUtc))
                 {
                     return null;
                 }
@@ -125,19 +125,19 @@ namespace ArcaneEDR
 
                 if (String.IsNullOrWhiteSpace(alert.Severity))
                 {
-                    alert.Severity = SeverityFromScore(alert.Score);
+                    alert.Severity = AlertSeverity.FromScore(alert.Score);
                 }
 
                 AlertVolumeRecord record = new AlertVolumeRecord();
                 record.TimestampUtc = timestampUtc;
-                record.RuleId = NullToUnknown(alert.RuleId);
-                record.Category = NullToUnknown(alert.Category);
-                record.Severity = NullToUnknown(alert.Severity);
+                record.RuleId = TextFormatting.UnknownIfBlank(alert.RuleId);
+                record.Category = TextFormatting.UnknownIfBlank(alert.Category);
+                record.Severity = TextFormatting.UnknownIfBlank(alert.Severity);
                 record.Score = alert.Score;
-                record.Title = NullToUnknown(alert.Title);
-                record.Process = ExtractToken(alert.EntitySummary, "process");
+                record.Title = TextFormatting.UnknownIfBlank(alert.Title);
+                record.Process = AlertEntityTokens.Get(alert.EntitySummary, "process");
                 if (String.IsNullOrWhiteSpace(record.Process)) record.Process = "unknown";
-                record.SystemLocalTime = ReadString(parsed, "system_local_time");
+                record.SystemLocalTime = JsonFields.ReadString(parsed, "system_local_time");
                 record.MaintenanceContext = alert.MaintenanceContext;
                 record.ExternalQualified = WouldQualifyForExternal(config, alert, false);
                 record.BaselineOffExternalQualified = WouldQualifyForExternal(config, alert, true);
@@ -151,27 +151,11 @@ namespace ArcaneEDR
 
         private static bool WouldQualifyForExternal(MonitorConfig config, Alert alert, bool assumeBaselineLearningOff)
         {
-            if (alert.ExternalSuppressedByPolicy) return false;
-            if (alert.ExternalForcedByPolicy) return config.HasExternalAlertProviderEligibleForScore(alert.Score);
-            if (UsesDirectExternalPath(alert)) return config.HasExternalAlertProviderEligibleForScore(alert.Score);
-            if (alert.Score < AlertRulePolicy.MinimumExternalScore(config, alert)) return false;
-            if (!config.HasExternalAlertProviderEligibleForScore(alert.Score)) return false;
-            if (alert.MaintenanceContext && alert.Score < config.MaintenanceContextExternalAlertMinimumScore) return false;
-            if (!assumeBaselineLearningOff &&
-                config.BaselineLearningMode &&
-                alert.Score < config.BaselineLearningEmailMinimumScore)
-            {
-                return false;
-            }
-
-            if (TermGroupRules.MatchesAnyGroup(AlertText(alert), config.ExternalAlertSuppressionTermGroups)) return false;
-            return true;
-        }
-
-        private static bool UsesDirectExternalPath(Alert alert)
-        {
-            string ruleId = alert == null ? "" : alert.RuleId ?? "";
-            return AlertRuleTaxonomy.IsDirectExternalRule(ruleId);
+            return ExternalAlertEligibility.WouldQualifyBeforeRateLimits(
+                config,
+                alert,
+                assumeBaselineLearningOff,
+                true);
         }
 
         private static List<AlertVolumeBucket> BuildBuckets(List<AlertVolumeRecord> records, string field)
@@ -306,9 +290,9 @@ namespace ArcaneEDR
                 Console.WriteLine("  " + FormatRecordTime(record) +
                     " score=" + record.Score.ToString(CultureInfo.InvariantCulture) +
                     " rule=" + record.RuleId +
-                    " process=" + CompactForConsole(record.Process, 48) +
+                    " process=" + InvestigationConsoleOptions.CompactForConsole(record.Process, 48) +
                     " maintenance_context=" + (record.MaintenanceContext ? "true" : "false") +
-                    " title=" + CompactForConsole(record.Title, 96));
+                    " title=" + InvestigationConsoleOptions.CompactForConsole(record.Title, 96));
             }
 
             if (candidates.Count > limit)
@@ -328,165 +312,17 @@ namespace ArcaneEDR
             return "unknown";
         }
 
-        private static TimeSpan ParseLookback(string[] args, TimeSpan fallback)
-        {
-            for (int index = 0; args != null && index < args.Length - 1; index++)
-            {
-                if (args[index].Equals("--last", StringComparison.OrdinalIgnoreCase))
-                {
-                    TimeSpan parsed;
-                    if (TryParseDuration(args[index + 1], out parsed)) return parsed;
-                }
-            }
-
-            return fallback;
-        }
-
-        private static bool TryParseDuration(string value, out TimeSpan result)
-        {
-            result = TimeSpan.Zero;
-            if (String.IsNullOrWhiteSpace(value)) return false;
-
-            string trimmed = value.Trim().ToLowerInvariant();
-            double number;
-            if (trimmed.EndsWith("m", StringComparison.OrdinalIgnoreCase) &&
-                Double.TryParse(trimmed.Substring(0, trimmed.Length - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out number))
-            {
-                result = TimeSpan.FromMinutes(number);
-                return number > 0;
-            }
-
-            if (trimmed.EndsWith("h", StringComparison.OrdinalIgnoreCase) &&
-                Double.TryParse(trimmed.Substring(0, trimmed.Length - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out number))
-            {
-                result = TimeSpan.FromHours(number);
-                return number > 0;
-            }
-
-            if (trimmed.EndsWith("d", StringComparison.OrdinalIgnoreCase) &&
-                Double.TryParse(trimmed.Substring(0, trimmed.Length - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out number))
-            {
-                result = TimeSpan.FromDays(number);
-                return number > 0;
-            }
-
-            return TimeSpan.TryParse(value, out result) && result > TimeSpan.Zero;
-        }
-
-        private static string Describe(TimeSpan value)
-        {
-            if (value.TotalDays >= 1 && value.TotalDays == Math.Floor(value.TotalDays))
-            {
-                return value.TotalDays.ToString("0", CultureInfo.InvariantCulture) + "d";
-            }
-
-            if (value.TotalHours >= 1 && value.TotalHours == Math.Floor(value.TotalHours))
-            {
-                return value.TotalHours.ToString("0", CultureInfo.InvariantCulture) + "h";
-            }
-
-            return value.TotalMinutes.ToString("0", CultureInfo.InvariantCulture) + "m";
-        }
-
-        private static bool TryParseUtc(string value, out DateTime result)
-        {
-            result = DateTime.MinValue;
-            if (String.IsNullOrWhiteSpace(value)) return false;
-
-            DateTime parsed;
-            if (!DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out parsed))
-            {
-                return false;
-            }
-
-            result = parsed.ToUniversalTime();
-            return true;
-        }
-
-        private static string AlertText(Alert alert)
-        {
-            return (alert.RuleId ?? "") + " " +
-                (alert.Title ?? "") + " " +
-                (alert.Body ?? "") + " " +
-                (alert.EntitySummary ?? "");
-        }
-
-        private static string ExtractToken(string text, string key)
-        {
-            if (String.IsNullOrWhiteSpace(text) || String.IsNullOrWhiteSpace(key)) return "";
-
-            string prefix = key + "=";
-            int index = text.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
-            if (index < 0) return "";
-
-            int start = index + prefix.Length;
-            int end = text.IndexOf(' ', start);
-            if (end < 0) end = text.Length;
-            return text.Substring(start, end - start).Trim();
-        }
-
-        private static string ReadString(Dictionary<string, object> parsed, string key)
-        {
-            object value;
-            return parsed.TryGetValue(key, out value) && value != null ? value.ToString() : "";
-        }
-
-        private static int ReadInt(Dictionary<string, object> parsed, string key)
-        {
-            object value;
-            if (!parsed.TryGetValue(key, out value) || value == null) return 0;
-
-            int parsedInt;
-            return Int32.TryParse(value.ToString(), out parsedInt) ? parsedInt : 0;
-        }
-
-        private static bool ReadBool(Dictionary<string, object> parsed, string key)
-        {
-            object value;
-            if (!parsed.TryGetValue(key, out value) || value == null) return false;
-
-            bool parsedBool;
-            return Boolean.TryParse(value.ToString(), out parsedBool) && parsedBool;
-        }
-
-        private static string SeverityFromScore(int score)
-        {
-            if (score >= 90) return "critical";
-            if (score >= 75) return "high";
-            if (score >= 60) return "medium";
-            return "low";
-        }
-
-        private static string NullToUnknown(string value)
-        {
-            return String.IsNullOrWhiteSpace(value) ? "unknown" : value;
-        }
-
         private static string FormatRecordTime(AlertVolumeRecord record)
         {
             if (record != null && !String.IsNullOrWhiteSpace(record.SystemLocalTime))
             {
-                return CompactForConsole(record.SystemLocalTime, 64);
+                return InvestigationConsoleOptions.CompactForConsole(record.SystemLocalTime, 64);
             }
 
             if (record == null) return "unknown-time";
-            return record.TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
+            return UtcTimestamp.Format(record.TimestampUtc);
         }
 
-        private static string CompactForConsole(string value, int maxLength)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return "unknown";
-
-            string compact = value.Replace("\r", " ").Replace("\n", " ").Replace("\t", " ").Trim();
-            while (compact.IndexOf("  ", StringComparison.Ordinal) >= 0)
-            {
-                compact = compact.Replace("  ", " ");
-            }
-
-            if (compact.Length <= maxLength) return compact;
-            if (maxLength <= 3) return compact.Substring(0, maxLength);
-            return compact.Substring(0, maxLength - 3) + "...";
-        }
     }
 
     internal sealed class AlertVolumeRecord

@@ -1,0 +1,15 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Segoe UI;}}
+\f0\fs20
+Arcane EDR Installer Notice\par
+\par
+Arcane EDR is a local safety layer for unattended agent workstations. It installs a Windows service and a Windows GUI operator console.\par
+\par
+Local configuration, policy tuning, logs, reports, incident history, response ledgers, and support-bundle history are operator-owned state. Upgrade, repair, reinstall, and uninstall flows preserve that mutable state by default.\par
+\par
+This MSI installs product binaries, examples, scripts, documentation, and shortcuts. It does not collect Brevo, SMTP, webhook, AI provider, or other secret values. Configure secrets through environment variables or another explicit operator-owned secret store.\par
+\par
+If existing local configuration is detected, do not reset it unless you intentionally want to replace local recipients, provider choices, thresholds, allowlists, policy tuning, baseline choices, and machine-specific paths with defaults. Reset or purge should be a separate explicit maintenance action with backups or clear operator confirmation.\par
+\par
+ResponseMode should remain AlertOnly unless the operator intentionally enables dry-run or active response testing.\par
+}

@@ -66,9 +66,9 @@ namespace ArcaneEDR
             using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
             {
                 logger.Info("Sent daily report webhook generated_utc=" +
-                    (snapshot == null ? "" : snapshot.GeneratedUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)) +
+                    (snapshot == null ? "" : UtcTimestamp.Format(snapshot.GeneratedUtc)) +
                     " status=" + ((int)response.StatusCode).ToString(CultureInfo.InvariantCulture) +
-                    " response=" + AlertMessageFormatter.Compact(ReadResponse(response), 300));
+                    " response=" + AlertMessageFormatter.Compact(HttpResponseText.Read(response), 300));
             }
         }
 
@@ -80,7 +80,7 @@ namespace ArcaneEDR
             string secret = secretProvider.GetSecret(config.DailyReportWebhookSecretEnvironmentVariable);
             if (String.IsNullOrWhiteSpace(secret)) return;
 
-            string value = NormalizePrefix(config.DailyReportWebhookSecretPrefix) + secret;
+            string value = HttpAuthHeader.NormalizePrefix(config.DailyReportWebhookSecretPrefix) + secret;
             if (config.DailyReportWebhookSecretHeaderName.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
             {
                 request.Headers[HttpRequestHeader.Authorization] = value;
@@ -91,26 +91,5 @@ namespace ArcaneEDR
             }
         }
 
-        private static string ReadResponse(HttpWebResponse response)
-        {
-            using (Stream stream = response.GetResponseStream())
-            using (StreamReader reader = new StreamReader(stream))
-            {
-                return reader.ReadToEnd();
-            }
-        }
-
-        private static string NormalizePrefix(string prefix)
-        {
-            if (String.IsNullOrWhiteSpace(prefix)) return "";
-            string trimmed = prefix.Trim();
-            if (trimmed.Equals("Bearer", StringComparison.OrdinalIgnoreCase) ||
-                trimmed.Equals("Token", StringComparison.OrdinalIgnoreCase))
-            {
-                return trimmed + " ";
-            }
-
-            return prefix;
-        }
     }
 }

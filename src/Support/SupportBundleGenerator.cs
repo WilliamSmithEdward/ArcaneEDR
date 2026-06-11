@@ -49,7 +49,7 @@ namespace ArcaneEDR
             lines.Add("Product=" + config.ProductName);
             lines.Add("Version=" + VersionInfo.DisplayVersion);
             lines.Add("Repository=" + VersionInfo.RepositoryUrl);
-            lines.Add("GeneratedUtc=" + Format(DateTime.UtcNow));
+            lines.Add("GeneratedUtc=" + UtcTimestamp.Format(DateTime.UtcNow));
             lines.Add("Machine=<redacted-host>");
             lines.Add("BaseDirectory=" + RedactPath(baseDirectory));
             lines.Add("ConfigPath=" + RedactPath(config.ConfigPath));
@@ -152,11 +152,11 @@ namespace ArcaneEDR
             List<string> lines = new List<string>();
             lines.Add("StateFile=" + RedactPath(path));
             lines.Add("Running=" + state.Running);
-            lines.Add("LastStartUtc=" + Format(state.LastStartUtc));
-            lines.Add("LastCleanStopUtc=" + Format(state.LastCleanStopUtc));
-            lines.Add("LastHeartbeatUtc=" + Format(state.LastHeartbeatUtc));
-            lines.Add("LastDailySummaryUtc=" + Format(state.LastDailySummaryUtc));
-            lines.Add("LastAIAnalysisUtc=" + Format(state.LastAIAnalysisUtc));
+            lines.Add("LastStartUtc=" + UtcTimestamp.Format(state.LastStartUtc));
+            lines.Add("LastCleanStopUtc=" + UtcTimestamp.Format(state.LastCleanStopUtc));
+            lines.Add("LastHeartbeatUtc=" + UtcTimestamp.Format(state.LastHeartbeatUtc));
+            lines.Add("LastDailySummaryUtc=" + UtcTimestamp.Format(state.LastDailySummaryUtc));
+            lines.Add("LastAIAnalysisUtc=" + UtcTimestamp.Format(state.LastAIAnalysisUtc));
             lines.Add("LastRunId=" + RedactSensitiveText(state.LastRunId));
             lines.Add("PollCount=" + state.PollCount.ToString(CultureInfo.InvariantCulture));
             lines.Add("AlertCount=" + state.AlertCount.ToString(CultureInfo.InvariantCulture));
@@ -304,9 +304,9 @@ namespace ArcaneEDR
             foreach (MaintenanceSessionMarker marker in store.Recent(TimeSpan.FromHours(24)))
             {
                 Dictionary<string, object> summary = new Dictionary<string, object>();
-                summary["timestamp_utc"] = Format(marker.TimestampUtc);
-                summary["start_utc"] = Format(marker.StartUtc);
-                summary["end_utc"] = Format(marker.EndUtc);
+                summary["timestamp_utc"] = UtcTimestamp.Format(marker.TimestampUtc);
+                summary["start_utc"] = UtcTimestamp.Format(marker.StartUtc);
+                summary["end_utc"] = UtcTimestamp.Format(marker.EndUtc);
                 summary["duration_minutes"] = marker.DurationMinutes;
                 summary["reason"] = RedactSensitiveText(marker.Reason);
                 summary["source"] = RedactSensitiveText(marker.Source);
@@ -579,16 +579,6 @@ namespace ArcaneEDR
             }
 
             return result;
-        }
-
-        private static string Format(DateTime value)
-        {
-            return value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
-        }
-
-        private static string Format(DateTime? value)
-        {
-            return value.HasValue ? Format(value.Value) : "";
         }
 
         private static void WriteLines(string path, IEnumerable<string> lines)

@@ -44,6 +44,22 @@ cd C:\Development\ArcaneEDR
 
 This validates source changes without touching the live service.
 
+If the live service is temporarily running from the source `bin` folder and
+locks `ArcaneEDR.exe`, build a disposable check executable instead:
+
+```powershell
+.\scripts\build.cmd -OutputPath bin\ArcaneEDR.check.exe
+.\bin\ArcaneEDR.check.exe --validate-config
+```
+
+For the `v0.8.0` GUI/MSI track, also validate:
+
+```powershell
+.\scripts\build-gui.cmd
+.\scripts\build-msi.cmd
+.\scripts\test-fixtures.cmd
+```
+
 Documentation-only changes do not require build, publish, service restart, or
 redeploy.
 

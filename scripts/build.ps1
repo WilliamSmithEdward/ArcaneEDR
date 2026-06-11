@@ -1,5 +1,6 @@
 param(
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    [string]$OutputPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -43,9 +44,25 @@ $deploymentConfig = Resolve-ConfigPath `
     -Example (Join-Path $root "config\Deployment.example.config")
 $executableName = Get-ConfigValue -Path $deploymentConfig -Name "ExecutableName" -Default "ArcaneEDR.exe"
 $srcRoot = Join-Path $root "src"
-$sources = Get-ChildItem -Path $srcRoot -Recurse -Filter "*.cs" | Sort-Object FullName | ForEach-Object { $_.FullName }
+$guiRoot = Join-Path $srcRoot "ArcaneEDR.Gui"
+$sources = Get-ChildItem -Path $srcRoot -Recurse -Filter "*.cs" |
+    Where-Object {
+        !$_.FullName.StartsWith($guiRoot, [System.StringComparison]::OrdinalIgnoreCase) -and
+        $_.FullName.IndexOf("\obj\", [System.StringComparison]::OrdinalIgnoreCase) -lt 0 -and
+        $_.FullName.IndexOf("\bin\", [System.StringComparison]::OrdinalIgnoreCase) -lt 0
+    } |
+    Sort-Object FullName |
+    ForEach-Object { $_.FullName }
 $bin = Join-Path $root "bin"
-$out = Join-Path $bin $executableName
+$out = if ([System.String]::IsNullOrWhiteSpace($OutputPath)) {
+    Join-Path $bin $executableName
+} else {
+    if ([System.IO.Path]::IsPathRooted($OutputPath)) {
+        $OutputPath
+    } else {
+        Join-Path $root $OutputPath
+    }
+}
 $compiler = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 
 if (!(Test-Path $compiler)) {
@@ -56,7 +73,7 @@ if (!(Test-Path $compiler)) {
     throw "Could not find .NET Framework csc.exe."
 }
 
-New-Item -ItemType Directory -Force -Path $bin | Out-Null
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $out) | Out-Null
 
 & $compiler /nologo /optimize+ /target:exe /out:$out `
     /reference:System.ServiceProcess.dll `

@@ -21,7 +21,7 @@ namespace ArcaneEDR
             {
                 return RecordId.ToString(CultureInfo.InvariantCulture) + "|" +
                     ProcessId.ToString(CultureInfo.InvariantCulture) + "|" +
-                    Safe(TargetFilename);
+                    TextFormatting.EmptyIfNull(TargetFilename);
             }
         }
 
@@ -36,23 +36,18 @@ namespace ArcaneEDR
                 string signer = process == null ? "" : process.Signer;
                 string sha256 = process == null ? "" : process.Sha256;
 
-                return "process=" + Safe(ProcessName) +
+                return "process=" + TextFormatting.EmptyIfNull(ProcessName) +
                     " pid=" + ProcessId.ToString(CultureInfo.InvariantCulture) +
-                    " image=" + Safe(Image) +
-                    " command_line=" + Safe(commandLine) +
-                    " parent=" + Safe(parent) +
-                    " parent_command_line=" + Safe(parentCommandLine) +
-                    " user=" + Safe(User) +
-                    " target=" + Safe(TargetFilename) +
-                    " signer=" + Safe(signer) +
-                    " sha256=" + Safe(sha256) +
-                    " observed_utc=" + TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
+                    " image=" + TextFormatting.EmptyIfNull(Image) +
+                    " command_line=" + TextFormatting.EmptyIfNull(commandLine) +
+                    " parent=" + TextFormatting.EmptyIfNull(parent) +
+                    " parent_command_line=" + TextFormatting.EmptyIfNull(parentCommandLine) +
+                    " user=" + TextFormatting.EmptyIfNull(User) +
+                    " target=" + TextFormatting.EmptyIfNull(TargetFilename) +
+                    " signer=" + TextFormatting.EmptyIfNull(signer) +
+                    " sha256=" + TextFormatting.EmptyIfNull(sha256) +
+                    " observed_utc=" + UtcTimestamp.Format(TimestampUtc);
             }
-        }
-
-        private static string Safe(string value)
-        {
-            return value == null ? "" : value;
         }
     }
 }

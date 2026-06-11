@@ -88,6 +88,7 @@ function Invoke-ArcaneBuild {
     $deploymentConfig = Get-DeploymentConfigPath -Root $SourceRoot
     $executableName = Get-ConfigValue -Path $deploymentConfig -Name "ExecutableName" -Default "ArcaneEDR.exe"
     $srcRoot = Join-Path $SourceRoot "src"
+    $guiRoot = Join-Path $srcRoot "ArcaneEDR.Gui"
     $bin = Join-Path $SourceRoot "bin"
     $out = Join-Path $bin $executableName
     $compiler = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
@@ -100,7 +101,14 @@ function Invoke-ArcaneBuild {
     }
 
     New-Item -ItemType Directory -Force -Path $bin | Out-Null
-    $sources = Get-ChildItem -LiteralPath $srcRoot -Recurse -Filter "*.cs" | Sort-Object FullName | ForEach-Object { $_.FullName }
+    $sources = Get-ChildItem -LiteralPath $srcRoot -Recurse -Filter "*.cs" |
+        Where-Object {
+            !$_.FullName.StartsWith($guiRoot, [System.StringComparison]::OrdinalIgnoreCase) -and
+            $_.FullName.IndexOf("\obj\", [System.StringComparison]::OrdinalIgnoreCase) -lt 0 -and
+            $_.FullName.IndexOf("\bin\", [System.StringComparison]::OrdinalIgnoreCase) -lt 0
+        } |
+        Sort-Object FullName |
+        ForEach-Object { $_.FullName }
 
     Write-TaskLog "Building $out"
     & $compiler /nologo /optimize+ /target:exe /out:$out `
@@ -136,14 +144,19 @@ function Publish-Arcane {
     $builtExe = Invoke-ArcaneBuild
 
     $bin = Join-Path $PublishedRoot "bin"
+    $gui = Join-Path $PublishedRoot "gui"
     $config = Join-Path $PublishedRoot "config"
     $scripts = Join-Path $PublishedRoot "scripts"
     $docs = Join-Path $PublishedRoot "docs"
     $tools = Join-Path $PublishedRoot "tools"
     $assets = Join-Path $PublishedRoot "src\Assets"
 
-    New-Item -ItemType Directory -Force -Path $bin, $config, $scripts, $docs, $tools, $assets | Out-Null
+    New-Item -ItemType Directory -Force -Path $bin, $gui, $config, $scripts, $docs, $tools, $assets | Out-Null
     Copy-Item -LiteralPath $builtExe -Destination (Join-Path $bin $executableName) -Force
+    & (Join-Path (Join-Path $SourceRoot "scripts") "build-gui.ps1") -OutputPath $gui | ForEach-Object { Write-TaskLog $_ }
+    if ($LASTEXITCODE -ne 0) {
+        throw "GUI publish failed with exit code $LASTEXITCODE."
+    }
 
     $sourceConfig = Join-Path $SourceRoot "config\ArcaneEDR.config"
     if (!(Test-Path -LiteralPath $sourceConfig)) {

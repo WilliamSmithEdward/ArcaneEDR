@@ -4,6 +4,21 @@ Arcane uses one JSON policy file for allow, block, trust, response, remote
 endpoint, and structured alert tuning decisions. Configure it with `PolicyFile`
 in `ArcaneEDR.config`.
 
+The policy model is scope-based. Current scopes are:
+
+- `alert`: local alert tuning rules such as score changes, external
+  suppression, force alert, and tag-only entries.
+- `remote_endpoint`: remote identity rules for trusted provider/country/ASN,
+  suspicious destinations, blocked destinations, and unknown-country behavior.
+- `response`: active-response allow/block entries. The JSON remains simple
+  lists, and Arcane adapts them into deterministic response-scope rules
+  internally.
+- `report`: reserved for future deterministic report tuning.
+
+Scopes let Arcane keep one rule-engine pattern while avoiding accidental field
+mixing between alert records, remote endpoint records, response actions, and
+future report records.
+
 The tracked default is `config\arcane-policy.example.json`. For host-specific
 tuning, copy it to an ignored local policy file and point `PolicyFile` there.
 
@@ -20,7 +35,8 @@ tuning, copy it to an ignored local policy file and point `PolicyFile` there.
   external suppression, force alert, and tag-only entries.
 
 Normal thresholds, collector toggles, retention, enrichment provider settings,
-and response mode remain in `ArcaneEDR.config`.
+and response mode remain in `ArcaneEDR.config`. Durable evidence stays in JSONL
+files; Arcane does not require SQLite or another database.
 
 ## Defaults
 
@@ -40,6 +56,14 @@ The default policy:
   enabled local/provider enrichment.
 - Treats ordinary country-unavailable context as an observe score enhancer.
 
-Use `--validate-config` after editing the policy file. Use `--policy-preview`
-to preview `detection_policies` against recent alerts or samples before relying
-on host-specific tuning.
+Use `--validate-config` after editing the policy file.
+
+Inspect loaded policy counts and scopes:
+
+```powershell
+.\bin\ArcaneEDR.exe --policy-inspect
+.\bin\ArcaneEDR.exe --policy-inspect --json
+```
+
+Use `--policy-preview` to preview `detection_policies` against recent alerts
+or samples before relying on host-specific tuning.

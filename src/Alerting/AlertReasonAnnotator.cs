@@ -9,19 +9,19 @@ namespace ArcaneEDR
             if (alert == null) return null;
 
             string ruleId = alert.RuleId ?? "";
-            string text = AlertText(alert);
+            string text = AlertText.Build(alert);
 
-            if (Contains(ruleId, "IOC"))
+            if (TextFormatting.ContainsIgnoreCase(ruleId, "IOC"))
             {
                 alert.AddWhy("A configured indicator matched the observed process, network, DNS, hash, IP, or domain telemetry.");
             }
 
-            if (Contains(ruleId, "ENCODED") || Contains(text, "-encodedcommand") || Contains(text, "base64"))
+            if (TextFormatting.ContainsIgnoreCase(ruleId, "ENCODED") || TextFormatting.ContainsIgnoreCase(text, "-encodedcommand") || TextFormatting.ContainsIgnoreCase(text, "base64"))
             {
                 alert.AddWhy("Encoded or base64-like command content was observed, which is common in loader and RAT staging chains.");
             }
 
-            if (Contains(ruleId, "LOLBIN"))
+            if (TextFormatting.ContainsIgnoreCase(ruleId, "LOLBIN"))
             {
                 alert.AddWhy("A living-off-the-land binary matched a monitored suspicious execution or network pattern.");
             }
@@ -149,7 +149,7 @@ namespace ArcaneEDR
                 alert.AddWhy("Repeated connection timing resembled low-jitter beaconing.");
             }
 
-            if (Contains(ruleId, "HIGH-RISK-PORT") || Contains(ruleId, "UNUSUAL-PORT") || Contains(ruleId, "PORT-MISUSE"))
+            if (TextFormatting.ContainsIgnoreCase(ruleId, "HIGH-RISK-PORT") || TextFormatting.ContainsIgnoreCase(ruleId, "UNUSUAL-PORT") || TextFormatting.ContainsIgnoreCase(ruleId, "PORT-MISUSE"))
             {
                 alert.AddWhy("The remote port was outside the normal or trusted outbound profile.");
             }
@@ -170,7 +170,7 @@ namespace ArcaneEDR
                 alert.AddWhy("Arcane EDR detected a local monitor configuration or executable integrity change.");
             }
 
-            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixCustom) || Contains(text, "Custom rule matched"))
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixCustom) || TextFormatting.ContainsIgnoreCase(text, "Custom rule matched"))
             {
                 alert.AddWhy("A configured local custom detection rule matched this telemetry.");
             }
@@ -183,17 +183,5 @@ namespace ArcaneEDR
             return alert;
         }
 
-        private static string AlertText(Alert alert)
-        {
-            return (alert.RuleId ?? "") + " " +
-                (alert.Title ?? "") + " " +
-                (alert.Body ?? "") + " " +
-                (alert.EntitySummary ?? "");
-        }
-
-        private static bool Contains(string value, string term)
-        {
-            return value != null && value.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0;
-        }
     }
 }

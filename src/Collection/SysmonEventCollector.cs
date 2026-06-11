@@ -58,7 +58,7 @@ namespace ArcaneEDR
                             DateTime recordTimestampUtc = record.TimeCreated.HasValue ? record.TimeCreated.Value.ToUniversalTime() : DateTime.MinValue;
                             if (recordId > 0 && recordId <= lastRecordId)
                             {
-                                if (IsLikelyLogReset(recordId, recordTimestampUtc))
+                                if (EventLogRecordState.IsLikelyReset(recordId, recordTimestampUtc, lastRecordId, lastRecordTimestampUtc))
                                 {
                                     lastRecordId = 0;
                                     lastRecordTimestampUtc = DateTime.MinValue;
@@ -101,16 +101,6 @@ namespace ArcaneEDR
             }
 
             return telemetry;
-        }
-
-        private bool IsLikelyLogReset(long recordId, DateTime recordTimestampUtc)
-        {
-            return lastRecordId > 0 &&
-                recordId > 0 &&
-                recordId <= lastRecordId &&
-                lastRecordTimestampUtc != DateTime.MinValue &&
-                recordTimestampUtc != DateTime.MinValue &&
-                recordTimestampUtc > lastRecordTimestampUtc.AddMinutes(1.0);
         }
 
         private string BuildQuery()

@@ -23,6 +23,8 @@ only, so it can be built on a Windows host without downloading NuGet packages.
 See [docs/project-mission.md](docs/project-mission.md) for the project mission.
 See [docs/release-deployment-policy.md](docs/release-deployment-policy.md) for
 the source-vs-live deployment policy.
+See [docs/gui-and-msi-install.md](docs/gui-and-msi-install.md) for the WinUI
+GUI and MSI install path.
 If you are using an LLM or coding agent to operate the repo, see
 [AGENTS.md](AGENTS.md) for agent-specific workflow and tuning instructions.
 
@@ -137,12 +139,24 @@ Keep machine-specific values, recipient addresses, local paths, and environment
 variable names in the ignored local files. The example runtime config disables
 external alerting and AI analysis by default.
 
+`config\arcane-policy.json` is the unified allowlist, blocklist, response,
+remote endpoint, and alert-tuning policy file. Inspect loaded policy scopes and
+counts with:
+
+```powershell
+.\bin\ArcaneEDR.exe --policy-inspect
+.\bin\ArcaneEDR.exe --policy-inspect --json
+```
+
 ## Project Layout
 
 - `src\Collection`: captures netstat, Sysmon, PowerShell, Windows Event Log, and persistence telemetry.
 - `src\Enrichment`: adds process path, command line, parent, hash, signer, and user context.
 - `src\Detection`: applies traffic, host, process, DNS, reputation, custom, baseline, and RAT-oriented rules.
 - `src\Alerting`: handles alert cooldowns and provider-specific delivery sinks.
+- `src\Policy`: unified policy models and scoped policy evaluation.
+- `src\Presentation`: shared alert presentation models for email, reports, CLI, and future GUI surfaces.
+- `src\ArcaneEDR.Gui`: WinUI 3 operator console for health, alerts, policy, reports, configuration, maintenance, and support workflows.
 - `src\Response`: optional firewall block and process termination actions.
 - `src\Runtime`: service polling, health, and integrity checks.
 - `src\Configuration`: loads allowlists, thresholds, alert settings, and rule options.
@@ -164,6 +178,24 @@ Build:
 
 ```powershell
 .\scripts\build.ps1
+```
+
+Run the lightweight fixture suite used to guard core CLI seams:
+
+```powershell
+.\scripts\test-fixtures.cmd
+```
+
+Build and publish the WinUI operator console:
+
+```powershell
+.\scripts\build-gui.cmd
+```
+
+Build the WiX MSI installer:
+
+```powershell
+.\scripts\build-msi.cmd
 ```
 
 Publish to the destination configured in local `config\Deployment.config`, or
@@ -190,7 +222,15 @@ Create a release ZIP from tracked templates, scripts, docs, and build output:
 ```
 
 The release ZIP is written under `artifacts` with a SHA256 checksum file. Local
-machine configs, runtime logs, and Sysmon binaries are not included.
+machine configs, runtime logs, and Sysmon binaries are not included. The ZIP
+includes the WinUI GUI payload under `gui`.
+
+The MSI is written under `artifacts` as `ArcaneEDR-<version>.msi` with a
+SHA256 checksum. It installs the Windows service, WinUI GUI, Start menu
+shortcut, scripts, docs, assets, and config examples. Existing local
+configuration and JSONL evidence are preserved by default; the GUI
+Configuration page provides a guarded reset-to-defaults flow with an explicit
+warning checkbox and backup-before-reset behavior.
 
 ## Install As A Windows Service
 

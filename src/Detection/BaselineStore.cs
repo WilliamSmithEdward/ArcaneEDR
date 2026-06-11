@@ -52,7 +52,7 @@ namespace ArcaneEDR
                 Directory.CreateDirectory(Path.GetDirectoryName(config.BaselineFile));
                 if (!File.Exists(config.BaselineFile))
                 {
-                    File.AppendAllText(config.BaselineFile, CreatedPrefix + createdUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture) + Environment.NewLine);
+                    File.AppendAllText(config.BaselineFile, CreatedPrefix + UtcTimestamp.Format(createdUtc) + Environment.NewLine);
                     return;
                 }
 

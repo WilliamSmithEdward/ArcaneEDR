@@ -78,7 +78,7 @@ namespace ArcaneEDR
 
             foreach (DictionaryEntry entry in root)
             {
-                string key = Key(entry.Key);
+                string key = PolicyJsonReader.Key(entry.Key);
                 if (!key.Equals("policies", StringComparison.OrdinalIgnoreCase) &&
                     !key.Equals("rules", StringComparison.OrdinalIgnoreCase) &&
                     !key.Equals("detection_policies", StringComparison.OrdinalIgnoreCase) &&
@@ -97,10 +97,10 @@ namespace ArcaneEDR
                 }
             }
 
-            object policies = Value(root, "detection_policies");
-            if (policies == null) policies = Value(root, "detectionPolicies");
-            if (policies == null) policies = Value(root, "policies");
-            if (policies == null) policies = Value(root, "rules");
+            object policies = PolicyJsonReader.Value(root, "detection_policies");
+            if (policies == null) policies = PolicyJsonReader.Value(root, "detectionPolicies");
+            if (policies == null) policies = PolicyJsonReader.Value(root, "policies");
+            if (policies == null) policies = PolicyJsonReader.Value(root, "rules");
             return policies as IList;
         }
 
@@ -108,22 +108,22 @@ namespace ArcaneEDR
         {
             DetectionPolicyRule rule = new DetectionPolicyRule();
             rule.Index = index;
-            rule.Id = ReadString(map, "id");
+            rule.Id = PolicyJsonReader.ReadString(map, "id");
             if (String.IsNullOrWhiteSpace(rule.Id))
             {
                 rule.Id = "policy-" + index.ToString(CultureInfo.InvariantCulture);
                 policy.Warnings.Add("Detection policy entry " + index.ToString(CultureInfo.InvariantCulture) + " is missing id; using " + rule.Id + ".");
             }
 
-            rule.Enabled = ReadBool(map, "enabled", true);
-            rule.Action = CanonicalAction(ReadString(map, "action"));
-            rule.Reason = ReadString(map, "reason");
-            rule.Owner = ReadString(map, "owner");
-            rule.Tag = ReadString(map, "tag");
-            rule.ScoreDelta = ReadInt(map, "score_delta", 0, out rule.HasScoreDelta);
-            rule.SetScore = ReadInt(map, "score", 0, out rule.HasSetScore);
+            rule.Enabled = PolicyJsonReader.ReadBool(map, "enabled", true);
+            rule.Action = PolicyJsonReader.CanonicalAction(PolicyJsonReader.ReadString(map, "action"));
+            rule.Reason = PolicyJsonReader.ReadString(map, "reason");
+            rule.Owner = PolicyJsonReader.ReadString(map, "owner");
+            rule.Tag = PolicyJsonReader.ReadString(map, "tag");
+            rule.ScoreDelta = PolicyJsonReader.ReadInt(map, "score_delta", 0, out rule.HasScoreDelta);
+            rule.SetScore = PolicyJsonReader.ReadInt(map, "score", 0, out rule.HasSetScore);
 
-            string expires = ReadString(map, "expires_utc");
+            string expires = PolicyJsonReader.ReadString(map, "expires_utc");
             if (!String.IsNullOrWhiteSpace(expires))
             {
                 DateTime parsedExpires;
@@ -149,7 +149,7 @@ namespace ArcaneEDR
                 policy.Warnings.Add("Detection policy entry " + rule.Id + " should include a plain-English reason.");
             }
 
-            IDictionary matchMap = Value(map, "match") as IDictionary;
+            IDictionary matchMap = PolicyJsonReader.Value(map, "match") as IDictionary;
             if (matchMap == null)
             {
                 policy.Warnings.Add("Detection policy entry " + rule.Id + " has no match object and will not match any alert.");
@@ -176,7 +176,7 @@ namespace ArcaneEDR
         {
             foreach (DictionaryEntry entry in map)
             {
-                string key = Key(entry.Key);
+                string key = PolicyJsonReader.Key(entry.Key);
                 if (key.Equals("id", StringComparison.OrdinalIgnoreCase) ||
                     key.Equals("enabled", StringComparison.OrdinalIgnoreCase) ||
                     key.Equals("action", StringComparison.OrdinalIgnoreCase) ||
@@ -234,59 +234,10 @@ namespace ArcaneEDR
                 action.Equals("tag_only", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static string CanonicalAction(string action)
-        {
-            if (action == null) return "";
-            return action.Trim().Replace("-", "_").Replace(" ", "_").ToLowerInvariant();
-        }
-
-        internal static object Value(IDictionary map, string key)
-        {
-            if (map == null || String.IsNullOrWhiteSpace(key)) return null;
-            foreach (DictionaryEntry entry in map)
-            {
-                if (Key(entry.Key).Equals(key, StringComparison.OrdinalIgnoreCase))
-                {
-                    return entry.Value;
-                }
-            }
-
-            return null;
-        }
-
-        internal static string ReadString(IDictionary map, string key)
-        {
-            object value = Value(map, key);
-            return value == null ? "" : value.ToString().Trim();
-        }
-
-        internal static bool ReadBool(IDictionary map, string key, bool fallback)
-        {
-            object value = Value(map, key);
-            if (value == null) return fallback;
-            if (value is bool) return (bool)value;
-
-            bool parsed;
-            return Boolean.TryParse(value.ToString(), out parsed) ? parsed : fallback;
-        }
-
-        internal static int ReadInt(IDictionary map, string key, int fallback, out bool found)
-        {
-            found = false;
-            object value = Value(map, key);
-            if (value == null) return fallback;
-            found = true;
-
-            int parsed;
-            return Int32.TryParse(value.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out parsed)
-                ? parsed
-                : fallback;
-        }
-
         internal static List<string> ReadStringList(IDictionary map, string key)
         {
             List<string> result = new List<string>();
-            object value = Value(map, key);
+            object value = PolicyJsonReader.Value(map, key);
             AddStringValues(result, value);
             return result;
         }
@@ -314,13 +265,9 @@ namespace ArcaneEDR
             }
         }
 
-        internal static string Key(object key)
-        {
-            return key == null ? "" : key.ToString();
-        }
     }
 
-    internal sealed class DetectionPolicyRule
+    internal sealed class DetectionPolicyRule : IScopedPolicyRule<Alert>
     {
         public int Index;
         public string Id;
@@ -336,6 +283,11 @@ namespace ArcaneEDR
         public int SetScore;
         public string Tag;
         public DetectionPolicyMatch Match = new DetectionPolicyMatch();
+
+        public string Scope
+        {
+            get { return PolicyRuleScope.Alert; }
+        }
 
         public bool IsExpired(DateTime nowUtc)
         {
@@ -398,7 +350,7 @@ namespace ArcaneEDR
             DetectionPolicyMatch match = new DetectionPolicyMatch();
             foreach (DictionaryEntry entry in map)
             {
-                string key = DetectionPolicy.Key(entry.Key);
+                string key = PolicyJsonReader.Key(entry.Key);
                 string canonical = CanonicalMatchField(key);
                 if (String.IsNullOrWhiteSpace(canonical))
                 {
@@ -416,7 +368,7 @@ namespace ArcaneEDR
 
         public bool Matches(Alert alert)
         {
-            string text = AlertText(alert);
+            string text = AlertText.BuildForPolicy(alert);
             string normalizedText = Normalize(text);
 
             if (RuleIds.Count > 0 && !AnyPatternMatches(RuleIds, alert.RuleId)) return false;
@@ -471,7 +423,7 @@ namespace ArcaneEDR
                 {
                     int start;
                     int end;
-                    if (TryParsePortRange(value, out start, out end))
+                    if (PolicyJsonReader.TryParsePortRange(value, out start, out end))
                     {
                         match.Ports.Add(value);
                     }
@@ -656,56 +608,11 @@ namespace ArcaneEDR
             {
                 foreach (string expected in expectedValues)
                 {
-                    if (FieldValueMatches(text, fieldName, expected)) return true;
+                    if (AlertTextFieldMatcher.FieldValueMatches(text, fieldName, expected)) return true;
                 }
             }
 
             return false;
-        }
-
-        private static bool FieldValueMatches(string text, string fieldName, string expected)
-        {
-            if (String.IsNullOrWhiteSpace(text) || String.IsNullOrWhiteSpace(fieldName) || String.IsNullOrWhiteSpace(expected)) return false;
-
-            int index = text.IndexOf(fieldName, StringComparison.OrdinalIgnoreCase);
-            while (index >= 0)
-            {
-                int start = index + fieldName.Length;
-                if (ValueMatchesAt(text, start, expected)) return true;
-                index = text.IndexOf(fieldName, index + fieldName.Length, StringComparison.OrdinalIgnoreCase);
-            }
-
-            return false;
-        }
-
-        private static bool ValueMatchesAt(string text, int start, string expected)
-        {
-            int index = start;
-            while (index < text.Length && Char.IsWhiteSpace(text[index]))
-            {
-                index++;
-            }
-
-            if (index < text.Length && text[index] == '"') index++;
-            if (index + expected.Length > text.Length) return false;
-            if (!text.Substring(index, expected.Length).Equals(expected, StringComparison.OrdinalIgnoreCase)) return false;
-
-            int after = index + expected.Length;
-            return after >= text.Length || IsTokenBoundary(text[after]);
-        }
-
-        private static bool IsTokenBoundary(char value)
-        {
-            return Char.IsWhiteSpace(value) ||
-                value == '"' ||
-                value == '\'' ||
-                value == ',' ||
-                value == ';' ||
-                value == ')' ||
-                value == '(' ||
-                value == '|' ||
-                value == '\r' ||
-                value == '\n';
         }
 
         private static bool AnyCidrMatches(string text, List<CidrRange> ranges)
@@ -745,7 +652,7 @@ namespace ArcaneEDR
             {
                 int start;
                 int end;
-                if (!TryParsePortRange(pattern, out start, out end)) continue;
+                if (!PolicyJsonReader.TryParsePortRange(pattern, out start, out end)) continue;
                 foreach (int port in ports)
                 {
                     if (port >= start && port <= end) return true;
@@ -770,41 +677,6 @@ namespace ArcaneEDR
             }
 
             return result;
-        }
-
-        private static bool TryParsePortRange(string value, out int start, out int end)
-        {
-            start = 0;
-            end = 0;
-            if (String.IsNullOrWhiteSpace(value)) return false;
-
-            string[] parts = value.Trim().Split('-');
-            if (parts.Length == 1)
-            {
-                if (!Int32.TryParse(parts[0], out start)) return false;
-                end = start;
-            }
-            else if (parts.Length == 2)
-            {
-                if (!Int32.TryParse(parts[0], out start)) return false;
-                if (!Int32.TryParse(parts[1], out end)) return false;
-            }
-            else
-            {
-                return false;
-            }
-
-            return start >= 0 && end <= 65535 && start <= end;
-        }
-
-        private static string AlertText(Alert alert)
-        {
-            return (alert.RuleId ?? "") + " " +
-                (alert.Category ?? "") + " " +
-                (alert.Title ?? "") + " " +
-                (alert.Body ?? "") + " " +
-                (alert.EntitySummary ?? "") + " " +
-                (alert.PolicyContext ?? "");
         }
 
         private static string Normalize(string value)
@@ -840,9 +712,8 @@ namespace ArcaneEDR
             DetectionPolicyResult result = new DetectionPolicyResult(alert == null ? 0 : alert.Score);
             if (alert == null || current == null) return result;
 
-            foreach (DetectionPolicyRule rule in current.Rules)
+            foreach (DetectionPolicyRule rule in ScopedPolicyRuleEngine.MatchAll<Alert, DetectionPolicyRule>(current.Rules, PolicyRuleScope.Alert, alert))
             {
-                if (!rule.Matches(alert)) continue;
                 ApplyRule(alert, rule, result);
             }
 
@@ -859,8 +730,8 @@ namespace ArcaneEDR
         {
             int before = alert.Score;
             string action = rule.Action;
-            string context = Sanitize(rule.Id) + ":" + action;
-            if (!String.IsNullOrWhiteSpace(rule.Tag)) context += ":" + Sanitize(rule.Tag);
+            string context = TextFormatting.PolicyTokenOrUnknown(rule.Id) + ":" + action;
+            if (!String.IsNullOrWhiteSpace(rule.Tag)) context += ":" + TextFormatting.PolicyTokenOrUnknown(rule.Tag);
 
             if (action.Equals("lower_score", StringComparison.OrdinalIgnoreCase))
             {
@@ -884,13 +755,13 @@ namespace ArcaneEDR
             }
 
             alert.AddPolicyContext(context);
-            alert.Body = AppendLine(alert.Body, "DetectionPolicy: id=" + Sanitize(rule.Id) +
+            alert.Body = AlertAnnotationText.AppendLine(alert.Body, "DetectionPolicy: id=" + TextFormatting.PolicyTokenOrUnknown(rule.Id) +
                 " action=" + action +
-                " reason=" + Compact(rule.Reason, 160) +
+                " reason=" + AlertAnnotationText.CompactOrNotSpecified(rule.Reason, 160) +
                 " score_before=" + before.ToString(CultureInfo.InvariantCulture) +
                 " score_after=" + alert.Score.ToString(CultureInfo.InvariantCulture));
-            alert.EntitySummary = AppendEntity(alert.EntitySummary, "policy=" + context);
-            alert.AddWhy("Detection policy " + rule.Id + " applied action " + action + ": " + Compact(rule.Reason, 160));
+            alert.EntitySummary = AlertAnnotationText.AppendEntity(alert.EntitySummary, "policy=" + context);
+            alert.AddWhy("Detection policy " + rule.Id + " applied action " + action + ": " + AlertAnnotationText.CompactOrNotSpecified(rule.Reason, 160));
 
             DetectionPolicyAppliedRule applied = new DetectionPolicyAppliedRule();
             applied.Id = rule.Id;
@@ -958,37 +829,6 @@ namespace ArcaneEDR
             return policy ?? new DetectionPolicy();
         }
 
-        private static string AppendLine(string value, string line)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return line;
-            return value + Environment.NewLine + line;
-        }
-
-        private static string AppendEntity(string value, string addition)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return addition;
-            return value + " " + addition;
-        }
-
-        private static string Sanitize(string value)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return "unknown";
-            return value.Trim()
-                .Replace(" ", "_")
-                .Replace(",", "_")
-                .Replace(";", "_")
-                .Replace("|", "_")
-                .Replace("\r", "")
-                .Replace("\n", "");
-        }
-
-        private static string Compact(string value, int maxLength)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return "not specified";
-            string compact = value.Replace("\r", " ").Replace("\n", " ").Trim();
-            if (compact.Length <= maxLength) return compact;
-            return compact.Substring(0, Math.Max(0, maxLength - 3)) + "...";
-        }
     }
 
     internal sealed class DetectionPolicyResult

@@ -44,13 +44,13 @@ namespace ArcaneEDR
                 "MaintenanceContext: " + alert.MaintenanceContext + Environment.NewLine +
                 "Severity: " + alert.Severity + Environment.NewLine +
                 "Score: " + alert.Score.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +
-                "UTC: " + alert.TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture) + Environment.NewLine +
+                "UTC: " + UtcTimestamp.Format(alert.TimestampUtc) + Environment.NewLine +
                 "SystemLocalTime: " + alert.SystemLocalTime + Environment.NewLine +
                 "Title: " + alert.Title + Environment.NewLine +
-                "Why: " + Compact(WhyText(alert), 2000) + Environment.NewLine +
-                "Details: " + Compact(alert.Body, 3000) + Environment.NewLine +
-                "Recommendation: " + Compact(alert.Recommendation, 1000) + Environment.NewLine +
-                "Entity: " + Compact(alert.EntitySummary, 2000);
+                "Why: " + TextFormatting.CompactOrEmpty(AlertWhyText.Join(alert, "; "), 2000) + Environment.NewLine +
+                "Details: " + TextFormatting.CompactOrEmpty(alert.Body, 3000) + Environment.NewLine +
+                "Recommendation: " + TextFormatting.CompactOrEmpty(alert.Recommendation, 1000) + Environment.NewLine +
+                "Entity: " + TextFormatting.CompactOrEmpty(alert.EntitySummary, 2000);
 
             EventLog.WriteEntry(config.WindowsEventLogAlertSource, message, entryType, config.WindowsEventLogAlertEventId);
             logger.Info("Wrote Windows Event Log alert for " + alert.RuleId +
@@ -76,18 +76,5 @@ namespace ArcaneEDR
             return EventLogEntryType.Information;
         }
 
-        private static string WhyText(Alert alert)
-        {
-            if (alert.Why == null || alert.Why.Count == 0) return "";
-            return String.Join("; ", alert.Why.ToArray());
-        }
-
-        private static string Compact(string value, int maxLength)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return "";
-            string compact = value.Replace("\r", " ").Replace("\n", " ").Trim();
-            if (compact.Length <= maxLength) return compact;
-            return compact.Substring(0, maxLength) + "...";
-        }
     }
 }

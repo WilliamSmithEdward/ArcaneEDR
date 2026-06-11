@@ -65,65 +65,20 @@ namespace ArcaneEDR
             RemoteEndpointEnrichment enrichment = new RemoteEndpointEnrichment();
             enrichment.RemoteIp = key;
 
-            if (config.EnableRemoteEndpointReverseDns)
+            foreach (RemoteEndpointEnrichmentProviderPlan provider in BuildProviderPlan())
             {
-                enrichment.Rdns = LookupReverseDns(address);
-                if (!String.IsNullOrWhiteSpace(enrichment.Rdns))
+                if (provider.RequiresMissingContext &&
+                    !NeedsNetworkProviderEnrichment(enrichment, hasEndpointIdentity))
                 {
-                    enrichment.Source = AppendSource(enrichment.Source, "rdns");
+                    continue;
                 }
-            }
 
-            if (config.EnableRemoteEndpointCountryBlockEnrichment)
-            {
-                enrichment.CountryBlockLookupAttempted = true;
-                string country = LookupCountryBlock(address);
-                if (!String.IsNullOrWhiteSpace(country))
+                if (!TryConsumeProviderBudget(provider, enrichment, ref rdapLookups, ref geoProviderLookups))
                 {
-                    enrichment.Country = NormalizeCountryCode(country);
-                    enrichment.CountrySource = "country-blocks";
-                    enrichment.CountryBlockLookupMatched = true;
-                    enrichment.Source = AppendSource(enrichment.Source, "country-blocks");
+                    continue;
                 }
-            }
 
-            if (NeedsRdapEnrichment(enrichment, hasEndpointIdentity) &&
-                config.EnableRemoteEndpointRdapEnrichment &&
-                rdapLookups < Math.Max(0, config.RemoteEndpointRdapMaxLookupsPerPoll))
-            {
-                rdapLookups++;
-                enrichment.RdapLookupAttempted = true;
-                ApplyRdap(address, enrichment);
-            }
-
-            if (NeedsGeoProviderEnrichment(enrichment, hasEndpointIdentity) &&
-                config.EnableRemoteEndpointIpApiGeolocation)
-            {
-                if (CanUseGeoProviderLookup(geoProviderLookups))
-                {
-                    geoProviderLookups++;
-                    enrichment.IpApiLookupAttempted = true;
-                    ApplyIpApi(address, enrichment);
-                }
-                else
-                {
-                    enrichment.GeoProviderLookupDeferred = true;
-                }
-            }
-
-            if (NeedsGeoProviderEnrichment(enrichment, hasEndpointIdentity) &&
-                config.EnableRemoteEndpointIpWhoisGeolocation)
-            {
-                if (CanUseGeoProviderLookup(geoProviderLookups))
-                {
-                    geoProviderLookups++;
-                    enrichment.IpWhoisLookupAttempted = true;
-                    ApplyIpWhois(address, enrichment);
-                }
-                else
-                {
-                    enrichment.GeoProviderLookupDeferred = true;
-                }
+                ApplyProvider(provider, address, enrichment);
             }
 
             if (!enrichment.GeoProviderLookupDeferred)
@@ -228,7 +183,7 @@ namespace ArcaneEDR
         {
             if (endpoint == null) return;
 
-            string resolved = FirstNonEmpty(
+            string resolved = AlertEntityTokens.FirstNonEmpty(
                 endpoint.SniHostname,
                 endpoint.ResolvedDomain,
                 endpoint.RemoteHost,
@@ -279,16 +234,94 @@ namespace ArcaneEDR
             return geoProviderLookups < Math.Max(0, config.RemoteEndpointGeoProviderMaxLookupsPerPoll);
         }
 
-        private bool NeedsRdapEnrichment(RemoteEndpointEnrichment enrichment, bool hasEndpointIdentity)
+        private List<RemoteEndpointEnrichmentProviderPlan> BuildProviderPlan()
         {
-            if (enrichment == null) return false;
-
-            if (String.IsNullOrWhiteSpace(enrichment.Country)) return true;
-            if (HasAllowedRemoteCountry(enrichment) && hasEndpointIdentity) return false;
-            return MissingProviderIdentity(enrichment);
+            List<RemoteEndpointEnrichmentProviderPlan> providers = new List<RemoteEndpointEnrichmentProviderPlan>();
+            AddProvider(providers, config.EnableRemoteEndpointReverseDns, RemoteEndpointEnrichmentProviderKind.ReverseDns);
+            AddProvider(providers, config.EnableRemoteEndpointCountryBlockEnrichment, RemoteEndpointEnrichmentProviderKind.CountryBlocks);
+            AddProvider(providers, config.EnableRemoteEndpointRdapEnrichment, RemoteEndpointEnrichmentProviderKind.Rdap);
+            AddProvider(providers, config.EnableRemoteEndpointIpApiGeolocation, RemoteEndpointEnrichmentProviderKind.IpApi);
+            AddProvider(providers, config.EnableRemoteEndpointIpWhoisGeolocation, RemoteEndpointEnrichmentProviderKind.IpWhois);
+            return providers;
         }
 
-        private bool NeedsGeoProviderEnrichment(RemoteEndpointEnrichment enrichment, bool hasEndpointIdentity)
+        private static void AddProvider(List<RemoteEndpointEnrichmentProviderPlan> providers, bool enabled, RemoteEndpointEnrichmentProviderKind kind)
+        {
+            if (!enabled) return;
+            providers.Add(RemoteEndpointEnrichmentProviderPlan.For(kind));
+        }
+
+        private bool TryConsumeProviderBudget(
+            RemoteEndpointEnrichmentProviderPlan provider,
+            RemoteEndpointEnrichment enrichment,
+            ref int rdapLookups,
+            ref int geoProviderLookups)
+        {
+            if (provider.UsesRdapBudget)
+            {
+                if (rdapLookups >= Math.Max(0, config.RemoteEndpointRdapMaxLookupsPerPoll)) return false;
+                rdapLookups++;
+            }
+
+            if (provider.UsesGeoProviderBudget)
+            {
+                if (!CanUseGeoProviderLookup(geoProviderLookups))
+                {
+                    enrichment.GeoProviderLookupDeferred = true;
+                    return false;
+                }
+
+                geoProviderLookups++;
+            }
+
+            MarkProviderAttempt(provider, enrichment);
+            return true;
+        }
+
+        private static void MarkProviderAttempt(RemoteEndpointEnrichmentProviderPlan provider, RemoteEndpointEnrichment enrichment)
+        {
+            if (provider.Kind == RemoteEndpointEnrichmentProviderKind.CountryBlocks) enrichment.CountryBlockLookupAttempted = true;
+            else if (provider.Kind == RemoteEndpointEnrichmentProviderKind.Rdap) enrichment.RdapLookupAttempted = true;
+            else if (provider.Kind == RemoteEndpointEnrichmentProviderKind.IpApi) enrichment.IpApiLookupAttempted = true;
+            else if (provider.Kind == RemoteEndpointEnrichmentProviderKind.IpWhois) enrichment.IpWhoisLookupAttempted = true;
+        }
+
+        private void ApplyProvider(RemoteEndpointEnrichmentProviderPlan provider, IPAddress address, RemoteEndpointEnrichment enrichment)
+        {
+            if (provider.Kind == RemoteEndpointEnrichmentProviderKind.ReverseDns)
+            {
+                enrichment.Rdns = LookupReverseDns(address);
+                if (!String.IsNullOrWhiteSpace(enrichment.Rdns))
+                {
+                    enrichment.Source = AppendSource(enrichment.Source, provider.SourceName);
+                }
+            }
+            else if (provider.Kind == RemoteEndpointEnrichmentProviderKind.CountryBlocks)
+            {
+                string country = LookupCountryBlock(address);
+                if (!String.IsNullOrWhiteSpace(country))
+                {
+                    enrichment.Country = NormalizeCountryCode(country);
+                    enrichment.CountrySource = provider.SourceName;
+                    enrichment.CountryBlockLookupMatched = true;
+                    enrichment.Source = AppendSource(enrichment.Source, provider.SourceName);
+                }
+            }
+            else if (provider.Kind == RemoteEndpointEnrichmentProviderKind.Rdap)
+            {
+                ApplyRdap(address, enrichment);
+            }
+            else if (provider.Kind == RemoteEndpointEnrichmentProviderKind.IpApi)
+            {
+                ApplyIpApi(address, enrichment);
+            }
+            else if (provider.Kind == RemoteEndpointEnrichmentProviderKind.IpWhois)
+            {
+                ApplyIpWhois(address, enrichment);
+            }
+        }
+
+        private bool NeedsNetworkProviderEnrichment(RemoteEndpointEnrichment enrichment, bool hasEndpointIdentity)
         {
             if (enrichment == null) return false;
 
@@ -378,7 +411,7 @@ namespace ArcaneEDR
 
             using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
             {
-                return ReadResponse(response);
+                return HttpResponseText.ReadUtf8(response);
             }
         }
 
@@ -404,7 +437,7 @@ namespace ArcaneEDR
             }
 
             string asn = NormalizeAsn(ReadString(root, "as"));
-            string asnOrg = FirstNonEmpty(ReadString(root, "asname"), ReadString(root, "org"), ReadString(root, "isp"));
+            string asnOrg = AlertEntityTokens.FirstNonEmpty(ReadString(root, "asname"), ReadString(root, "org"), ReadString(root, "isp"));
             string owner = JoinUnique(ReadString(root, "org"), ReadString(root, "isp"), asnOrg);
             ApplyProviderIdentity(enrichment, asn, asnOrg, owner);
         }
@@ -431,7 +464,7 @@ namespace ArcaneEDR
             }
 
             string asn = NormalizeAsn(ReadString(root, "asn"));
-            string asnOrg = FirstNonEmpty(ReadString(root, "org"), ReadString(root, "isp"));
+            string asnOrg = AlertEntityTokens.FirstNonEmpty(ReadString(root, "org"), ReadString(root, "isp"));
             string owner = JoinUnique(ReadString(root, "org"), ReadString(root, "isp"));
             ApplyProviderIdentity(enrichment, asn, asnOrg, owner);
         }
@@ -766,15 +799,6 @@ namespace ArcaneEDR
             logger.Warn(message);
         }
 
-        private static string ReadResponse(HttpWebResponse response)
-        {
-            using (Stream stream = response.GetResponseStream())
-            using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
-            {
-                return reader.ReadToEnd();
-            }
-        }
-
         private static void AddUnique(List<string> values, string value)
         {
             if (values == null || String.IsNullOrWhiteSpace(value)) return;
@@ -841,16 +865,6 @@ namespace ArcaneEDR
         private static string First(List<string> values)
         {
             return values == null || values.Count == 0 ? "" : values[0];
-        }
-
-        private static string FirstNonEmpty(params string[] values)
-        {
-            foreach (string value in values)
-            {
-                if (!String.IsNullOrWhiteSpace(value)) return value;
-            }
-
-            return "";
         }
 
         private static string NormalizeDomain(string domain)
@@ -977,19 +991,13 @@ namespace ArcaneEDR
 
             DirectoryInfo parent = Directory.GetParent(path);
             string value = parent == null ? "" : parent.Name;
-            if (!IsCountryCode(value))
+            if (!CountryCodes.IsTwoLetterCode(value))
             {
                 value = Path.GetFileNameWithoutExtension(path);
                 if (value != null && value.Length > 2) value = value.Substring(0, 2);
             }
 
-            return IsCountryCode(value) ? value.ToUpperInvariant() : "";
-        }
-
-        private static bool IsCountryCode(string value)
-        {
-            if (String.IsNullOrWhiteSpace(value) || value.Length != 2) return false;
-            return Char.IsLetter(value[0]) && Char.IsLetter(value[1]);
+            return CountryCodes.NormalizeTwoLetterCode(value);
         }
 
         private static string CleanLine(string line)
@@ -1012,6 +1020,63 @@ namespace ArcaneEDR
         {
             Range = range;
             CountryCode = countryCode ?? "";
+        }
+    }
+
+    internal enum RemoteEndpointEnrichmentProviderKind
+    {
+        ReverseDns,
+        CountryBlocks,
+        Rdap,
+        IpApi,
+        IpWhois
+    }
+
+    internal sealed class RemoteEndpointEnrichmentProviderPlan
+    {
+        public readonly RemoteEndpointEnrichmentProviderKind Kind;
+        public readonly string SourceName;
+        public readonly bool RequiresMissingContext;
+        public readonly bool UsesRdapBudget;
+        public readonly bool UsesGeoProviderBudget;
+
+        private RemoteEndpointEnrichmentProviderPlan(
+            RemoteEndpointEnrichmentProviderKind kind,
+            string sourceName,
+            bool requiresMissingContext,
+            bool usesRdapBudget,
+            bool usesGeoProviderBudget)
+        {
+            Kind = kind;
+            SourceName = sourceName;
+            RequiresMissingContext = requiresMissingContext;
+            UsesRdapBudget = usesRdapBudget;
+            UsesGeoProviderBudget = usesGeoProviderBudget;
+        }
+
+        public static RemoteEndpointEnrichmentProviderPlan For(RemoteEndpointEnrichmentProviderKind kind)
+        {
+            if (kind == RemoteEndpointEnrichmentProviderKind.ReverseDns)
+            {
+                return new RemoteEndpointEnrichmentProviderPlan(kind, "rdns", false, false, false);
+            }
+
+            if (kind == RemoteEndpointEnrichmentProviderKind.CountryBlocks)
+            {
+                return new RemoteEndpointEnrichmentProviderPlan(kind, "country-blocks", false, false, false);
+            }
+
+            if (kind == RemoteEndpointEnrichmentProviderKind.Rdap)
+            {
+                return new RemoteEndpointEnrichmentProviderPlan(kind, "rdap", true, true, false);
+            }
+
+            if (kind == RemoteEndpointEnrichmentProviderKind.IpApi)
+            {
+                return new RemoteEndpointEnrichmentProviderPlan(kind, "ip-api", true, false, true);
+            }
+
+            return new RemoteEndpointEnrichmentProviderPlan(kind, "ipwhois", true, false, true);
         }
     }
 

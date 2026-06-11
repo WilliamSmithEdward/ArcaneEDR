@@ -55,7 +55,7 @@ namespace ArcaneEDR
                             DateTime recordTimestampUtc = record.TimeCreated.HasValue ? record.TimeCreated.Value.ToUniversalTime() : DateTime.MinValue;
                             if (recordId > 0 && recordId <= lastRecordId)
                             {
-                                if (IsLikelyLogReset(recordId, recordTimestampUtc))
+                                if (EventLogRecordState.IsLikelyReset(recordId, recordTimestampUtc, lastRecordId, lastRecordTimestampUtc))
                                 {
                                     lastRecordId = 0;
                                     lastRecordTimestampUtc = DateTime.MinValue;
@@ -107,16 +107,6 @@ namespace ArcaneEDR
             return telemetry;
         }
 
-        private bool IsLikelyLogReset(long recordId, DateTime recordTimestampUtc)
-        {
-            return lastRecordId > 0 &&
-                recordId > 0 &&
-                recordId <= lastRecordId &&
-                lastRecordTimestampUtc != DateTime.MinValue &&
-                recordTimestampUtc != DateTime.MinValue &&
-                recordTimestampUtc > lastRecordTimestampUtc.AddMinutes(1.0);
-        }
-
         private string BuildQuery()
         {
             int milliseconds = Math.Max(1, config.PowerShellLookbackMinutes) * 60 * 1000;
@@ -133,10 +123,10 @@ namespace ArcaneEDR
             ev.ProcessId = record.ProcessId.HasValue ? record.ProcessId.Value : 0;
             ev.ThreadId = record.ThreadId.HasValue ? record.ThreadId.Value : 0;
             ev.TimestampUtc = record.TimeCreated.HasValue ? record.TimeCreated.Value.ToUniversalTime() : DateTime.UtcNow;
-            ev.User = GetFirst(data, "User", "ConnectedUser", "RunspaceId");
-            ev.HostApplication = GetFirst(data, "HostApplication", "HostName", "Application");
-            ev.CommandName = GetFirst(data, "CommandName", "Command");
-            ev.ScriptBlockText = GetFirst(data, "ScriptBlockText", "Payload", "ContextInfo");
+            ev.User = EventRecordDataReader.GetFirst(data, "User", "ConnectedUser", "RunspaceId");
+            ev.HostApplication = EventRecordDataReader.GetFirst(data, "HostApplication", "HostName", "Application");
+            ev.CommandName = EventRecordDataReader.GetFirst(data, "CommandName", "Command");
+            ev.ScriptBlockText = EventRecordDataReader.GetFirst(data, "ScriptBlockText", "Payload", "ContextInfo");
             ev.Message = EventRecordDataReader.FormatDescription(record);
             EnrichProcessContext(ev, processes);
             return ev;
@@ -161,15 +151,5 @@ namespace ArcaneEDR
             ev.ProcessSigner = process.Signer;
         }
 
-        private static string GetFirst(Dictionary<string, string> data, params string[] keys)
-        {
-            foreach (string key in keys)
-            {
-                string value = EventRecordDataReader.Get(data, key);
-                if (!String.IsNullOrWhiteSpace(value)) return value;
-            }
-
-            return "";
-        }
     }
 }

@@ -25,7 +25,7 @@ namespace ArcaneEDR
             string alertsPath = Path.Combine(config.LogDirectory, "ArcaneAlerts.jsonl");
             StringBuilder builder = new StringBuilder();
             builder.AppendLine("arcane_edr_compact_log_sample");
-            builder.AppendLine("utc=" + DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture));
+            builder.AppendLine("utc=" + UtcTimestamp.Format(DateTime.UtcNow));
             builder.AppendLine("baseline_learning_mode=" + config.BaselineLearningMode);
             builder.AppendLine("included_alert_minimum_score=" + includedAlertMinimumScore.ToString(CultureInfo.InvariantCulture));
             builder.AppendLine("aggregate_alert_window_lines=" + config.AIAnalysisMaxAlertLines.ToString(CultureInfo.InvariantCulture));
@@ -38,9 +38,9 @@ namespace ArcaneEDR
             builder.AppendLine("poll_count=" + state.PollCount.ToString(CultureInfo.InvariantCulture));
             builder.AppendLine("alert_count=" + state.AlertCount.ToString(CultureInfo.InvariantCulture));
             builder.AppendLine("poll_failures=" + state.PollFailures.ToString(CultureInfo.InvariantCulture));
-            builder.AppendLine("last_start_utc=" + Format(state.LastStartUtc));
-            builder.AppendLine("last_clean_stop_utc=" + Format(state.LastCleanStopUtc));
-            builder.AppendLine("last_heartbeat_utc=" + Format(state.LastHeartbeatUtc));
+            builder.AppendLine("last_start_utc=" + UtcTimestamp.Format(state.LastStartUtc));
+            builder.AppendLine("last_clean_stop_utc=" + UtcTimestamp.Format(state.LastCleanStopUtc));
+            builder.AppendLine("last_heartbeat_utc=" + UtcTimestamp.Format(state.LastHeartbeatUtc));
             builder.AppendLine();
             builder.AppendLine("[recent_arcane_edr_summary]");
             builder.AppendLine(ReadTail(logPath, config.AIAnalysisMaxLogLines, delegate(string line)
@@ -145,23 +145,23 @@ namespace ArcaneEDR
                 if (parsed == null) return null;
 
                 CompactAlertRecord record = new CompactAlertRecord();
-                record.RuleId = NullToUnknown(Read(parsed, "rule_id"));
-                record.Category = NullToUnknown(Read(parsed, "category"));
+                record.RuleId = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "rule_id"));
+                record.Category = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "category"));
                 if (record.Category.Equals("unknown", StringComparison.OrdinalIgnoreCase))
                 {
                     record.Category = AlertRuleCatalog.CategoryFor(record.RuleId);
                 }
 
-                record.Severity = NullToUnknown(Read(parsed, "severity"));
-                record.Score = ReadInt(parsed, "score");
+                record.Severity = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "severity"));
+                record.Score = JsonFields.ReadInt(parsed, "score");
                 if (record.Severity.Equals("unknown", StringComparison.OrdinalIgnoreCase))
                 {
-                    record.Severity = SeverityFromScore(record.Score);
+                    record.Severity = AlertSeverity.FromScore(record.Score);
                 }
 
-                record.MaintenanceContext = ReadBool(parsed, "maintenance_context");
-                record.Title = NullToUnknown(Read(parsed, "title"));
-                TryParseUtc(Read(parsed, "timestamp_utc"), out record.TimestampUtc);
+                record.MaintenanceContext = JsonFields.ReadBool(parsed, "maintenance_context");
+                record.Title = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "title"));
+                UtcTimestamp.TryParse(JsonFields.ReadString(parsed, "timestamp_utc"), out record.TimestampUtc);
                 record.AgentContext = HasAgentContext(parsed);
                 record.Why = ReadWhy(parsed);
                 record.RemoteContext = ExtractRemoteContext(parsed);
@@ -175,8 +175,8 @@ namespace ArcaneEDR
 
         private static bool HasAgentContext(IDictionary parsed)
         {
-            if (ContainsIgnoreCase(Read(parsed, "body"), "AgentContext: involved")) return true;
-            if (ContainsIgnoreCase(Read(parsed, "entity"), "agent_context=involved")) return true;
+            if (ContainsIgnoreCase(JsonFields.ReadString(parsed, "body"), "AgentContext: involved")) return true;
+            if (ContainsIgnoreCase(JsonFields.ReadString(parsed, "entity"), "agent_context=involved")) return true;
 
             IList why = parsed["why"] as IList;
             if (why == null) return false;
@@ -198,7 +198,9 @@ namespace ArcaneEDR
         {
             if (parsed == null) return "";
 
-            string text = Read(parsed, "entity") + " " + Read(parsed, "body") + " " + Read(parsed, "policy_context");
+            string text = JsonFields.ReadString(parsed, "entity") + " " +
+                JsonFields.ReadString(parsed, "body") + " " +
+                JsonFields.ReadString(parsed, "policy_context");
             if (String.IsNullOrWhiteSpace(text)) return "";
 
             List<string> parts = new List<string>();
@@ -293,22 +295,7 @@ namespace ArcaneEDR
 
         private static string SanitizeContextNonDomainValue(string value)
         {
-            if (String.IsNullOrWhiteSpace(value)) return "";
-
-            string result = value;
-            result = Regex.Replace(result, "(?i)bearer\\s+[A-Za-z0-9._\\-+/=]{8,}", "Bearer [redacted-secret]");
-            result = Regex.Replace(result, "(?i)(api[_-]?key|apikey|token|secret|password|passwd|pwd|authorization|client_secret|access_token|refresh_token)\\s*[:=]\\s*[^\\s,;\\}\\]]+", "$1=[redacted-secret]");
-            result = Regex.Replace(result, "[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{10,}", "[redacted-jwt]");
-            result = Regex.Replace(result, "[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}", "[redacted-email]");
-            result = Regex.Replace(result, "(?i)https?://[^\\s\"'<>]+", "[redacted-url]");
-            result = Regex.Replace(result, "\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b", "[redacted-ip]");
-            result = Regex.Replace(result, "(?i)\\b[0-9a-f]{64}\\b", "[redacted-sha256]");
-            result = Regex.Replace(result, "(?i)C:\\\\Users\\\\[^\\\\\\s\"']+", "C:\\Users\\[redacted-user]");
-            result = Regex.Replace(result, "(?i)[A-Z]:\\\\[^\\s|,\"']+", "[redacted-path]");
-            result = Regex.Replace(result, "\\\\\\\\[^\\s|,\"']+", "[redacted-unc-path]");
-            result = Regex.Replace(result, "(?i)(user|subject|target)=([^\\s|,]+)", "$1=[redacted-account]");
-            result = Regex.Replace(result, "[A-Za-z0-9+/]{80,}={0,2}", "[redacted-encoded-data]");
-            return result.Trim();
+            return SanitizeRedactedText(value, false, false);
         }
 
         private static List<string> ReadWhy(IDictionary parsed)
@@ -395,28 +382,28 @@ namespace ArcaneEDR
                 IDictionary parsed = serializer.DeserializeObject(line) as IDictionary;
                 if (parsed == null) return "alert_record_unparseable";
 
-                int score = ReadInt(parsed, "score");
+                int score = JsonFields.ReadInt(parsed, "score");
                 if (score < includedAlertMinimumScore)
                 {
                     return "";
                 }
 
-                string ruleId = Read(parsed, "rule_id");
+                string ruleId = JsonFields.ReadString(parsed, "rule_id");
                 if (excludedRuleIds.Contains(ruleId))
                 {
                     return "";
                 }
 
                 string remoteContext = ExtractRemoteContext(parsed);
-                return "timestamp_utc=" + Read(parsed, "timestamp_utc") +
-                    " system_local_time=" + SanitizeToken(Read(parsed, "system_local_time")) +
+                return "timestamp_utc=" + JsonFields.ReadString(parsed, "timestamp_utc") +
+                    " system_local_time=" + SanitizeToken(JsonFields.ReadString(parsed, "system_local_time")) +
                     " rule_id=" + SanitizeToken(ruleId) +
-                    " category=" + SanitizeToken(Read(parsed, "category")) +
-                    " maintenance_context=" + SanitizeToken(Read(parsed, "maintenance_context")) +
-                    " severity=" + SanitizeToken(Read(parsed, "severity")) +
+                    " category=" + SanitizeToken(JsonFields.ReadString(parsed, "category")) +
+                    " maintenance_context=" + SanitizeToken(JsonFields.ReadString(parsed, "maintenance_context")) +
+                    " severity=" + SanitizeToken(JsonFields.ReadString(parsed, "severity")) +
                     " score=" + score.ToString(CultureInfo.InvariantCulture) +
                     (String.IsNullOrWhiteSpace(remoteContext) ? "" : " remote_context=\"" + remoteContext + "\"") +
-                    " title=" + SanitizeText(Read(parsed, "title"));
+                    " title=" + SanitizeText(JsonFields.ReadString(parsed, "title"));
             }
             catch
             {
@@ -435,26 +422,6 @@ namespace ArcaneEDR
         {
             Match match = Regex.Match(text, "(?:^|\\s)" + Regex.Escape(key) + "=([^\\s]+)", RegexOptions.IgnoreCase);
             return match.Success ? match.Groups[1].Value : "";
-        }
-
-        private static string Read(IDictionary parsed, string key)
-        {
-            if (!parsed.Contains(key) || parsed[key] == null) return "";
-            return parsed[key].ToString();
-        }
-
-        private static int ReadInt(IDictionary parsed, string key)
-        {
-            if (!parsed.Contains(key) || parsed[key] == null) return 0;
-            int value;
-            return Int32.TryParse(parsed[key].ToString(), out value) ? value : 0;
-        }
-
-        private static bool ReadBool(IDictionary parsed, string key)
-        {
-            if (!parsed.Contains(key) || parsed[key] == null) return false;
-            bool value;
-            return Boolean.TryParse(parsed[key].ToString(), out value) && value;
         }
 
         private static int ExtractBracketScore(string text)
@@ -480,15 +447,9 @@ namespace ArcaneEDR
             return space >= 0 ? value.Substring(0, space) : value;
         }
 
-        private static string NullToUnknown(string value)
-        {
-            return String.IsNullOrWhiteSpace(value) ? "unknown" : value;
-        }
-
         private static bool ContainsIgnoreCase(string text, string value)
         {
-            if (String.IsNullOrWhiteSpace(text) || String.IsNullOrWhiteSpace(value)) return false;
-            return text.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0;
+            return TextFormatting.ContainsIgnoreCase(text, value);
         }
 
         private static string NormalizeReasonForAggregate(string value)
@@ -516,29 +477,6 @@ namespace ArcaneEDR
             return SanitizeText(value);
         }
 
-        private static bool TryParseUtc(string value, out DateTime result)
-        {
-            result = DateTime.MinValue;
-            if (String.IsNullOrWhiteSpace(value)) return false;
-
-            DateTime parsed;
-            if (!DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out parsed))
-            {
-                return false;
-            }
-
-            result = parsed.ToUniversalTime();
-            return true;
-        }
-
-        private static string SeverityFromScore(int score)
-        {
-            if (score >= 90) return "critical";
-            if (score >= 75) return "high";
-            if (score >= 60) return "medium";
-            return "low";
-        }
-
         private static string SanitizeToken(string value)
         {
             if (String.IsNullOrWhiteSpace(value)) return "";
@@ -546,6 +484,11 @@ namespace ArcaneEDR
         }
 
         private static string SanitizeText(string value)
+        {
+            return SanitizeRedactedText(value, true, true);
+        }
+
+        private static string SanitizeRedactedText(string value, bool redactDomains, bool redactCommandFields)
         {
             if (String.IsNullOrWhiteSpace(value)) return "";
 
@@ -555,14 +498,22 @@ namespace ArcaneEDR
             result = Regex.Replace(result, "[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{10,}", "[redacted-jwt]");
             result = Regex.Replace(result, "[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}", "[redacted-email]");
             result = Regex.Replace(result, "(?i)https?://[^\\s\"'<>]+", "[redacted-url]");
-            result = Regex.Replace(result, "(?i)\\b(?:[a-z0-9](?:[a-z0-9\\-]{0,61}[a-z0-9])?\\.)+[a-z]{2,}\\b", "[redacted-domain]");
+            if (redactDomains)
+            {
+                result = Regex.Replace(result, "(?i)\\b(?:[a-z0-9](?:[a-z0-9\\-]{0,61}[a-z0-9])?\\.)+[a-z]{2,}\\b", "[redacted-domain]");
+            }
+
             result = Regex.Replace(result, "\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b", "[redacted-ip]");
             result = Regex.Replace(result, "(?i)\\b[0-9a-f]{64}\\b", "[redacted-sha256]");
             result = Regex.Replace(result, "(?i)C:\\\\Users\\\\[^\\\\\\s\"']+", "C:\\Users\\[redacted-user]");
             result = Regex.Replace(result, "(?i)[A-Z]:\\\\[^\\s|,\"']+", "[redacted-path]");
             result = Regex.Replace(result, "\\\\\\\\[^\\s|,\"']+", "[redacted-unc-path]");
             result = Regex.Replace(result, "(?i)(user|subject|target)=([^\\s|,]+)", "$1=[redacted-account]");
-            result = Regex.Replace(result, "(?i)(command_line|parent_command_line|script_block|decodedpreview)=([^|]+)", "$1=[redacted]");
+            if (redactCommandFields)
+            {
+                result = Regex.Replace(result, "(?i)(command_line|parent_command_line|script_block|decodedpreview)=([^|]+)", "$1=[redacted]");
+            }
+
             result = Regex.Replace(result, "[A-Za-z0-9+/]{80,}={0,2}", "[redacted-encoded-data]");
             return result.Trim();
         }
@@ -575,10 +526,6 @@ namespace ArcaneEDR
             return value.Substring(0, maxChars - 3).TrimEnd() + "...";
         }
 
-        private static string Format(DateTime? value)
-        {
-            return value.HasValue ? value.Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture) : "";
-        }
     }
 
     internal sealed class CompactAlertRecord
@@ -867,7 +814,7 @@ namespace ArcaneEDR
 
         private static string FormatDate(DateTime value)
         {
-            return value > DateTime.MinValue ? value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture) : "";
+            return value > DateTime.MinValue ? UtcTimestamp.Format(value) : "";
         }
     }
 

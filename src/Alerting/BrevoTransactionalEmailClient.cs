@@ -39,8 +39,8 @@ namespace ArcaneEDR
             request.ContentType = "application/json";
             request.Headers["api-key"] = apiKey;
             request.ContentLength = body.Length;
-            request.Timeout = TimeoutMilliseconds(config.BrevoTimeoutSeconds);
-            request.ReadWriteTimeout = TimeoutMilliseconds(config.BrevoTimeoutSeconds);
+            request.Timeout = HttpResponseText.TimeoutMilliseconds(config.BrevoTimeoutSeconds, 15);
+            request.ReadWriteTimeout = HttpResponseText.TimeoutMilliseconds(config.BrevoTimeoutSeconds, 15);
 
             using (Stream requestStream = request.GetRequestStream())
             {
@@ -51,7 +51,7 @@ namespace ArcaneEDR
             {
                 using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
                 {
-                    return new BrevoSendResult((int)response.StatusCode, ReadResponse(response));
+                    return new BrevoSendResult((int)response.StatusCode, HttpResponseText.Read(response));
                 }
             }
             catch (WebException ex)
@@ -59,7 +59,7 @@ namespace ArcaneEDR
                 HttpWebResponse response = ex.Response as HttpWebResponse;
                 if (response == null) throw;
 
-                string responseBody = ReadResponse(response);
+                string responseBody = HttpResponseText.Read(response);
                 throw new InvalidOperationException("Brevo API returned HTTP " + ((int)response.StatusCode).ToString(CultureInfo.InvariantCulture) + ": " + responseBody);
             }
         }
@@ -69,45 +69,17 @@ namespace ArcaneEDR
             return secretProvider.GetSecret(config.BrevoApiKeyEnvironmentVariable);
         }
 
-        private static int TimeoutMilliseconds(int timeoutSeconds)
-        {
-            int seconds = timeoutSeconds <= 0 ? 15 : timeoutSeconds;
-            return seconds * 1000;
-        }
-
         private static string BuildPayload(BrevoEmailMessage message)
         {
             return "{" +
-                "\"sender\":{\"name\":\"" + JsonEscape(message.SenderName) + "\",\"email\":\"" + JsonEscape(message.SenderEmail) + "\"}," +
-                "\"to\":[{\"email\":\"" + JsonEscape(message.RecipientEmail) + "\",\"name\":\"" + JsonEscape(message.RecipientName) + "\"}]," +
-                "\"subject\":\"" + JsonEscape(message.Subject) + "\"," +
-                "\"htmlContent\":\"" + JsonEscape(message.HtmlContent) + "\"," +
+                "\"sender\":{\"name\":\"" + JsonFields.Escape(message.SenderName) + "\",\"email\":\"" + JsonFields.Escape(message.SenderEmail) + "\"}," +
+                "\"to\":[{\"email\":\"" + JsonFields.Escape(message.RecipientEmail) + "\",\"name\":\"" + JsonFields.Escape(message.RecipientName) + "\"}]," +
+                "\"subject\":\"" + JsonFields.Escape(message.Subject) + "\"," +
+                "\"htmlContent\":\"" + JsonFields.Escape(message.HtmlContent) + "\"," +
                 "\"tags\":[\"arcane-edr\",\"security-alert\"]" +
                 "}";
         }
 
-        private static string ReadResponse(HttpWebResponse response)
-        {
-            using (Stream responseStream = response.GetResponseStream())
-            {
-                if (responseStream == null) return "";
-                using (StreamReader reader = new StreamReader(responseStream))
-                {
-                    return reader.ReadToEnd();
-                }
-            }
-        }
-
-        private static string JsonEscape(string value)
-        {
-            if (value == null) return "";
-            return value
-                .Replace("\\", "\\\\")
-                .Replace("\"", "\\\"")
-                .Replace("\r", "\\r")
-                .Replace("\n", "\\n")
-                .Replace("\t", "\\t");
-        }
     }
 
     internal sealed class BrevoEmailMessage

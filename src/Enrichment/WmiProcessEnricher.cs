@@ -60,12 +60,12 @@ namespace ArcaneEDR
         private ProcessInfo ReadProcess(ManagementObject obj)
         {
             ProcessInfo process = new ProcessInfo();
-            process.ProcessId = ReadInt(obj, "ProcessId");
-            process.ProcessName = ReadString(obj, "Name");
-            process.ExecutablePath = ReadString(obj, "ExecutablePath");
-            process.CommandLine = ReadString(obj, "CommandLine");
-            process.ParentProcessId = ReadInt(obj, "ParentProcessId");
-            process.SessionId = ReadInt(obj, "SessionId");
+            process.ProcessId = WmiFields.ReadInt(obj, "ProcessId");
+            process.ProcessName = WmiFields.ReadString(obj, "Name");
+            process.ExecutablePath = WmiFields.ReadString(obj, "ExecutablePath");
+            process.CommandLine = WmiFields.ReadString(obj, "CommandLine");
+            process.ParentProcessId = WmiFields.ReadInt(obj, "ParentProcessId");
+            process.SessionId = WmiFields.ReadInt(obj, "SessionId");
             process.StartTimeUtc = ReadWmiDate(obj, "CreationDate");
             process.User = ReadOwner(obj);
 
@@ -78,24 +78,9 @@ namespace ArcaneEDR
             return process;
         }
 
-        private static string ReadString(ManagementObject obj, string name)
-        {
-            object value = obj[name];
-            return value == null ? "" : value.ToString();
-        }
-
-        private static int ReadInt(ManagementObject obj, string name)
-        {
-            object value = obj[name];
-            if (value == null) return 0;
-
-            int parsed;
-            return Int32.TryParse(value.ToString(), out parsed) ? parsed : 0;
-        }
-
         private static DateTime? ReadWmiDate(ManagementObject obj, string name)
         {
-            string value = ReadString(obj, name);
+            string value = WmiFields.ReadString(obj, name);
             if (String.IsNullOrWhiteSpace(value)) return null;
 
             try

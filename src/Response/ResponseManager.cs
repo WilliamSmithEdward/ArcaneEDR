@@ -138,30 +138,22 @@ namespace ArcaneEDR
         {
             if (!config.EnableResponsePolicy) return ResponsePolicyDecision.Allow();
 
-            string ruleId = alert == null ? "" : (alert.RuleId ?? "");
-            string category = AlertRulePolicy.AlertCategory(alert);
+            ResponsePolicyRule rule = ScopedPolicyRuleEngine.FirstMatch<Alert, ResponsePolicyRule>(
+                ResponsePolicyRule.Build(config),
+                PolicyRuleScope.Response,
+                alert);
 
-            if (ContainsConfigured(config.ResponseBlockedRuleIds, ruleId))
+            if (rule != null && !rule.Allows)
             {
-                return ResponsePolicyDecision.Deny("blocked rule id: " + ruleId);
+                return ResponsePolicyDecision.Deny(rule.Reason());
             }
 
-            if (ContainsConfigured(config.ResponseBlockedCategories, category))
-            {
-                return ResponsePolicyDecision.Deny("blocked category: " + category);
-            }
-
-            bool hasAllowPolicy =
-                HasConfiguredValues(config.ResponseAllowedRuleIds) ||
-                HasConfiguredValues(config.ResponseAllowedCategories);
-
-            if (!hasAllowPolicy)
+            if (!ResponsePolicyRule.HasAllowPolicy(config))
             {
                 return ResponsePolicyDecision.Deny("no response_policy.allowed_rule_ids or response_policy.allowed_categories configured");
             }
 
-            if (ContainsConfigured(config.ResponseAllowedRuleIds, ruleId) ||
-                ContainsConfigured(config.ResponseAllowedCategories, category))
+            if (rule != null && rule.Allows)
             {
                 return ResponsePolicyDecision.Allow();
             }
@@ -294,7 +286,7 @@ namespace ArcaneEDR
                 {
                     string directory = Path.GetDirectoryName(config.ResponseLedgerFile);
                     if (!String.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
-                    RotateIfNeeded(config.ResponseLedgerFile);
+                    LogFileRotation.RotateIfNeeded(config.ResponseLedgerFile, config.MaxLogFileBytes);
                     File.AppendAllText(config.ResponseLedgerFile, ResponseJson(alert, action, dryRun, targetType, targetValue, skippedReason, responseId, firewallRuleName) + Environment.NewLine);
                 }
             }
@@ -307,40 +299,25 @@ namespace ArcaneEDR
             }
         }
 
-        private void RotateIfNeeded(string path)
-        {
-            try
-            {
-                FileInfo file = new FileInfo(path);
-                if (!file.Exists || file.Length < config.MaxLogFileBytes) return;
-
-                string rotated = path + "." + DateTime.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture) + ".old";
-                File.Move(path, rotated);
-            }
-            catch
-            {
-            }
-        }
-
         private string ResponseJson(Alert alert, string action, bool dryRun, string targetType, string targetValue, string skippedReason, string responseId, string firewallRuleName)
         {
             return "{" +
-                "\"timestamp_utc\":\"" + JsonEscape(DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)) + "\"," +
-                "\"response_id\":\"" + JsonEscape(responseId) + "\"," +
-                "\"mode\":\"" + JsonEscape(config.ResponseMode) + "\"," +
+                "\"timestamp_utc\":\"" + JsonFields.Escape(UtcTimestamp.Format(DateTime.UtcNow)) + "\"," +
+                "\"response_id\":\"" + JsonFields.Escape(responseId) + "\"," +
+                "\"mode\":\"" + JsonFields.Escape(config.ResponseMode) + "\"," +
                 "\"dry_run\":" + (dryRun ? "true" : "false") + "," +
-                "\"action\":\"" + JsonEscape(action) + "\"," +
-                "\"trigger_rule_id\":\"" + JsonEscape(alert.RuleId) + "\"," +
-                "\"trigger_title\":\"" + JsonEscape(alert.Title) + "\"," +
-                "\"rule_id\":\"" + JsonEscape(alert.RuleId) + "\"," +
-                "\"category\":\"" + JsonEscape(AlertRulePolicy.AlertCategory(alert)) + "\"," +
+                "\"action\":\"" + JsonFields.Escape(action) + "\"," +
+                "\"trigger_rule_id\":\"" + JsonFields.Escape(alert.RuleId) + "\"," +
+                "\"trigger_title\":\"" + JsonFields.Escape(alert.Title) + "\"," +
+                "\"rule_id\":\"" + JsonFields.Escape(alert.RuleId) + "\"," +
+                "\"category\":\"" + JsonFields.Escape(AlertRulePolicy.AlertCategory(alert)) + "\"," +
                 "\"score\":" + alert.Score.ToString(CultureInfo.InvariantCulture) + "," +
-                "\"severity\":\"" + JsonEscape(alert.Severity) + "\"," +
-                "\"target_type\":\"" + JsonEscape(targetType) + "\"," +
-                "\"target_value\":\"" + JsonEscape(targetValue) + "\"," +
-                "\"target_process_name\":\"" + JsonEscape(TargetProcessName(alert, targetType)) + "\"," +
-                "\"firewall_rule_name\":\"" + JsonEscape(firewallRuleName) + "\"," +
-                "\"skipped_reason\":\"" + JsonEscape(skippedReason) + "\"" +
+                "\"severity\":\"" + JsonFields.Escape(alert.Severity) + "\"," +
+                "\"target_type\":\"" + JsonFields.Escape(targetType) + "\"," +
+                "\"target_value\":\"" + JsonFields.Escape(targetValue) + "\"," +
+                "\"target_process_name\":\"" + JsonFields.Escape(TargetProcessName(alert, targetType)) + "\"," +
+                "\"firewall_rule_name\":\"" + JsonFields.Escape(firewallRuleName) + "\"," +
+                "\"skipped_reason\":\"" + JsonFields.Escape(skippedReason) + "\"" +
                 "}";
         }
 
@@ -389,17 +366,6 @@ namespace ArcaneEDR
             return result.Length <= 120 ? result : result.Substring(0, 120);
         }
 
-        private static bool HasConfiguredValues(HashSet<string> values)
-        {
-            if (values == null) return false;
-            foreach (string value in values)
-            {
-                if (!String.IsNullOrWhiteSpace(value)) return true;
-            }
-
-            return false;
-        }
-
         private static string CombineReasons(string first, string second)
         {
             if (String.IsNullOrWhiteSpace(first)) return second ?? "";
@@ -411,21 +377,6 @@ namespace ArcaneEDR
         {
             if (decision == null || decision.Allowed) return " policy=allowed";
             return " policy=would_skip reason=" + SafeToken(decision.Reason);
-        }
-
-        private static bool ContainsConfigured(HashSet<string> values, string expected)
-        {
-            if (values == null || String.IsNullOrWhiteSpace(expected)) return false;
-            foreach (string value in values)
-            {
-                if (!String.IsNullOrWhiteSpace(value) &&
-                    value.Trim().Equals(expected, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-
-            return false;
         }
 
         private static bool ContainsProcessName(HashSet<string> values, string processName)
@@ -478,16 +429,6 @@ namespace ArcaneEDR
             string name = process.ProcessName ?? "";
             if (String.IsNullOrWhiteSpace(name)) return "";
             return name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name : name + ".exe";
-        }
-
-        private static string JsonEscape(string value)
-        {
-            if (value == null) return "";
-            return value
-                .Replace("\\", "\\\\")
-                .Replace("\"", "\\\"")
-                .Replace("\r", "\\r")
-                .Replace("\n", "\\n");
         }
 
         private void Warn(string message)

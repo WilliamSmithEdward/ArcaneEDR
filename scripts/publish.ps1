@@ -53,17 +53,17 @@ if ([string]::IsNullOrWhiteSpace($DestinationRoot)) {
 $executableName = Get-ConfigValue -Path $deploymentConfig -Name "ExecutableName" -Default "ArcaneEDR.exe"
 $destination = Join-Path $DestinationRoot $ApplicationName
 $bin = Join-Path $destination "bin"
+$gui = Join-Path $destination "gui"
 $config = Join-Path $destination "config"
 $scripts = Join-Path $destination "scripts"
 $docs = Join-Path $destination "docs"
 $tools = Join-Path $destination "tools"
 $assets = Join-Path $destination "src\Assets"
 
-& (Join-Path $PSScriptRoot "build.ps1")
+New-Item -ItemType Directory -Force -Path $bin, $gui, $config, $scripts, $docs, $tools, $assets | Out-Null
 
-New-Item -ItemType Directory -Force -Path $bin, $config, $scripts, $docs, $tools, $assets | Out-Null
-
-Copy-Item -LiteralPath (Join-Path $root "bin\$executableName") -Destination $bin -Force
+& (Join-Path $PSScriptRoot "build.ps1") -OutputPath (Join-Path $bin $executableName)
+& (Join-Path $PSScriptRoot "build-gui.ps1") -OutputPath $gui
 $sourceConfig = Join-Path $root "config\ArcaneEDR.config"
 if (!(Test-Path $sourceConfig)) {
     $sourceConfig = Join-Path $root "config\ArcaneEDR.example.config"

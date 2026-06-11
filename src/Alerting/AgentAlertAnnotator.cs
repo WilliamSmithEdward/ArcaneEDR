@@ -12,7 +12,7 @@ namespace ArcaneEDR
                 return alert;
             }
 
-            string text = AlertText(alert);
+            string text = AlertText.Build(alert);
             if (text.IndexOf("agent_context=", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 return alert;
@@ -34,8 +34,8 @@ namespace ArcaneEDR
             }
 
             string summary = String.Join(",", reasons.ToArray());
-            alert.Body = AppendLine(alert.Body, "AgentContext: involved=true reasons=" + summary);
-            alert.EntitySummary = AppendEntity(alert.EntitySummary, "agent_context=involved reasons=" + summary);
+            alert.Body = AlertAnnotationText.AppendLine(alert.Body, "AgentContext: involved=true reasons=" + summary);
+            alert.EntitySummary = AlertAnnotationText.AppendEntity(alert.EntitySummary, "agent_context=involved reasons=" + summary);
             alert.AddWhy("The alert involves configured unattended-agent context: " + summary + ".");
             return alert;
         }
@@ -118,21 +118,7 @@ namespace ArcaneEDR
             }
 
             int after = index + expected.Length;
-            return after >= text.Length || IsTokenBoundary(text[after]);
-        }
-
-        private static bool IsTokenBoundary(char value)
-        {
-            return Char.IsWhiteSpace(value) ||
-                value == '"' ||
-                value == '\'' ||
-                value == ',' ||
-                value == ';' ||
-                value == ')' ||
-                value == '(' ||
-                value == '|' ||
-                value == '\r' ||
-                value == '\n';
+            return after >= text.Length || TextFormatting.IsTokenBoundary(text[after]);
         }
 
         private static void AddUnique(List<string> reasons, string value)
@@ -145,41 +131,9 @@ namespace ArcaneEDR
             reasons.Add(value);
         }
 
-        private static string AppendLine(string value, string line)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return line;
-            return value + Environment.NewLine + line;
-        }
-
-        private static string AppendEntity(string value, string addition)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return addition;
-            return value + " " + addition;
-        }
-
-        private static string AlertText(Alert alert)
-        {
-            return (alert.RuleId ?? "") + " " +
-                (alert.Title ?? "") + " " +
-                (alert.Body ?? "") + " " +
-                (alert.EntitySummary ?? "");
-        }
-
         private static string NormalizeReason(string value)
         {
-            if (String.IsNullOrWhiteSpace(value)) return "";
-
-            string normalized = value.Trim()
-                .Replace("\\", "/")
-                .Replace(" ", "_")
-                .Replace(",", "_")
-                .Replace(";", "_")
-                .Replace("|", "_")
-                .Replace("\r", "")
-                .Replace("\n", "");
-
-            if (normalized.Length <= 80) return normalized;
-            return normalized.Substring(0, 80);
+            return AlertAnnotationText.NormalizeReasonToken(value, 80, "_");
         }
 
         private static bool ContainsRootText(string text, string root)

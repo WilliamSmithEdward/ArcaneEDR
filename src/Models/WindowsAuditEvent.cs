@@ -24,7 +24,7 @@ namespace ArcaneEDR
         {
             get
             {
-                return Safe(LogName) + "|" +
+                return TextFormatting.EmptyIfNull(LogName) + "|" +
                     RecordId.ToString(CultureInfo.InvariantCulture) + "|" +
                     EventId.ToString(CultureInfo.InvariantCulture);
             }
@@ -34,18 +34,18 @@ namespace ArcaneEDR
         {
             get
             {
-                return "log=" + Safe(LogName) +
+                return "log=" + TextFormatting.EmptyIfNull(LogName) +
                     " event_id=" + EventId.ToString(CultureInfo.InvariantCulture) +
                     " record_id=" + RecordId.ToString(CultureInfo.InvariantCulture) +
-                    " subject=" + Safe(SubjectUser) +
-                    " target=" + Safe(TargetUser) +
-                    " ip=" + Safe(IpAddress) +
-                    " logon_type=" + Safe(LogonType) +
-                    " process=" + Safe(ProcessName) +
-                    " parent=" + Safe(ParentProcessName) +
-                    " service=" + Safe(ServiceName) +
-                    " task=" + Safe(TaskName) +
-                    " command_line=" + Compact(CommandLine);
+                    " subject=" + TextFormatting.EmptyIfNull(SubjectUser) +
+                    " target=" + TextFormatting.EmptyIfNull(TargetUser) +
+                    " ip=" + TextFormatting.EmptyIfNull(IpAddress) +
+                    " logon_type=" + TextFormatting.EmptyIfNull(LogonType) +
+                    " process=" + TextFormatting.EmptyIfNull(ProcessName) +
+                    " parent=" + TextFormatting.EmptyIfNull(ParentProcessName) +
+                    " service=" + TextFormatting.EmptyIfNull(ServiceName) +
+                    " task=" + TextFormatting.EmptyIfNull(TaskName) +
+                    " command_line=" + TextFormatting.CompactOrEmpty(CommandLine, 500);
             }
         }
 
@@ -53,24 +53,17 @@ namespace ArcaneEDR
         {
             get
             {
-                return (Safe(SubjectUser) + " " + Safe(TargetUser) + " " +
-                    Safe(IpAddress) + " " + Safe(ProcessName) + " " +
-                    Safe(ParentProcessName) + " " +
-                    Safe(ServiceName) + " " + Safe(TaskName) + " " +
-                    Safe(CommandLine) + " " + Safe(Message)).Trim();
+                return (TextFormatting.EmptyIfNull(SubjectUser) + " " +
+                    TextFormatting.EmptyIfNull(TargetUser) + " " +
+                    TextFormatting.EmptyIfNull(IpAddress) + " " +
+                    TextFormatting.EmptyIfNull(ProcessName) + " " +
+                    TextFormatting.EmptyIfNull(ParentProcessName) + " " +
+                    TextFormatting.EmptyIfNull(ServiceName) + " " +
+                    TextFormatting.EmptyIfNull(TaskName) + " " +
+                    TextFormatting.EmptyIfNull(CommandLine) + " " +
+                    TextFormatting.EmptyIfNull(Message)).Trim();
             }
         }
 
-        private static string Safe(string value)
-        {
-            return value == null ? "" : value;
-        }
-
-        private static string Compact(string value)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return "";
-            string compact = value.Replace("\r", " ").Replace("\n", " ").Trim();
-            return compact.Length <= 500 ? compact : compact.Substring(0, 500) + "...";
-        }
     }
 }

@@ -119,15 +119,15 @@ namespace ArcaneEDR
 
         private IncidentRecord BuildRecord(Alert alert)
         {
-            string text = AlertText(alert);
+            string text = AlertText.Build(alert);
             string category = AlertRulePolicy.AlertCategory(alert);
-            string user = FirstNonEmpty(
+            string user = AlertEntityTokens.FirstNonEmpty(
                 ExtractField(text, "user="),
                 ExtractField(text, "account="),
                 ExtractField(text, "target_user="),
                 ExtractField(text, "subject_user="),
                 "unknown");
-            string process = FirstNonEmpty(
+            string process = AlertEntityTokens.FirstNonEmpty(
                 ExtractField(text, "process_name="),
                 ExtractField(text, "process="),
                 ExtractField(text, "image="),
@@ -138,10 +138,11 @@ namespace ArcaneEDR
 
             if (category.Equals("Persistence", StringComparison.OrdinalIgnoreCase))
             {
-                process = FirstNonEmpty(ExtractField(text, "name="), process);
+                process = AlertEntityTokens.FirstNonEmpty(ExtractField(text, "name="), process);
             }
 
-            process = FileName(process);
+            process = AlertEntityTokens.FileNameOrValue(process);
+            if (String.IsNullOrWhiteSpace(process)) process = "unknown";
             string groupKey = GroupKey(category, user, process);
 
             return new IncidentRecord
@@ -156,10 +157,10 @@ namespace ArcaneEDR
                 rule_id = alert.RuleId,
                 severity = alert.Severity,
                 score = alert.Score,
-                title = Compact(alert.Title, 180),
-                why = Compact(WhyText(alert), 500),
-                entity = Compact(alert.EntitySummary, 800),
-                recommendation = Compact(alert.Recommendation, 500)
+                title = TextFormatting.CompactOrEmpty(alert.Title, 180),
+                why = TextFormatting.CompactOrEmpty(AlertWhyText.Join(alert, "; "), 500),
+                entity = TextFormatting.CompactOrEmpty(alert.EntitySummary, 800),
+                recommendation = TextFormatting.CompactOrEmpty(alert.Recommendation, 500)
             };
         }
 
@@ -318,46 +319,6 @@ namespace ArcaneEDR
                 value == '\n';
         }
 
-        private static string FirstNonEmpty(params string[] values)
-        {
-            foreach (string value in values)
-            {
-                if (!String.IsNullOrWhiteSpace(value)) return value;
-            }
-
-            return "";
-        }
-
-        private static string FileName(string value)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return "unknown";
-            string cleaned = value.Trim().Trim('"');
-            int slash = Math.Max(cleaned.LastIndexOf('\\'), cleaned.LastIndexOf('/'));
-            return slash >= 0 && slash + 1 < cleaned.Length ? cleaned.Substring(slash + 1) : cleaned;
-        }
-
-        private static string AlertText(Alert alert)
-        {
-            return (alert.RuleId ?? "") + " " +
-                (alert.Title ?? "") + " " +
-                (alert.Body ?? "") + " " +
-                (alert.EntitySummary ?? "");
-        }
-
-        private static string WhyText(Alert alert)
-        {
-            if (alert.Why == null || alert.Why.Count == 0) return "";
-            return String.Join("; ", alert.Why.ToArray());
-        }
-
-        private static string Compact(string value, int maxLength)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return "";
-            string compact = value.Replace("\r", " ").Replace("\n", " ").Trim();
-            if (compact.Length <= maxLength) return compact;
-            return compact.Substring(0, maxLength) + "...";
-        }
-
         private static string ShortHash(string value)
         {
             using (SHA256 sha = SHA256.Create())
@@ -375,7 +336,7 @@ namespace ArcaneEDR
 
         internal static string FormatUtc(DateTime value)
         {
-            return value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
+            return UtcTimestamp.Format(value);
         }
 
         internal static bool TryParseUtc(string value, out DateTime parsed)

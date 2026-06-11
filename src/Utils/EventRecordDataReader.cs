@@ -35,6 +35,17 @@ namespace ArcaneEDR
             return data.TryGetValue(key, out value) ? value : "";
         }
 
+        public static string GetFirst(Dictionary<string, string> data, params string[] keys)
+        {
+            foreach (string key in keys)
+            {
+                string value = Get(data, key);
+                if (!String.IsNullOrWhiteSpace(value)) return value;
+            }
+
+            return "";
+        }
+
         public static string FormatDescription(EventRecord record)
         {
             try

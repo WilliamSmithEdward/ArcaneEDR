@@ -217,44 +217,24 @@ namespace ArcaneEDR
             {
                 Dictionary<string, object> parsed = serializer.Deserialize<Dictionary<string, object>>(line);
                 if (parsed == null) return null;
-                if (!ReadString(parsed, "action").Equals("BlockRemoteIp", StringComparison.OrdinalIgnoreCase)) return null;
+                if (!JsonFields.ReadString(parsed, "action").Equals("BlockRemoteIp", StringComparison.OrdinalIgnoreCase)) return null;
 
                 return new ResponseFirewallRecord
                 {
-                    TimestampUtc = ReadString(parsed, "timestamp_utc"),
-                    ResponseId = ReadString(parsed, "response_id"),
-                    FirewallRuleName = ReadString(parsed, "firewall_rule_name"),
-                    DryRun = ReadBool(parsed, "dry_run"),
-                    TriggerRuleId = ReadString(parsed, "trigger_rule_id"),
-                    TargetValue = ReadString(parsed, "target_value"),
-                    Score = ReadInt(parsed, "score"),
-                    SkippedReason = ReadString(parsed, "skipped_reason")
+                    TimestampUtc = JsonFields.ReadString(parsed, "timestamp_utc"),
+                    ResponseId = JsonFields.ReadString(parsed, "response_id"),
+                    FirewallRuleName = JsonFields.ReadString(parsed, "firewall_rule_name"),
+                    DryRun = JsonFields.ReadBool(parsed, "dry_run"),
+                    TriggerRuleId = JsonFields.ReadString(parsed, "trigger_rule_id"),
+                    TargetValue = JsonFields.ReadString(parsed, "target_value"),
+                    Score = JsonFields.ReadInt(parsed, "score"),
+                    SkippedReason = JsonFields.ReadString(parsed, "skipped_reason")
                 };
             }
             catch
             {
                 return null;
             }
-        }
-
-        private static string ReadString(Dictionary<string, object> parsed, string key)
-        {
-            object value;
-            return parsed.TryGetValue(key, out value) && value != null ? value.ToString() : "";
-        }
-
-        private static int ReadInt(Dictionary<string, object> parsed, string key)
-        {
-            object value;
-            int result;
-            return parsed.TryGetValue(key, out value) && value != null && Int32.TryParse(value.ToString(), out result) ? result : 0;
-        }
-
-        private static bool ReadBool(Dictionary<string, object> parsed, string key)
-        {
-            object value;
-            bool result;
-            return parsed.TryGetValue(key, out value) && value != null && Boolean.TryParse(value.ToString(), out result) && result;
         }
 
         private static void PrintUsage()

@@ -52,9 +52,26 @@ coverage unless the operator explicitly scopes them out. The GUI should stay in
 lockstep with the service feature set instead of becoming a stale wrapper around
 older config.
 
-Current active milestone: `v0.8.0` planning. `v0.7.3` is the current
-`v0.7.x` patch release for alert email context and deterministic external
-notification grouping.
+Current active milestone: `v0.8.0` release validation. `v0.8.0` is the current
+GUI/MSI milestone release candidate.
+
+Recently completed `v0.8.0` milestone:
+
+- Added a native WinUI 3 operator console with Overview, Alerts, Policy,
+  Reports, Configuration, Maintenance, Settings, and About surfaces.
+- Added GUI integration with Arcane CLI/state for validation, health, alert
+  volume, policy inspect/preview, daily report preview/send, maintenance
+  markers, support bundles, and response firewall review.
+- Added guarded local config reset in the GUI with an explicit warning checkbox
+  and backup-before-reset behavior.
+- Added WiX v7 MSI packaging with Windows service installation, Start menu
+  shortcut, GUI payload, product assets, config examples, docs, scripts, and
+  a license/warning page that states local config/evidence are preserved by
+  default.
+- Added repeatable GUI and MSI build scripts.
+- Added scoped policy engine, shared alert presentation model, modular
+  enrichment-provider plan, JSONL-only storage direction, policy inspection,
+  and fixture tests.
 
 Recently completed `v0.7.3` patch:
 
@@ -126,12 +143,11 @@ phase sections below.
 | `v0.5.0` | Done | Complete | Released investigation MVP: `why` explanations, incident grouping, timeline command, support bundle, simulations and demo path, rule-family docs, poll-stage fail-isolation, and structured local detection-policy preview/tuning. |
 | `v0.6.0` | Done | Complete | Released guardrails and response-safety milestone: Agent Profile labeling, file-write guardrails, compact activity ledger, alert-only admin/secret/supply-chain guardrails, response dry-run ledger, active-response policy gates, rollback helpers, follow-up detections, maintenance session markers, `0.6.0` versioning, package ZIP, checksum, GitHub release, and local deployment are complete. |
 | `v0.7.0` | Done | Complete | Released collector/rule cleanup and privacy-hardening milestone: shared rule taxonomy cleanup, remote endpoint enrichment, ordered remote endpoint policy, default critical country review for RDAP country missing or non-US, no-shim validation for removed remote-list config keys, policy regex/port validation, `0.7.0` versioning, package ZIP, checksum, GitHub release, and local deployment are complete. |
-| `v0.8.0` | Planned | Not started | Full feature-complete local product milestone: MSI installer/uninstaller, best-in-class Windows GUI application for configuration and service maintenance, and permanent service/GUI feature-set alignment. |
+| `v0.8.0` | Release candidate | Validation | Native WinUI operator console, WiX MSI installer, scoped policy foundation, shared presentation/enrichment seams, JSONL-only storage direction, fixture tests, and GUI/MSI docs/scripts are implemented. |
 | `v1.0.0` | Not ready | Planned | Requires completed docs, tuned alert volume, tested install/upgrade/release flow, dry-run/manual response safety, and stable privacy/operations posture. |
 
-Current milestone focus: prepare the `v0.8.0` GUI and MSI track using
-`docs\v0.8-gui-and-msi-research.md` as the planning baseline. Do not start live
-installer/GUI deployment work without explicit operator scope.
+Current milestone focus: validate and release the `v0.8.0` GUI and MSI track
+using `docs\v0.8-gui-and-msi-research.md` as the design baseline.
 
 ## `v0.8.0` Feature Complete Installer And GUI
 

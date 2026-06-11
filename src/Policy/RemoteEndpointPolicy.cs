@@ -103,7 +103,7 @@ namespace ArcaneEDR
 
             foreach (DictionaryEntry entry in root)
             {
-                string key = Key(entry.Key);
+                string key = PolicyJsonReader.Key(entry.Key);
                 if (!key.Equals("policies", StringComparison.OrdinalIgnoreCase) &&
                     !key.Equals("rules", StringComparison.OrdinalIgnoreCase) &&
                     !key.Equals("remote_endpoint_policies", StringComparison.OrdinalIgnoreCase) &&
@@ -122,10 +122,10 @@ namespace ArcaneEDR
                 }
             }
 
-            object policies = Value(root, "remote_endpoint_policies");
-            if (policies == null) policies = Value(root, "remoteEndpointPolicies");
-            if (policies == null) policies = Value(root, "policies");
-            if (policies == null) policies = Value(root, "rules");
+            object policies = PolicyJsonReader.Value(root, "remote_endpoint_policies");
+            if (policies == null) policies = PolicyJsonReader.Value(root, "remoteEndpointPolicies");
+            if (policies == null) policies = PolicyJsonReader.Value(root, "policies");
+            if (policies == null) policies = PolicyJsonReader.Value(root, "rules");
             return policies as IList;
         }
 
@@ -133,17 +133,17 @@ namespace ArcaneEDR
         {
             RemoteEndpointPolicyRule rule = new RemoteEndpointPolicyRule();
             rule.Index = index;
-            rule.Id = ReadString(map, "id");
+            rule.Id = PolicyJsonReader.ReadString(map, "id");
             if (String.IsNullOrWhiteSpace(rule.Id))
             {
                 rule.Id = "remote-endpoint-policy-" + index.ToString(CultureInfo.InvariantCulture);
                 policy.Warnings.Add("Remote endpoint policy entry " + index.ToString(CultureInfo.InvariantCulture) + " is missing id; using " + rule.Id + ".");
             }
 
-            rule.Enabled = ReadBool(map, "enabled", true);
-            rule.Action = CanonicalAction(ReadString(map, "action"));
-            rule.Reason = ReadString(map, "reason");
-            rule.Score = ReadInt(map, "score", 0, out rule.HasScore);
+            rule.Enabled = PolicyJsonReader.ReadBool(map, "enabled", true);
+            rule.Action = PolicyJsonReader.CanonicalAction(PolicyJsonReader.ReadString(map, "action"));
+            rule.Reason = PolicyJsonReader.ReadString(map, "reason");
+            rule.Score = PolicyJsonReader.ReadInt(map, "score", 0, out rule.HasScore);
 
             ValidateTopFields(map, rule, policy);
             ValidateAction(rule, policy);
@@ -152,7 +152,7 @@ namespace ArcaneEDR
                 policy.Warnings.Add("Remote endpoint policy entry " + rule.Id + " should include a plain-English reason.");
             }
 
-            IDictionary matchMap = Value(map, "match") as IDictionary;
+            IDictionary matchMap = PolicyJsonReader.Value(map, "match") as IDictionary;
             if (matchMap == null)
             {
                 policy.Warnings.Add("Remote endpoint policy entry " + rule.Id + " has no match object and will not match any endpoint.");
@@ -175,7 +175,7 @@ namespace ArcaneEDR
         {
             foreach (DictionaryEntry entry in map)
             {
-                string key = Key(entry.Key);
+                string key = PolicyJsonReader.Key(entry.Key);
                 if (key.Equals("id", StringComparison.OrdinalIgnoreCase) ||
                     key.Equals("enabled", StringComparison.OrdinalIgnoreCase) ||
                     key.Equals("action", StringComparison.OrdinalIgnoreCase) ||
@@ -209,55 +209,6 @@ namespace ArcaneEDR
             }
         }
 
-        private static string CanonicalAction(string action)
-        {
-            if (action == null) return "";
-            return action.Trim().Replace("-", "_").Replace(" ", "_").ToLowerInvariant();
-        }
-
-        internal static object Value(IDictionary map, string key)
-        {
-            if (map == null || String.IsNullOrWhiteSpace(key)) return null;
-            foreach (DictionaryEntry entry in map)
-            {
-                if (Key(entry.Key).Equals(key, StringComparison.OrdinalIgnoreCase))
-                {
-                    return entry.Value;
-                }
-            }
-
-            return null;
-        }
-
-        internal static string ReadString(IDictionary map, string key)
-        {
-            object value = Value(map, key);
-            return value == null ? "" : value.ToString().Trim();
-        }
-
-        internal static bool ReadBool(IDictionary map, string key, bool fallback)
-        {
-            object value = Value(map, key);
-            if (value == null) return fallback;
-            if (value is bool) return (bool)value;
-
-            bool parsed;
-            return Boolean.TryParse(value.ToString(), out parsed) ? parsed : fallback;
-        }
-
-        internal static int ReadInt(IDictionary map, string key, int fallback, out bool found)
-        {
-            found = false;
-            object value = Value(map, key);
-            if (value == null) return fallback;
-            found = true;
-
-            int parsed;
-            return Int32.TryParse(value.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out parsed)
-                ? parsed
-                : fallback;
-        }
-
         internal static void AddStringValues(List<string> result, object value)
         {
             if (result == null || value == null) return;
@@ -277,13 +228,9 @@ namespace ArcaneEDR
             if (text.Length > 0) result.Add(text);
         }
 
-        internal static string Key(object key)
-        {
-            return key == null ? "" : key.ToString();
-        }
     }
 
-    internal sealed class RemoteEndpointPolicyRule
+    internal sealed class RemoteEndpointPolicyRule : IScopedPolicyRule<NetworkEndpoint>
     {
         public int Index;
         public string Id;
@@ -293,6 +240,11 @@ namespace ArcaneEDR
         public bool HasScore;
         public int Score;
         public RemoteEndpointPolicyMatch Match = new RemoteEndpointPolicyMatch();
+
+        public string Scope
+        {
+            get { return PolicyRuleScope.RemoteEndpoint; }
+        }
 
         public bool Matches(NetworkEndpoint endpoint)
         {
@@ -390,7 +342,7 @@ namespace ArcaneEDR
             RemoteEndpointPolicyMatch match = new RemoteEndpointPolicyMatch();
             foreach (DictionaryEntry entry in map)
             {
-                string key = RemoteEndpointPolicy.Key(entry.Key);
+                string key = PolicyJsonReader.Key(entry.Key);
                 string canonical = CanonicalMatchField(key);
                 if (String.IsNullOrWhiteSpace(canonical))
                 {
@@ -499,7 +451,7 @@ namespace ArcaneEDR
             {
                 int start;
                 int end;
-                if (!TryParsePortRange(value, out start, out end))
+                if (!PolicyJsonReader.TryParsePortRange(value, out start, out end))
                 {
                     policy.Errors.Add("Remote endpoint policy entry " + ruleId + " has invalid port or port range: " + value);
                 }
@@ -558,36 +510,11 @@ namespace ArcaneEDR
             {
                 int start;
                 int end;
-                if (!TryParsePortRange(pattern, out start, out end)) continue;
+                if (!PolicyJsonReader.TryParsePortRange(pattern, out start, out end)) continue;
                 if (port >= start && port <= end) return true;
             }
 
             return false;
-        }
-
-        private static bool TryParsePortRange(string value, out int start, out int end)
-        {
-            start = 0;
-            end = 0;
-            if (String.IsNullOrWhiteSpace(value)) return false;
-
-            string[] parts = value.Trim().Split('-');
-            if (parts.Length == 1)
-            {
-                if (!Int32.TryParse(parts[0], out start)) return false;
-                end = start;
-            }
-            else if (parts.Length == 2)
-            {
-                if (!Int32.TryParse(parts[0], out start)) return false;
-                if (!Int32.TryParse(parts[1], out end)) return false;
-            }
-            else
-            {
-                return false;
-            }
-
-            return start >= 0 && end <= 65535 && start <= end;
         }
 
         private static bool AnyCountryMatches(string country, List<string> expected)
@@ -743,14 +670,8 @@ namespace ArcaneEDR
         {
             if (endpoint == null || config == null || !config.EnableRemoteEndpointPolicy) return RemoteEndpointPolicyDecision.None;
 
-            RemoteEndpointPolicy current = GetPolicy();
-            foreach (RemoteEndpointPolicyRule rule in current.Rules)
-            {
-                if (!rule.Matches(endpoint)) continue;
-                return RemoteEndpointPolicyDecision.FromRule(rule);
-            }
-
-            return RemoteEndpointPolicyDecision.None;
+            RemoteEndpointPolicyRule rule = ScopedPolicyRuleEngine.FirstMatch<NetworkEndpoint, RemoteEndpointPolicyRule>(GetPolicy().Rules, PolicyRuleScope.RemoteEndpoint, endpoint);
+            return rule == null ? RemoteEndpointPolicyDecision.None : RemoteEndpointPolicyDecision.FromRule(rule);
         }
 
         public RemoteEndpointPolicy PolicyForPreview()

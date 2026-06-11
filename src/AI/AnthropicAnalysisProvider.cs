@@ -85,8 +85,8 @@ namespace ArcaneEDR
             }
 
             request.ContentLength = body.Length;
-            request.Timeout = TimeoutMilliseconds(config.AIAnalysisTimeoutSeconds);
-            request.ReadWriteTimeout = TimeoutMilliseconds(config.AIAnalysisTimeoutSeconds);
+            request.Timeout = HttpResponseText.TimeoutMilliseconds(config.AIAnalysisTimeoutSeconds, 30);
+            request.ReadWriteTimeout = HttpResponseText.TimeoutMilliseconds(config.AIAnalysisTimeoutSeconds, 30);
             using (Stream stream = request.GetRequestStream())
             {
                 stream.Write(body, 0, body.Length);
@@ -97,43 +97,37 @@ namespace ArcaneEDR
             {
                 using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
                 {
-                    responseBody = ReadResponse(response);
+                    responseBody = HttpResponseText.Read(response);
                 }
             }
             catch (WebException ex)
             {
                 HttpWebResponse response = ex.Response as HttpWebResponse;
                 if (response == null) throw;
-                throw new InvalidOperationException(ProviderName + " API returned HTTP " + ((int)response.StatusCode).ToString(CultureInfo.InvariantCulture) + ": " + ReadResponse(response));
+                throw new InvalidOperationException(ProviderName + " API returned HTTP " + ((int)response.StatusCode).ToString(CultureInfo.InvariantCulture) + ": " + HttpResponseText.Read(response));
             }
 
             string text = ExtractOutputText(responseBody);
-            AiAnalysisResult result = ParseAnalysisJson(text);
+            AiAnalysisResult result = AiAnalysisProviderSupport.ParseAnalysisJson(text);
             result.ProviderName = ProviderName;
             result.RawText = text;
-            result.ProviderOutcomes.Add(ToOutcome(result, "completed", ""));
-            WriteAnalysisRecord(result, analysisType);
+            result.ProviderOutcomes.Add(AiAnalysisProviderSupport.ToOutcome(ProviderName, result, "completed", ""));
+            AiAnalysisProviderSupport.WriteAnalysisRecord(config.LogDirectory, ProviderName, result, analysisType, logger);
             return result;
         }
 
         private string BuildRequestJson(string prompt, int maxTokens)
         {
             return "{" +
-                "\"model\":\"" + JsonEscape(settings.Model) + "\"," +
+                "\"model\":\"" + JsonFields.Escape(settings.Model) + "\"," +
                 "\"max_tokens\":" + maxTokens.ToString(CultureInfo.InvariantCulture) + "," +
-                "\"messages\":[{\"role\":\"user\",\"content\":\"" + JsonEscape(prompt) + "\"}]" +
+                "\"messages\":[{\"role\":\"user\",\"content\":\"" + JsonFields.Escape(prompt) + "\"}]" +
                 "}";
         }
 
         private string GetApiKey()
         {
             return secretProvider.GetSecret(settings.ApiKeyEnvironmentVariable);
-        }
-
-        private static int TimeoutMilliseconds(int timeoutSeconds)
-        {
-            int seconds = timeoutSeconds <= 0 ? 30 : timeoutSeconds;
-            return seconds * 1000;
         }
 
         private bool RequiresApiKey()
@@ -165,126 +159,5 @@ namespace ArcaneEDR
             return builder.ToString();
         }
 
-        private static AiAnalysisResult ParseAnalysisJson(string text)
-        {
-            AiAnalysisResult result = new AiAnalysisResult();
-            result.RawText = text;
-
-            try
-            {
-                string json = ExtractJsonObject(text);
-                JavaScriptSerializer serializer = new JavaScriptSerializer();
-                IDictionary parsed = serializer.DeserializeObject(json) as IDictionary;
-                if (parsed == null) return result;
-
-                result.Alertable = ReadBool(parsed, "alertable");
-                result.Score = ReadInt(parsed, "score");
-                result.Title = ReadString(parsed, "title");
-                result.Summary = ReadString(parsed, "summary");
-                result.RecommendedAction = ReadString(parsed, "recommended_action");
-            }
-            catch
-            {
-                result.Alertable = false;
-                result.Score = 0;
-                result.Title = "AI analysis parse failure";
-                result.Summary = text;
-                result.RecommendedAction = "Review the AI analysis output.";
-            }
-
-            return result;
-        }
-
-        private void WriteAnalysisRecord(AiAnalysisResult result, string analysisType)
-        {
-            try
-            {
-                string path = Path.Combine(config.LogDirectory, "ArcaneAIAnalysis.jsonl");
-                string line = "{" +
-                    "\"timestamp_utc\":\"" + DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture) + "\"," +
-                    "\"provider\":\"" + JsonEscape(ProviderName) + "\"," +
-                    "\"analysis_type\":\"" + JsonEscape(analysisType) + "\"," +
-                    "\"alertable\":" + (result.Alertable ? "true" : "false") + "," +
-                    "\"score\":" + result.Score.ToString(CultureInfo.InvariantCulture) + "," +
-                    "\"title\":\"" + JsonEscape(result.Title) + "\"," +
-                    "\"summary\":\"" + JsonEscape(result.Summary) + "\"," +
-                    "\"recommended_action\":\"" + JsonEscape(result.RecommendedAction) + "\"" +
-                    "}";
-                lock (AiAnalysisRecordWriteLock.Sync)
-                {
-                    File.AppendAllText(path, line + Environment.NewLine);
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.Warn("AI analysis record write failed: " + ex.Message);
-            }
-        }
-
-        private AiProviderAnalysisOutcome ToOutcome(AiAnalysisResult result, string status, string error)
-        {
-            AiProviderAnalysisOutcome outcome = new AiProviderAnalysisOutcome();
-            outcome.ProviderName = ProviderName;
-            outcome.Status = status;
-            outcome.Alertable = result.Alertable;
-            outcome.Score = result.Score;
-            outcome.Title = result.Title;
-            outcome.Summary = result.Summary;
-            outcome.RecommendedAction = result.RecommendedAction;
-            outcome.Error = error;
-            return outcome;
-        }
-
-        private static string ReadResponse(HttpWebResponse response)
-        {
-            using (Stream responseStream = response.GetResponseStream())
-            {
-                if (responseStream == null) return "";
-                using (StreamReader reader = new StreamReader(responseStream))
-                {
-                    return reader.ReadToEnd();
-                }
-            }
-        }
-
-        private static string ExtractJsonObject(string text)
-        {
-            int start = text.IndexOf('{');
-            int end = text.LastIndexOf('}');
-            if (start >= 0 && end > start) return text.Substring(start, end - start + 1);
-            return text;
-        }
-
-        private static bool ReadBool(IDictionary parsed, string key)
-        {
-            if (!parsed.Contains(key) || parsed[key] == null) return false;
-            object value = parsed[key];
-            if (value is bool) return (bool)value;
-            return value.ToString().Equals("true", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static int ReadInt(IDictionary parsed, string key)
-        {
-            if (!parsed.Contains(key) || parsed[key] == null) return 0;
-            int value;
-            return Int32.TryParse(parsed[key].ToString(), out value) ? value : 0;
-        }
-
-        private static string ReadString(IDictionary parsed, string key)
-        {
-            if (!parsed.Contains(key) || parsed[key] == null) return "";
-            return parsed[key].ToString();
-        }
-
-        private static string JsonEscape(string value)
-        {
-            if (value == null) return "";
-            return value
-                .Replace("\\", "\\\\")
-                .Replace("\"", "\\\"")
-                .Replace("\r", "\\r")
-                .Replace("\n", "\\n")
-                .Replace("\t", "\\t");
-        }
     }
 }

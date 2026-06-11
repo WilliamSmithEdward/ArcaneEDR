@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="ArcaneEDR_Gui.Pages.MaintenancePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <ScrollViewer>
+        <StackPanel Padding="28,18,28,28" Spacing="16">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Maintenance" />
+                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Service upkeep, maintenance context, and response review" />
+                </StackPanel>
+                <Button Grid.Column="1" Click="StartMaintenance_Click" ToolTipService.ToolTip="Start maintenance marker">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE768;" />
+                        <TextBlock Text="Start" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="2" Click="ClearMaintenance_Click" ToolTipService.ToolTip="Clear maintenance marker">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE711;" />
+                        <TextBlock Text="Clear" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="3" Click="ListMaintenance_Click" ToolTipService.ToolTip="List maintenance markers">
+                    <FontIcon FontSize="16" Glyph="&#xE8A5;" />
+                </Button>
+            </Grid>
+
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button Click="ValidateAdmin_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE73E;" />
+                        <TextBlock Text="Validate Admin" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="1" Click="PublishRestart_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE777;" />
+                        <TextBlock Text="Publish Restart" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="2" Click="ResponseFirewall_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE9D9;" />
+                        <TextBlock Text="Firewall Ledger" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="3" Click="SupportBundle_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE7C3;" />
+                        <TextBlock Text="Support Bundle" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <TextBox
+                x:Name="MaintenanceOutputText"
+                AcceptsReturn="True"
+                FontFamily="Consolas"
+                Header="Maintenance output"
+                IsReadOnly="True"
+                MinHeight="560"
+                TextWrapping="NoWrap" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="ArcaneEDR_Gui.Pages.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:ArcaneEDR_Gui.Pages"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <ScrollViewer>
+        <StackPanel Padding="28,18,28,28" Spacing="16">
+            <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Settings" />
+            <Border Padding="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
+                <StackPanel Spacing="10">
+                    <TextBlock FontWeight="SemiBold" Text="Theme" />
+                    <ComboBox x:Name="ThemeBox" SelectionChanged="ThemeBox_SelectionChanged" SelectedIndex="0">
+                        <ComboBoxItem Content="Default" />
+                        <ComboBoxItem Content="Light" />
+                        <ComboBoxItem Content="Dark" />
+                    </ComboBox>
+                </StackPanel>
+            </Border>
+            <TextBox
+                x:Name="SettingsPathText"
+                AcceptsReturn="True"
+                FontFamily="Consolas"
+                Header="Current Arcane paths"
+                IsReadOnly="True"
+                MinHeight="220"
+                TextWrapping="NoWrap" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>

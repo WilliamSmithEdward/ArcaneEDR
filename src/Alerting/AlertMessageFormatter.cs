@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 
 namespace ArcaneEDR
 {
@@ -9,61 +8,6 @@ namespace ArcaneEDR
     {
         private const int EmailContentWidthPixels = 760;
         private const string WrapStyle = "word-break:break-word;overflow-wrap:anywhere;";
-        private static readonly string[] EntityTokenKeys = new[]
-        {
-            "agent_context",
-            "asn",
-            "asn_org",
-            "command",
-            "command_line",
-            "country",
-            "country_lookup",
-            "dns_names",
-            "enrichment_source",
-            "event_id",
-            "host_application",
-            "image",
-            "item",
-            "local",
-            "maintenance_context",
-            "message",
-            "name",
-            "owner",
-            "parent",
-            "parent_command_line",
-            "parent_path",
-            "parent_pid",
-            "path",
-            "pid",
-            "policy",
-            "process",
-            "process_command_line",
-            "process_path",
-            "process_sha256",
-            "process_signer",
-            "process_user",
-            "protocol",
-            "rdns",
-            "reason",
-            "reasons",
-            "record_id",
-            "registrable_domain",
-            "remote",
-            "remote_host",
-            "remote_ip",
-            "remote_owner",
-            "resolved_domain",
-            "script_block",
-            "service",
-            "sha256",
-            "signer",
-            "sni_hostname",
-            "source",
-            "state",
-            "target",
-            "thread_id",
-            "user"
-        };
 
         public static string BuildSubject(Alert alert)
         {
@@ -89,16 +33,17 @@ namespace ArcaneEDR
                 return BuildDailyReportHtml(alert);
             }
 
+            AlertPresentation presentation = AlertPresentation.FromAlert(alert);
             return BeginEmailHtml() +
-                "<h2>" + HtmlEscape(alert.Title) + "</h2>" +
-                BuildAlertFieldHtml("Rule", alert.RuleId) +
-                BuildAlertFieldHtml("Category", AlertRulePolicy.AlertCategory(alert)) +
-                BuildAlertFieldHtml("Source", BuildSourceSummary(alert)) +
-                BuildRemoteHeaderFieldsHtml(alert) +
+                "<h2>" + HtmlEscape(presentation.Title) + "</h2>" +
+                BuildAlertFieldHtml("Rule", presentation.RuleId) +
+                BuildAlertFieldHtml("Category", presentation.Category) +
+                BuildAlertFieldHtml("Source", presentation.SourceSummary) +
+                BuildRemoteHeaderFieldsHtml(presentation.Remote) +
                 BuildAlertFieldHtml("Maintenance Context", alert.MaintenanceContext ? "true" : "false") +
                 BuildAlertFieldHtml("Severity", alert.Severity) +
                 BuildAlertFieldHtml("Score", alert.Score.ToString(CultureInfo.InvariantCulture)) +
-                BuildAlertFieldHtml("UTC", alert.TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)) +
+                BuildAlertFieldHtml("UTC", UtcTimestamp.Format(alert.TimestampUtc)) +
                 BuildAlertFieldHtml("System Local Time", alert.SystemLocalTime) +
                 BuildScoreContextHtml() +
                 BuildWhyHtml(alert) +
@@ -115,18 +60,19 @@ namespace ArcaneEDR
                 return NullToEmpty(alert.Body) + Environment.NewLine + BuildScoreContextPlainText();
             }
 
-            string remoteHeaderLines = BuildRemoteHeaderFieldsPlainText(alert);
+            AlertPresentation presentation = AlertPresentation.FromAlert(alert);
+            string remoteHeaderLines = BuildRemoteHeaderFieldsPlainText(presentation.Remote);
 
             return
-                alert.Title + Environment.NewLine + Environment.NewLine +
-                "Rule: " + alert.RuleId + Environment.NewLine +
-                "Category: " + AlertRulePolicy.AlertCategory(alert) + Environment.NewLine +
-                "Source: " + BuildSourceSummary(alert) + Environment.NewLine +
+                presentation.Title + Environment.NewLine + Environment.NewLine +
+                "Rule: " + presentation.RuleId + Environment.NewLine +
+                "Category: " + presentation.Category + Environment.NewLine +
+                "Source: " + presentation.SourceSummary + Environment.NewLine +
                 remoteHeaderLines +
                 "MaintenanceContext: " + alert.MaintenanceContext + Environment.NewLine +
                 "Severity: " + alert.Severity + Environment.NewLine +
                 "Score: " + alert.Score.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +
-                "UTC: " + alert.TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture) + Environment.NewLine +
+                "UTC: " + UtcTimestamp.Format(alert.TimestampUtc) + Environment.NewLine +
                 "SystemLocalTime: " + alert.SystemLocalTime + Environment.NewLine + Environment.NewLine +
                 BuildScoreContextPlainText() + Environment.NewLine +
                 BuildWhyPlainText(alert) +
@@ -140,11 +86,7 @@ namespace ArcaneEDR
 
         public static string Compact(string value, int maxLength)
         {
-            if (String.IsNullOrWhiteSpace(value)) return "";
-
-            string compact = value.Replace("\r", " ").Replace("\n", " ").Trim();
-            if (compact.Length <= maxLength) return compact;
-            return compact.Substring(0, maxLength) + "...";
+            return TextFormatting.CompactOrEmpty(value, maxLength);
         }
 
         private static string BuildWhyHtml(Alert alert)
@@ -215,42 +157,9 @@ namespace ArcaneEDR
                 HtmlEscape(value) + "</pre>";
         }
 
-        private static string BuildSourceSummary(Alert alert)
+        private static string BuildRemoteHeaderFieldsHtml(RemoteEndpointPresentation metadata)
         {
-            if (alert == null) return "n/a";
-
-            string entity = NullToEmpty(alert.EntitySummary);
-            List<string> parts = new List<string>();
-
-            string process = FirstNonEmpty(
-                ExtractEntityToken(entity, "process"),
-                FirstNonEmpty(
-                    FileNameOrValue(ExtractEntityToken(entity, "image")),
-                    FirstNonEmpty(
-                        FileNameOrValue(ExtractEntityToken(entity, "process_path")),
-                        FileNameOrValue(ExtractEntityToken(entity, "host_application")))));
-            AddSummaryPart(parts, "process", process);
-
-            string telemetry = FirstNonEmpty(
-                ExtractEntityToken(entity, "source"),
-                InferTelemetrySource(alert));
-            AddSummaryPart(parts, "telemetry", telemetry);
-
-            AddSummaryPart(parts, "parent", ExtractEntityToken(entity, "parent"));
-            AddSummaryPart(parts, "user", FirstNonEmpty(ExtractEntityToken(entity, "process_user"), ExtractEntityToken(entity, "user")));
-            AddSummaryPart(parts, "local", ExtractEntityToken(entity, "local"));
-            AddSummaryPart(parts, "remote", ExtractEntityToken(entity, "remote"));
-            AddSummaryPart(parts, "target", Compact(ExtractEntityToken(entity, "target"), 120));
-            AddSummaryPart(parts, "item", Compact(FirstNonEmpty(ExtractEntityToken(entity, "name"), ExtractEntityToken(entity, "path")), 120));
-            AddSummaryPart(parts, "service", ExtractEntityToken(entity, "service"));
-
-            return parts.Count == 0 ? "n/a" : String.Join("; ", parts.ToArray());
-        }
-
-        private static string BuildRemoteHeaderFieldsHtml(Alert alert)
-        {
-            RemoteHeaderMetadata metadata = BuildRemoteHeaderMetadata(alert);
-            if (!metadata.HasAny) return "";
+            if (metadata == null || !metadata.HasAny) return "";
 
             return BuildOptionalAlertFieldHtml("Remote Endpoint", metadata.Endpoint) +
                 BuildOptionalAlertFieldHtml("Remote Country", metadata.Country) +
@@ -260,10 +169,9 @@ namespace ArcaneEDR
                 BuildOptionalAlertFieldHtml("Remote Enrichment", metadata.Enrichment);
         }
 
-        private static string BuildRemoteHeaderFieldsPlainText(Alert alert)
+        private static string BuildRemoteHeaderFieldsPlainText(RemoteEndpointPresentation metadata)
         {
-            RemoteHeaderMetadata metadata = BuildRemoteHeaderMetadata(alert);
-            if (!metadata.HasAny) return "";
+            if (metadata == null || !metadata.HasAny) return "";
 
             string text = "";
             AppendOptionalPlainTextField(ref text, "RemoteEndpoint", metadata.Endpoint);
@@ -275,194 +183,10 @@ namespace ArcaneEDR
             return text;
         }
 
-        private static RemoteHeaderMetadata BuildRemoteHeaderMetadata(Alert alert)
-        {
-            RemoteHeaderMetadata metadata = new RemoteHeaderMetadata();
-            if (alert == null) return metadata;
-
-            string entity = NullToEmpty(alert.EntitySummary);
-            string company = FirstNonEmpty(
-                ExtractEntityToken(entity, "remote_owner"),
-                FirstNonEmpty(
-                    ExtractEntityToken(entity, "owner"),
-                    ExtractEntityToken(entity, "asn_org")));
-            string asn = ExtractEntityToken(entity, "asn");
-            string asnOrg = ExtractEntityToken(entity, "asn_org");
-            string domain = FirstNonEmpty(
-                ExtractEntityToken(entity, "resolved_domain"),
-                FirstNonEmpty(
-                    ExtractEntityToken(entity, "registrable_domain"),
-                    FirstNonEmpty(
-                        ExtractEntityToken(entity, "sni_hostname"),
-                        FirstNonEmpty(
-                            ExtractEntityToken(entity, "remote_host"),
-                            FirstNonEmpty(
-                                ExtractEntityToken(entity, "rdns"),
-                                ExtractEntityToken(entity, "dns_names"))))));
-            string lookup = ExtractEntityToken(entity, "country_lookup");
-            string enrichmentSource = ExtractEntityToken(entity, "enrichment_source");
-
-            metadata.Endpoint = CleanHeaderValue(
-                FirstNonEmpty(ExtractEntityToken(entity, "remote"), ExtractEntityToken(entity, "remote_ip")),
-                120);
-            metadata.Country = CleanHeaderValue(ExtractEntityToken(entity, "country"), 80);
-            metadata.Company = CleanHeaderValue(company, 180);
-            metadata.Asn = CleanHeaderValue(BuildAsnSummary(asn, asnOrg), 180);
-            metadata.Domain = CleanHeaderValue(domain, 180);
-            metadata.Enrichment = CleanHeaderValue(BuildEnrichmentSummary(enrichmentSource, lookup), 180);
-            return metadata;
-        }
-
-        private static void AddSummaryPart(List<string> parts, string label, string value)
-        {
-            if (parts == null || String.IsNullOrWhiteSpace(label) || String.IsNullOrWhiteSpace(value)) return;
-
-            string clean = value.Trim();
-            if (!IsMeaningfulHeaderValue(clean)) return;
-
-            parts.Add(label + "=" + clean);
-        }
-
         private static void AppendOptionalPlainTextField(ref string text, string label, string value)
         {
             if (String.IsNullOrWhiteSpace(label) || String.IsNullOrWhiteSpace(value)) return;
             text += label + ": " + value + Environment.NewLine;
-        }
-
-        private static string BuildAsnSummary(string asn, string asnOrg)
-        {
-            string cleanAsn = CleanHeaderValue(asn, 80);
-            string cleanOrg = CleanHeaderValue(asnOrg, 160);
-
-            if (String.IsNullOrWhiteSpace(cleanAsn)) return cleanOrg;
-            if (String.IsNullOrWhiteSpace(cleanOrg)) return cleanAsn;
-            return cleanAsn + " (" + cleanOrg + ")";
-        }
-
-        private static string BuildEnrichmentSummary(string enrichmentSource, string lookup)
-        {
-            string cleanSource = CleanHeaderValue(enrichmentSource, 120);
-            string cleanLookup = CleanHeaderValue(lookup, 120);
-
-            if (String.IsNullOrWhiteSpace(cleanSource)) return cleanLookup;
-            if (String.IsNullOrWhiteSpace(cleanLookup)) return cleanSource;
-            return cleanSource + " / " + cleanLookup;
-        }
-
-        private static string CleanHeaderValue(string value, int maxLength)
-        {
-            string clean = Compact(value, maxLength);
-            return IsMeaningfulHeaderValue(clean) ? clean : "";
-        }
-
-        private static bool IsMeaningfulHeaderValue(string value)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return false;
-
-            string clean = value.Trim();
-            return !clean.Equals("unknown", StringComparison.OrdinalIgnoreCase) &&
-                !clean.Equals("n/a", StringComparison.OrdinalIgnoreCase) &&
-                !clean.Equals("none", StringComparison.OrdinalIgnoreCase) &&
-                !clean.Equals("-", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static string InferTelemetrySource(Alert alert)
-        {
-            string ruleId = alert == null ? "" : NullToEmpty(alert.RuleId);
-            string category = alert == null ? "" : AlertRulePolicy.AlertCategory(alert);
-            string body = alert == null ? "" : NullToEmpty(alert.Body);
-
-            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixNetwork)) return "network";
-            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixDns)) return "dns";
-            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixPowerShell)) return "powershell";
-            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixAuth)) return "windows-event-log";
-            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixPersistence)) return "persistence";
-            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixFile)) return "sysmon-file";
-            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixProcess)) return "process";
-            if (AlertRuleTaxonomy.HasAnyPrefix(ruleId, AlertRuleTaxonomy.PrefixService, AlertRuleTaxonomy.PrefixApp)) return "arcane-service";
-            if (category.Equals(AlertRuleTaxonomy.CategoryPowerShell, StringComparison.OrdinalIgnoreCase) || body.StartsWith("PowerShell:", StringComparison.OrdinalIgnoreCase)) return "powershell";
-            if (category.Equals(AlertRuleTaxonomy.CategoryNetwork, StringComparison.OrdinalIgnoreCase)) return "network";
-            if (category.Equals(AlertRuleTaxonomy.CategoryAuth, StringComparison.OrdinalIgnoreCase) || body.StartsWith("WindowsEvent:", StringComparison.OrdinalIgnoreCase)) return "windows-event-log";
-            if (category.Equals(AlertRuleTaxonomy.CategoryPersistence, StringComparison.OrdinalIgnoreCase) || body.StartsWith("Persistence:", StringComparison.OrdinalIgnoreCase)) return "persistence";
-            if (category.Equals(AlertRuleTaxonomy.CategoryFile, StringComparison.OrdinalIgnoreCase) || body.StartsWith("FileEvent:", StringComparison.OrdinalIgnoreCase)) return "sysmon-file";
-
-            return "";
-        }
-
-        private static string ExtractEntityToken(string entity, string key)
-        {
-            if (String.IsNullOrWhiteSpace(entity) || String.IsNullOrWhiteSpace(key)) return "";
-
-            string prefix = key + "=";
-            int index = entity.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
-            while (index > 0 && !Char.IsWhiteSpace(entity[index - 1]))
-            {
-                index = entity.IndexOf(prefix, index + prefix.Length, StringComparison.OrdinalIgnoreCase);
-            }
-
-            if (index < 0) return "";
-
-            int start = index + prefix.Length;
-            int end = FindNextEntityTokenStart(entity, start);
-            if (end < 0) end = entity.Length;
-            return entity.Substring(start, end - start).Trim().Trim('"');
-        }
-
-        private static int FindNextEntityTokenStart(string entity, int start)
-        {
-            if (String.IsNullOrWhiteSpace(entity) || start < 0 || start >= entity.Length) return -1;
-
-            for (int index = start; index < entity.Length; index++)
-            {
-                if (!Char.IsWhiteSpace(entity[index])) continue;
-
-                int candidate = index + 1;
-                while (candidate < entity.Length && Char.IsWhiteSpace(entity[candidate]))
-                {
-                    candidate++;
-                }
-
-                if (candidate >= entity.Length) return -1;
-                foreach (string key in EntityTokenKeys)
-                {
-                    if (HasEntityTokenPrefix(entity, candidate, key))
-                    {
-                        return index;
-                    }
-                }
-            }
-
-            return -1;
-        }
-
-        private static bool HasEntityTokenPrefix(string entity, int index, string key)
-        {
-            if (String.IsNullOrWhiteSpace(entity) || String.IsNullOrWhiteSpace(key)) return false;
-
-            string prefix = key + "=";
-            if (index < 0 || index + prefix.Length > entity.Length) return false;
-            return String.Compare(entity, index, prefix, 0, prefix.Length, StringComparison.OrdinalIgnoreCase) == 0;
-        }
-
-        private static string FileNameOrValue(string value)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return "";
-
-            try
-            {
-                string fileName = Path.GetFileName(value);
-                if (!String.IsNullOrWhiteSpace(fileName)) return fileName;
-            }
-            catch
-            {
-            }
-
-            return value;
-        }
-
-        private static string FirstNonEmpty(string first, string second)
-        {
-            return !String.IsNullOrWhiteSpace(first) ? first : second;
         }
 
         private static bool IsDailySummary(string ruleId)
@@ -810,27 +534,5 @@ namespace ArcaneEDR
             return value ?? "";
         }
 
-        private sealed class RemoteHeaderMetadata
-        {
-            public string Endpoint = "";
-            public string Country = "";
-            public string Company = "";
-            public string Asn = "";
-            public string Domain = "";
-            public string Enrichment = "";
-
-            public bool HasAny
-            {
-                get
-                {
-                    return !String.IsNullOrWhiteSpace(Endpoint) ||
-                        !String.IsNullOrWhiteSpace(Country) ||
-                        !String.IsNullOrWhiteSpace(Company) ||
-                        !String.IsNullOrWhiteSpace(Asn) ||
-                        !String.IsNullOrWhiteSpace(Domain) ||
-                        !String.IsNullOrWhiteSpace(Enrichment);
-                }
-            }
-        }
     }
 }

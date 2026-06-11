@@ -74,7 +74,7 @@ namespace ArcaneEDR
             builder.AppendLine("confidence=" + SanitizeToken(BuildConfidence(snapshot)));
             builder.AppendLine("analyzed_window_system_time=" + SanitizeText(FormatSystemLocalTime(snapshot.WindowStartUtc) + " to " + FormatSystemLocalTime(snapshot.GeneratedUtc)));
             builder.AppendLine("generated_system_time=" + SanitizeText(FormatSystemLocalTime(snapshot.GeneratedUtc)));
-            builder.AppendLine("analyzed_window_utc=" + Format(snapshot.WindowStartUtc) + " to " + Format(snapshot.GeneratedUtc));
+            builder.AppendLine("analyzed_window_utc=" + UtcTimestamp.Format(snapshot.WindowStartUtc) + " to " + UtcTimestamp.Format(snapshot.GeneratedUtc));
             AppendCoreReport(builder, snapshot, false, metrics);
             return Limit(builder.ToString(), config.AIAnalysisMaxChars);
         }
@@ -104,16 +104,16 @@ namespace ArcaneEDR
                 builder.AppendLine("## AI Review");
                 builder.AppendLine("| Field | Value |");
                 builder.AppendLine("| --- | --- |");
-                builder.AppendLine("| Status | " + TableCell(Safe(aiStatus)) + " |");
+                builder.AppendLine("| Status | " + TableCell(TextFormatting.EmptyIfNull(aiStatus)) + " |");
                 builder.AppendLine("| Scope | Secondary redacted aggregate review only; the report determination and critical callouts are deterministic local telemetry. |");
                 if (aiResult != null)
                 {
-                    builder.AppendLine("| Providers | " + TableCell(Safe(aiResult.ProviderName)) + " |");
+                    builder.AppendLine("| Providers | " + TableCell(TextFormatting.EmptyIfNull(aiResult.ProviderName)) + " |");
                     builder.AppendLine("| Flagged for review | " + (aiResult.Alertable ? "Yes" : "No") + " |");
                     builder.AppendLine("| Cautious score | " + aiResult.Score.ToString(CultureInfo.InvariantCulture) + " |");
-                    builder.AppendLine("| Read | " + TableCell(Safe(aiResult.Title)) + " |");
-                    builder.AppendLine("| Summary | " + TableCell(Safe(aiResult.Summary)) + " |");
-                    builder.AppendLine("| Suggested action | " + TableCell(Safe(aiResult.RecommendedAction)) + " |");
+                    builder.AppendLine("| Read | " + TableCell(TextFormatting.EmptyIfNull(aiResult.Title)) + " |");
+                    builder.AppendLine("| Summary | " + TableCell(TextFormatting.EmptyIfNull(aiResult.Summary)) + " |");
+                    builder.AppendLine("| Suggested action | " + TableCell(TextFormatting.EmptyIfNull(aiResult.RecommendedAction)) + " |");
 
                     if (aiResult.ProviderOutcomes.Count > 1)
                     {
@@ -122,11 +122,11 @@ namespace ArcaneEDR
                         builder.AppendLine("| --- | --- | --- | --- | --- |");
                         foreach (AiProviderAnalysisOutcome outcome in aiResult.ProviderOutcomes)
                         {
-                            builder.AppendLine("| " + TableCell(Safe(outcome.ProviderName)) +
-                                " | " + TableCell(Safe(outcome.Status)) +
+                            builder.AppendLine("| " + TableCell(TextFormatting.EmptyIfNull(outcome.ProviderName)) +
+                                " | " + TableCell(TextFormatting.EmptyIfNull(outcome.Status)) +
                                 " | " + (outcome.Alertable ? "Yes" : "No") +
                                 " | " + outcome.Score.ToString(CultureInfo.InvariantCulture) +
-                                " | " + TableCell(Safe(outcome.Title)) + " |");
+                                " | " + TableCell(TextFormatting.EmptyIfNull(outcome.Title)) + " |");
                         }
                     }
                 }
@@ -151,9 +151,9 @@ namespace ArcaneEDR
             DailyReportMetrics metrics = CalculateMetrics(snapshot);
             Dictionary<string, object> root = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
             root["schema"] = "arcane_daily_report_v1";
-            root["generated_utc"] = Format(snapshot.GeneratedUtc);
-            root["window_start_utc"] = Format(snapshot.WindowStartUtc);
-            root["window_end_utc"] = Format(snapshot.GeneratedUtc);
+            root["generated_utc"] = UtcTimestamp.Format(snapshot.GeneratedUtc);
+            root["window_start_utc"] = UtcTimestamp.Format(snapshot.WindowStartUtc);
+            root["window_end_utc"] = UtcTimestamp.Format(snapshot.GeneratedUtc);
             root["generated_system_time"] = FormatSystemLocalTime(snapshot.GeneratedUtc);
             root["window_system_time"] = FormatSystemLocalTime(snapshot.WindowStartUtc) + " to " + FormatSystemLocalTime(snapshot.GeneratedUtc);
             root["scheduled_local_time"] = snapshot.ScheduledLocalTime;
@@ -286,7 +286,7 @@ namespace ArcaneEDR
             builder.AppendLine("TotalAlerts: " + snapshot.TotalAlerts.ToString(CultureInfo.InvariantCulture));
             builder.AppendLine("TotalPollFailures: " + snapshot.TotalPollFailures.ToString(CultureInfo.InvariantCulture));
             builder.AppendLine("ExternalSendFailures: " + snapshot.ExternalSendFailures.ToString(CultureInfo.InvariantCulture));
-            builder.AppendLine("LastCleanStopUtc: " + Format(snapshot.LastCleanStopUtc));
+            builder.AppendLine("LastCleanStopUtc: " + UtcTimestamp.Format(snapshot.LastCleanStopUtc));
             builder.AppendLine("BaselineLearningMode: " + snapshot.BaselineLearningMode);
             builder.AppendLine();
 
@@ -753,7 +753,7 @@ namespace ArcaneEDR
             result["total_alerts"] = snapshot.TotalAlerts;
             result["total_poll_failures"] = snapshot.TotalPollFailures;
             result["external_send_failures"] = snapshot.ExternalSendFailures;
-            result["last_clean_stop_utc"] = Format(snapshot.LastCleanStopUtc);
+            result["last_clean_stop_utc"] = UtcTimestamp.Format(snapshot.LastCleanStopUtc);
             result["baseline_learning_mode"] = snapshot.BaselineLearningMode;
             result["read"] = BuildHealthRead(snapshot);
             return result;
@@ -786,7 +786,7 @@ namespace ArcaneEDR
             {
                 DailySignalSummary signal = signals[index];
                 Dictionary<string, object> item = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-                item["latest_utc"] = Format(signal.LatestTimestampUtc);
+                item["latest_utc"] = UtcTimestamp.Format(signal.LatestTimestampUtc);
                 item["rule_id"] = signal.RuleId;
                 item["title"] = signal.Title;
                 item["count"] = signal.Count;
@@ -812,16 +812,16 @@ namespace ArcaneEDR
         private Dictionary<string, object> BuildAiObject(AiAnalysisResult aiResult, string aiStatus)
         {
             Dictionary<string, object> result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-            result["status"] = Safe(aiStatus);
+            result["status"] = TextFormatting.EmptyIfNull(aiStatus);
             result["scope"] = "secondary_redacted_aggregate_review_only";
             if (aiResult != null)
             {
-                result["providers"] = Safe(aiResult.ProviderName);
+                result["providers"] = TextFormatting.EmptyIfNull(aiResult.ProviderName);
                 result["flagged_for_review"] = aiResult.Alertable;
                 result["cautious_score"] = aiResult.Score;
-                result["read"] = Safe(aiResult.Title);
-                result["summary"] = Safe(aiResult.Summary);
-                result["suggested_action"] = Safe(aiResult.RecommendedAction);
+                result["read"] = TextFormatting.EmptyIfNull(aiResult.Title);
+                result["summary"] = TextFormatting.EmptyIfNull(aiResult.Summary);
+                result["suggested_action"] = TextFormatting.EmptyIfNull(aiResult.RecommendedAction);
                 result["provider_results"] = BuildAiProviderObjects(aiResult);
             }
 
@@ -836,14 +836,14 @@ namespace ArcaneEDR
             foreach (AiProviderAnalysisOutcome outcome in aiResult.ProviderOutcomes)
             {
                 Dictionary<string, object> item = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-                item["provider"] = Safe(outcome.ProviderName);
-                item["status"] = Safe(outcome.Status);
+                item["provider"] = TextFormatting.EmptyIfNull(outcome.ProviderName);
+                item["status"] = TextFormatting.EmptyIfNull(outcome.Status);
                 item["flagged_for_review"] = outcome.Alertable;
                 item["cautious_score"] = outcome.Score;
-                item["read"] = Safe(outcome.Title);
-                item["summary"] = Safe(outcome.Summary);
-                item["suggested_action"] = Safe(outcome.RecommendedAction);
-                item["error"] = Safe(outcome.Error);
+                item["read"] = TextFormatting.EmptyIfNull(outcome.Title);
+                item["summary"] = TextFormatting.EmptyIfNull(outcome.Summary);
+                item["suggested_action"] = TextFormatting.EmptyIfNull(outcome.RecommendedAction);
+                item["error"] = TextFormatting.EmptyIfNull(outcome.Error);
                 results.Add(item);
             }
 
@@ -892,24 +892,24 @@ namespace ArcaneEDR
                 if (parsed == null) return null;
 
                 DateTime timestampUtc;
-                if (!TryParseUtc(Read(parsed, "timestamp_utc"), out timestampUtc)) return null;
+                if (!UtcTimestamp.TryParse(JsonFields.ReadString(parsed, "timestamp_utc"), out timestampUtc)) return null;
 
                 DailyAlertRecord record = new DailyAlertRecord();
                 record.TimestampUtc = timestampUtc;
-                record.RuleId = NullToUnknown(Read(parsed, "rule_id"));
-                record.Category = NullToUnknown(Read(parsed, "category"));
+                record.RuleId = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "rule_id"));
+                record.Category = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "category"));
                 if (record.Category.Equals("unknown", StringComparison.OrdinalIgnoreCase))
                 {
                     record.Category = AlertRuleCatalog.CategoryFor(record.RuleId);
                 }
 
-                record.Severity = NullToUnknown(Read(parsed, "severity"));
-                record.Score = ReadInt(parsed, "score");
-                record.Title = SanitizeText(Read(parsed, "title"));
-                record.MaintenanceContext = ReadBool(parsed, "maintenance_context");
-                record.ExternalSuppressedByPolicy = ReadBool(parsed, "external_suppressed_by_policy");
-                record.ExternalForcedByPolicy = ReadBool(parsed, "external_forced_by_policy");
-                record.ProcessFamily = ProcessFamily(Read(parsed, "entity"));
+                record.Severity = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "severity"));
+                record.Score = JsonFields.ReadInt(parsed, "score");
+                record.Title = SanitizeText(JsonFields.ReadString(parsed, "title"));
+                record.MaintenanceContext = JsonFields.ReadBool(parsed, "maintenance_context");
+                record.ExternalSuppressedByPolicy = JsonFields.ReadBool(parsed, "external_suppressed_by_policy");
+                record.ExternalForcedByPolicy = JsonFields.ReadBool(parsed, "external_forced_by_policy");
+                record.ProcessFamily = ProcessFamily(JsonFields.ReadString(parsed, "entity"));
                 record.AgentContext = HasAgentContext(parsed);
                 return record;
             }
@@ -927,17 +927,17 @@ namespace ArcaneEDR
                 if (parsed == null) return null;
 
                 DateTime timestampUtc;
-                if (!TryParseUtc(Read(parsed, "timestamp_utc"), out timestampUtc)) return null;
+                if (!UtcTimestamp.TryParse(JsonFields.ReadString(parsed, "timestamp_utc"), out timestampUtc)) return null;
 
                 DailyAgentActivityRecord record = new DailyAgentActivityRecord();
                 record.TimestampUtc = timestampUtc;
-                record.RuleId = NullToUnknown(Read(parsed, "rule_id"));
-                record.Score = ReadInt(parsed, "score");
-                record.CommandCategory = NullToUnknown(Read(parsed, "command_category"));
-                record.EndpointCategory = NullToUnknown(Read(parsed, "endpoint_category"));
-                record.FileCategory = NullToUnknown(Read(parsed, "file_category"));
-                record.ProcessFamily = NullToUnknown(Read(parsed, "process_family"));
-                record.MaintenanceContext = ReadBool(parsed, "maintenance_context");
+                record.RuleId = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "rule_id"));
+                record.Score = JsonFields.ReadInt(parsed, "score");
+                record.CommandCategory = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "command_category"));
+                record.EndpointCategory = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "endpoint_category"));
+                record.FileCategory = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "file_category"));
+                record.ProcessFamily = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "process_family"));
+                record.MaintenanceContext = JsonFields.ReadBool(parsed, "maintenance_context");
                 return record;
             }
             catch
@@ -1047,9 +1047,6 @@ namespace ArcaneEDR
         private bool WouldQualifyForExternal(DailyAlertRecord record)
         {
             if (record == null) return false;
-            if (record.ExternalSuppressedByPolicy) return false;
-            if (record.ExternalForcedByPolicy) return config.HasExternalAlertProviderEligibleForScore(record.Score);
-            if (IsDirectExternalRule(record.RuleId)) return config.HasExternalAlertProviderEligibleForScore(record.Score);
 
             Alert alert = new Alert();
             alert.RuleId = record.RuleId;
@@ -1057,17 +1054,14 @@ namespace ArcaneEDR
             alert.Score = record.Score;
             alert.Title = record.Title;
             alert.MaintenanceContext = record.MaintenanceContext;
+            alert.ExternalSuppressedByPolicy = record.ExternalSuppressedByPolicy;
+            alert.ExternalForcedByPolicy = record.ExternalForcedByPolicy;
 
-            if (alert.Score < AlertRulePolicy.MinimumExternalScore(config, alert)) return false;
-            if (!config.HasExternalAlertProviderEligibleForScore(alert.Score)) return false;
-            if (alert.MaintenanceContext && alert.Score < config.MaintenanceContextExternalAlertMinimumScore) return false;
-            if (config.BaselineLearningMode && alert.Score < config.BaselineLearningEmailMinimumScore) return false;
-            return true;
-        }
-
-        private static bool IsDirectExternalRule(string ruleId)
-        {
-            return AlertRuleTaxonomy.IsDirectExternalRule(ruleId);
+            return ExternalAlertEligibility.WouldQualifyBeforeRateLimits(
+                config,
+                alert,
+                false,
+                false);
         }
 
         private string Assess(DailyReportSnapshot snapshot)
@@ -1115,98 +1109,22 @@ namespace ArcaneEDR
 
         private static string ProcessFamily(string entity)
         {
-            string value = FirstNonEmpty(
-                ExtractToken(entity, "process"),
-                FirstNonEmpty(
-                    ExtractToken(entity, "image"),
-                    FirstNonEmpty(
-                        ExtractToken(entity, "process_path"),
-                        ExtractToken(entity, "host_application"))));
+            string value = AlertEntityTokens.FirstNonEmpty(
+                AlertEntityTokens.Get(entity, "process"),
+                AlertEntityTokens.Get(entity, "image"),
+                AlertEntityTokens.Get(entity, "process_path"),
+                AlertEntityTokens.Get(entity, "host_application"));
             if (String.IsNullOrWhiteSpace(value)) return "unknown";
 
-            try
-            {
-                string fileName = Path.GetFileName(value);
-                if (!String.IsNullOrWhiteSpace(fileName)) value = fileName;
-            }
-            catch
-            {
-            }
-
-            return SanitizeProcessToken(value);
+            return SanitizeProcessToken(AlertEntityTokens.FileNameOrValue(value));
         }
 
         private static bool HasAgentContext(IDictionary parsed)
         {
-            if (ContainsIgnoreCase(Read(parsed, "body"), "AgentContext: involved")) return true;
-            if (ContainsIgnoreCase(Read(parsed, "entity"), "agent_context=involved")) return true;
-            return ContainsIgnoreCase(Read(parsed, "why"), "agent-") ||
-                ContainsIgnoreCase(Read(parsed, "why"), "unattended-agent");
-        }
-
-        private static string ExtractToken(string text, string key)
-        {
-            if (String.IsNullOrWhiteSpace(text) || String.IsNullOrWhiteSpace(key)) return "";
-            string prefix = key + "=";
-            int index = text.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
-            if (index < 0) return "";
-
-            int start = index + prefix.Length;
-            int end;
-            if (start < text.Length && text[start] == '"')
-            {
-                start++;
-                end = text.IndexOf('"', start);
-            }
-            else
-            {
-                end = text.IndexOf(' ', start);
-            }
-
-            if (end < 0) end = text.Length;
-            return text.Substring(start, end - start).Trim().Trim('"');
-        }
-
-        private static string FirstNonEmpty(string first, string second)
-        {
-            return !String.IsNullOrWhiteSpace(first) ? first : second;
-        }
-
-        private static string Read(IDictionary parsed, string key)
-        {
-            if (!parsed.Contains(key) || parsed[key] == null) return "";
-            return parsed[key].ToString();
-        }
-
-        private static int ReadInt(IDictionary parsed, string key)
-        {
-            if (!parsed.Contains(key) || parsed[key] == null) return 0;
-            int value;
-            return Int32.TryParse(parsed[key].ToString(), out value) ? value : 0;
-        }
-
-        private static bool ReadBool(IDictionary parsed, string key)
-        {
-            if (!parsed.Contains(key) || parsed[key] == null) return false;
-            bool value;
-            return Boolean.TryParse(parsed[key].ToString(), out value) && value;
-        }
-
-        private static bool TryParseUtc(string value, out DateTime result)
-        {
-            result = DateTime.MinValue;
-            if (String.IsNullOrWhiteSpace(value)) return false;
-            DateTime parsed;
-            if (!DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out parsed)) return false;
-            result = parsed.ToUniversalTime();
-            return true;
-        }
-
-        private static bool ContainsIgnoreCase(string text, string value)
-        {
-            return !String.IsNullOrWhiteSpace(text) &&
-                !String.IsNullOrWhiteSpace(value) &&
-                text.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0;
+            if (TextFormatting.ContainsIgnoreCase(JsonFields.ReadString(parsed, "body"), "AgentContext: involved")) return true;
+            if (TextFormatting.ContainsIgnoreCase(JsonFields.ReadString(parsed, "entity"), "agent_context=involved")) return true;
+            return TextFormatting.ContainsIgnoreCase(JsonFields.ReadString(parsed, "why"), "agent-") ||
+                TextFormatting.ContainsIgnoreCase(JsonFields.ReadString(parsed, "why"), "unattended-agent");
         }
 
         private static string Limit(string value, int maxChars)
@@ -1215,19 +1133,9 @@ namespace ArcaneEDR
             return value.Substring(value.Length - maxChars);
         }
 
-        private static string NullToUnknown(string value)
-        {
-            return String.IsNullOrWhiteSpace(value) ? "unknown" : value;
-        }
-
-        private static string Safe(string value)
-        {
-            return value == null ? "" : value;
-        }
-
         private static string TableCell(string value)
         {
-            string result = Safe(value)
+            string result = TextFormatting.EmptyIfNull(value)
                 .Replace("|", "/")
                 .Replace("\r", " ")
                 .Replace("\n", " ")
@@ -1274,16 +1182,6 @@ namespace ArcaneEDR
             result = Regex.Replace(result, "(?i)(user|subject|target)=([^\\s|,]+)", "$1=[redacted-account]");
             result = Regex.Replace(result, "(?i)(command_line|parent_command_line|script_block|decodedpreview)=([^|]+)", "$1=[redacted]");
             return result.Trim();
-        }
-
-        private static string Format(DateTime? value)
-        {
-            return value.HasValue ? Format(value.Value) : "";
-        }
-
-        private static string Format(DateTime value)
-        {
-            return value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
         }
 
         private static string FormatSystemLocalTime(DateTime timestampUtc)

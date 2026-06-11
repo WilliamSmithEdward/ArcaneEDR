@@ -42,6 +42,11 @@ namespace ArcaneEDR
 
             return false;
         }
+
+        public int Count
+        {
+            get { return ranges.Count; }
+        }
     }
 
     internal sealed class PortRange

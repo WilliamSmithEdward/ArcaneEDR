@@ -524,7 +524,7 @@ namespace ArcaneEDR
             string normalized = NormalizePathText(text);
             if (!IsAgentInitiatedText(normalized)) return finding;
 
-            string term = FirstConfiguredTerm(normalized, config.AgentAdminCommandTerms);
+            string term = ConfiguredValues.FirstNormalizedPathTerm(normalized, config.AgentAdminCommandTerms);
             if (String.IsNullOrWhiteSpace(term)) return finding;
 
             finding.Approved = IsApprovedAgentAdminText(normalized);
@@ -558,10 +558,10 @@ namespace ArcaneEDR
             string normalized = NormalizePathText(text);
             if (!IsAgentInitiatedText(normalized)) return finding;
 
-            string term = FirstConfiguredTerm(normalized, config.AgentSecretReferenceTerms);
+            string term = ConfiguredValues.FirstNormalizedPathTerm(normalized, config.AgentSecretReferenceTerms);
             if (String.IsNullOrWhiteSpace(term))
             {
-                term = FirstConfiguredTerm(normalized, config.AgentSecretIndicatorTerms);
+                term = ConfiguredValues.FirstNormalizedPathTerm(normalized, config.AgentSecretIndicatorTerms);
             }
 
             if (String.IsNullOrWhiteSpace(term)) return finding;
@@ -586,7 +586,7 @@ namespace ArcaneEDR
             string normalized = NormalizePathText(text);
             if (!IsAgentInitiatedText(normalized)) return finding;
 
-            string term = FirstConfiguredTerm(normalized, config.AgentSupplyChainTerms);
+            string term = ConfiguredValues.FirstNormalizedPathTerm(normalized, config.AgentSupplyChainTerms);
             if (String.IsNullOrWhiteSpace(term)) return finding;
 
             finding.Detected = true;
@@ -715,36 +715,6 @@ namespace ArcaneEDR
             return "admin-command";
         }
 
-        private static string FirstConfiguredTerm(string text, HashSet<string> terms)
-        {
-            if (String.IsNullOrWhiteSpace(text) || terms == null) return "";
-            foreach (string term in terms)
-            {
-                if (!String.IsNullOrWhiteSpace(term) &&
-                    text.IndexOf(NormalizePathText(term), StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    return term;
-                }
-            }
-
-            return "";
-        }
-
-        private static bool ContainsAnyConfigured(string text, HashSet<string> terms)
-        {
-            if (String.IsNullOrWhiteSpace(text) || terms == null) return false;
-            foreach (string term in terms)
-            {
-                if (!String.IsNullOrWhiteSpace(term) &&
-                    text.IndexOf(NormalizePathText(term), StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
         private static bool ContainsProcessFieldAny(string text, HashSet<string> values, params string[] fieldNames)
         {
             if (String.IsNullOrWhiteSpace(text) || values == null || fieldNames == null) return false;
@@ -752,56 +722,11 @@ namespace ArcaneEDR
             {
                 foreach (string value in values)
                 {
-                    if (ContainsProcessField(text, fieldName, value)) return true;
+                    if (AlertTextFieldMatcher.FieldValueMatches(text, fieldName, value)) return true;
                 }
             }
 
             return false;
-        }
-
-        private static bool ContainsProcessField(string text, string fieldName, string expected)
-        {
-            if (String.IsNullOrWhiteSpace(text) || String.IsNullOrWhiteSpace(fieldName) || String.IsNullOrWhiteSpace(expected)) return false;
-
-            int index = text.IndexOf(fieldName, StringComparison.OrdinalIgnoreCase);
-            while (index >= 0)
-            {
-                int start = index + fieldName.Length;
-                if (ValueMatchesAt(text, start, expected)) return true;
-                index = text.IndexOf(fieldName, index + fieldName.Length, StringComparison.OrdinalIgnoreCase);
-            }
-
-            return false;
-        }
-
-        private static bool ValueMatchesAt(string text, int start, string expected)
-        {
-            int index = start;
-            while (index < text.Length && Char.IsWhiteSpace(text[index]))
-            {
-                index++;
-            }
-
-            if (index < text.Length && text[index] == '"') index++;
-            if (index + expected.Length > text.Length) return false;
-            if (!text.Substring(index, expected.Length).Equals(expected, StringComparison.OrdinalIgnoreCase)) return false;
-
-            int after = index + expected.Length;
-            return after >= text.Length || IsTokenBoundary(text[after]);
-        }
-
-        private static bool IsTokenBoundary(char value)
-        {
-            return Char.IsWhiteSpace(value) ||
-                value == '"' ||
-                value == '\'' ||
-                value == ',' ||
-                value == ';' ||
-                value == ')' ||
-                value == '(' ||
-                value == '|' ||
-                value == '\r' ||
-                value == '\n';
         }
 
         private static int ClampScore(int score)
@@ -1090,23 +1015,23 @@ namespace ArcaneEDR
             {
                 Dictionary<string, object> parsed = serializer.Deserialize<Dictionary<string, object>>(line);
                 if (parsed == null) return null;
-                if (!ReadString(parsed, "action").Equals("TerminateProcess", StringComparison.OrdinalIgnoreCase)) return null;
-                if (ReadBool(parsed, "dry_run")) return null;
-                if (!String.IsNullOrWhiteSpace(ReadString(parsed, "skipped_reason"))) return null;
+                if (!JsonFields.ReadString(parsed, "action").Equals("TerminateProcess", StringComparison.OrdinalIgnoreCase)) return null;
+                if (JsonFields.ReadBool(parsed, "dry_run")) return null;
+                if (!String.IsNullOrWhiteSpace(JsonFields.ReadString(parsed, "skipped_reason"))) return null;
 
                 DateTime timestampUtc;
-                if (!TryParseUtc(ReadString(parsed, "timestamp_utc"), out timestampUtc)) return null;
+                if (!UtcTimestamp.TryParse(JsonFields.ReadString(parsed, "timestamp_utc"), out timestampUtc)) return null;
 
-                string processName = ReadString(parsed, "target_process_name");
+                string processName = JsonFields.ReadString(parsed, "target_process_name");
                 if (String.IsNullOrWhiteSpace(processName)) return null;
 
                 return new ResponseTerminationObservation
                 {
                     TimestampUtc = timestampUtc,
-                    ResponseId = ReadString(parsed, "response_id"),
-                    TriggerRuleId = ReadString(parsed, "trigger_rule_id"),
+                    ResponseId = JsonFields.ReadString(parsed, "response_id"),
+                    TriggerRuleId = JsonFields.ReadString(parsed, "trigger_rule_id"),
                     ProcessName = processName,
-                    ProcessId = ReadString(parsed, "target_value")
+                    ProcessId = JsonFields.ReadString(parsed, "target_value")
                 };
             }
             catch
@@ -1654,33 +1579,6 @@ namespace ArcaneEDR
                 context + " indicators and did not include suspicious command, untrusted user-writable path, or RMM traits.";
         }
 
-        private static bool TryParseUtc(string value, out DateTime result)
-        {
-            result = DateTime.MinValue;
-            if (String.IsNullOrWhiteSpace(value)) return false;
-
-            DateTime parsed;
-            if (!DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out parsed))
-            {
-                return false;
-            }
-
-            result = parsed.ToUniversalTime();
-            return true;
-        }
-
-        private static string ReadString(Dictionary<string, object> parsed, string key)
-        {
-            object value;
-            return parsed.TryGetValue(key, out value) && value != null ? value.ToString() : "";
-        }
-
-        private static bool ReadBool(Dictionary<string, object> parsed, string key)
-        {
-            object value;
-            bool result;
-            return parsed.TryGetValue(key, out value) && value != null && Boolean.TryParse(value.ToString(), out result) && result;
-        }
     }
 
     internal sealed class RemoteLogonObservation

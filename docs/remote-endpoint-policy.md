@@ -67,11 +67,19 @@ requires the provider's paid/commercial plan.
 
 These providers are used as bounded enrichment sources, not as blocking
 dependencies. `RemoteEndpointGeoProviderMaxLookupsPerPoll` caps combined
-`ip-api` and `ipwhois` requests per poll. Arcane tries local country blocks
-first, then RDAP/provider identity lookups only when country is missing,
-provider identity is missing, or no DNS/domain identity was observed. If a
-provider is enabled but the cap prevents a lookup, Arcane records country lookup
-status as `deferred-after-*` rather than `missing-after-*`, so the default
+`ip-api` and `ipwhois` requests per poll. Arcane uses a deterministic provider
+plan: reverse DNS, local country blocks, RDAP, `ip-api`, then `ipwhois`.
+Provider results are merged, so if one enrichment source fails but a later
+enabled source returns country, ASN, owner, or domain context, Arcane uses the
+successful result. Network provider calls are intentionally bounded and
+sequential so per-poll budgets, cache behavior, and deferred lookup status stay
+predictable.
+
+Arcane tries local country blocks before RDAP/provider identity lookups. It
+only uses RDAP, `ip-api`, or `ipwhois` when country is missing, provider
+identity is missing, or no DNS/domain identity was observed. If a provider is
+enabled but the cap prevents a lookup, Arcane records country lookup status as
+`deferred-after-*` rather than `missing-after-*`, so the default
 fully-unresolved critical policy does not fire before the enabled source has
 actually been tried.
 

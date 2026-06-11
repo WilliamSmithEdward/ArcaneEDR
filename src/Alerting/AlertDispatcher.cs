@@ -247,53 +247,18 @@ namespace ArcaneEDR
 
         private bool IsExternallyEligible(Alert alert)
         {
-            if (alert.ExternalSuppressedByPolicy)
+            string reason;
+            if (ExternalAlertEligibility.ShouldDispatch(config, alert, out reason))
             {
-                WarnThrottled("detection policy suppressed external delivery");
-                return false;
+                return true;
             }
 
-            bool forceExternal = alert.ExternalForcedByPolicy;
-            int minimumExternalScore = AlertRulePolicy.MinimumExternalScore(config, alert);
-            if (!forceExternal && alert.Score < minimumExternalScore) return false;
-
-            if (!config.HasExternalAlertProviderEligibleForScore(alert.Score))
+            if (!String.IsNullOrWhiteSpace(reason))
             {
-                WarnThrottled("no configured alert sink eligible for alert score");
-                return false;
+                WarnThrottled(reason);
             }
 
-            if (!forceExternal &&
-                alert.MaintenanceContext &&
-                alert.Score < config.MaintenanceContextExternalAlertMinimumScore)
-            {
-                WarnThrottled("maintenance context below external alert threshold");
-                return false;
-            }
-
-            if (!forceExternal &&
-                AlertRuleTaxonomy.IsResponseRule(alert.RuleId) &&
-                alert.Score < config.ResponseFollowUpExternalAlertMinimumScore)
-            {
-                WarnThrottled("response follow-up below external alert threshold");
-                return false;
-            }
-
-            if (!forceExternal &&
-                config.BaselineLearningMode &&
-                alert.Score < config.BaselineLearningEmailMinimumScore)
-            {
-                return false;
-            }
-
-            if (!forceExternal &&
-                TermGroupRules.MatchesAnyGroup(AlertText(alert), config.ExternalAlertSuppressionTermGroups))
-            {
-                WarnThrottled("configured suppression group matched");
-                return false;
-            }
-
-            return true;
+            return false;
         }
 
         private bool ShouldSendPlannedExternal(Alert alert, int sentThisDispatch)
@@ -362,12 +327,5 @@ namespace ArcaneEDR
             logger.Warn("External alert delivery suppressed: " + reason + ".");
         }
 
-        private static string AlertText(Alert alert)
-        {
-            return (alert.RuleId ?? "") + " " +
-                (alert.Title ?? "") + " " +
-                (alert.Body ?? "") + " " +
-                (alert.EntitySummary ?? "");
-        }
     }
 }

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix
+  xmlns="http://wixtoolset.org/schemas/v4/wxs"
+  xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package
+    Name="Arcane EDR"
+    Manufacturer="Arcane EDR"
+    Version="$(var.ProductVersion)"
+    UpgradeCode="4A51CF4F-DB67-4B05-94F4-7E46A60411C7"
+    Scope="perMachine"
+    Compressed="yes">
+
+    <SummaryInformation Description="Arcane EDR Windows service and operator console" />
+    <MediaTemplate EmbedCab="yes" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Arcane EDR is already installed." />
+
+    <Property Id="ARPPRODUCTICON" Value="ArcaneIcon.ico" />
+    <Icon Id="ArcaneIcon.ico" SourceFile="$(var.GuiStage)\Assets\AppIcon.ico" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseRtf)" />
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <UIRef Id="WixUI_ErrorProgressText" />
+
+    <StandardDirectory Id="ProgramFilesFolder">
+      <Directory Id="INSTALLFOLDER" Name="Arcane EDR">
+        <Directory Id="BinFolder" Name="bin" />
+        <Directory Id="GuiFolder" Name="gui" />
+        <Directory Id="ConfigFolder" Name="config" />
+        <Directory Id="ScriptsFolder" Name="scripts" />
+        <Directory Id="DocsFolder" Name="docs" />
+        <Directory Id="AssetsFolder" Name="assets" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ProgramMenuDir" Name="Arcane EDR" />
+    </StandardDirectory>
+
+    <Feature Id="ProductFeature" Title="Arcane EDR" Level="1">
+      <ComponentGroupRef Id="ServiceFiles" />
+      <ComponentGroupRef Id="GuiFiles" />
+      <ComponentGroupRef Id="ConfigFiles" />
+      <ComponentGroupRef Id="ScriptFiles" />
+      <ComponentGroupRef Id="DocFiles" />
+      <ComponentGroupRef Id="AssetFiles" />
+      <ComponentRef Id="ArcaneServiceComponent" />
+      <ComponentRef Id="GuiShortcutComponent" />
+    </Feature>
+  </Package>
+</Wix>

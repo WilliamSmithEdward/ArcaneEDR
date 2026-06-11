@@ -25,8 +25,8 @@ namespace ArcaneEDR
                 MaintenanceSessionMarker marker = store.Start(duration, reason, "cli");
                 Console.WriteLine("Maintenance session started.");
                 Console.WriteLine("Reason=" + marker.Reason);
-                Console.WriteLine("StartUtc=" + Format(marker.StartUtc));
-                Console.WriteLine("EndUtc=" + Format(marker.EndUtc));
+                Console.WriteLine("StartUtc=" + UtcTimestamp.Format(marker.StartUtc));
+                Console.WriteLine("EndUtc=" + UtcTimestamp.Format(marker.EndUtc));
                 Console.WriteLine("DurationMinutes=" + marker.DurationMinutes.ToString(CultureInfo.InvariantCulture));
                 return 0;
             }
@@ -37,7 +37,7 @@ namespace ArcaneEDR
                 MaintenanceSessionMarker marker = store.Clear(reason, "cli");
                 Console.WriteLine("Maintenance session cleared.");
                 Console.WriteLine("Reason=" + marker.Reason);
-                Console.WriteLine("ClearedUtc=" + Format(marker.TimestampUtc));
+                Console.WriteLine("ClearedUtc=" + UtcTimestamp.Format(marker.TimestampUtc));
                 return 0;
             }
 
@@ -62,19 +62,19 @@ namespace ArcaneEDR
             }
             else
             {
-                Console.WriteLine("Active=true Reason=" + active.Reason + " EndUtc=" + Format(active.EndUtc));
+                Console.WriteLine("Active=true Reason=" + active.Reason + " EndUtc=" + UtcTimestamp.Format(active.EndUtc));
             }
 
-            TimeSpan lookback = ParseLookback(args, TimeSpan.FromHours(24));
+            TimeSpan lookback = InvestigationConsoleOptions.ParseLookback(args, TimeSpan.FromHours(24));
             List<MaintenanceSessionMarker> recent = store.Recent(lookback);
             Console.WriteLine("RecentRecords=" + recent.Count.ToString(CultureInfo.InvariantCulture));
             foreach (MaintenanceSessionMarker marker in recent)
             {
-                Console.WriteLine("  " + Format(marker.TimestampUtc) +
+                Console.WriteLine("  " + UtcTimestamp.Format(marker.TimestampUtc) +
                     " action=" + (marker.Cleared ? "clear" : "start") +
                     " reason=" + marker.Reason +
-                    " start=" + Format(marker.StartUtc) +
-                    " end=" + Format(marker.EndUtc) +
+                    " start=" + UtcTimestamp.Format(marker.StartUtc) +
+                    " end=" + UtcTimestamp.Format(marker.EndUtc) +
                     " duration_minutes=" + marker.DurationMinutes.ToString(CultureInfo.InvariantCulture));
             }
         }
@@ -85,7 +85,7 @@ namespace ArcaneEDR
             if (!String.IsNullOrWhiteSpace(duration))
             {
                 TimeSpan parsed;
-                if (TryParseDuration(duration, out parsed)) return parsed;
+                if (InvestigationConsoleOptions.TryParseDuration(duration, out parsed)) return parsed;
             }
 
             string minutes = ParseValue(args, "--minutes", "");
@@ -96,13 +96,6 @@ namespace ArcaneEDR
             }
 
             return fallback;
-        }
-
-        private static TimeSpan ParseLookback(string[] args, TimeSpan fallback)
-        {
-            string last = ParseValue(args, "--last", "");
-            TimeSpan parsed;
-            return TryParseDuration(last, out parsed) ? parsed : fallback;
         }
 
         private static string ParseValue(string[] args, string name, string fallback)
@@ -116,35 +109,6 @@ namespace ArcaneEDR
             }
 
             return fallback;
-        }
-
-        private static bool TryParseDuration(string value, out TimeSpan result)
-        {
-            result = TimeSpan.Zero;
-            if (String.IsNullOrWhiteSpace(value)) return false;
-
-            string trimmed = value.Trim().ToLowerInvariant();
-            double number;
-            if (trimmed.EndsWith("m", StringComparison.OrdinalIgnoreCase) &&
-                Double.TryParse(trimmed.Substring(0, trimmed.Length - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out number))
-            {
-                result = TimeSpan.FromMinutes(number);
-                return number > 0;
-            }
-
-            if (trimmed.EndsWith("h", StringComparison.OrdinalIgnoreCase) &&
-                Double.TryParse(trimmed.Substring(0, trimmed.Length - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out number))
-            {
-                result = TimeSpan.FromHours(number);
-                return number > 0;
-            }
-
-            return TimeSpan.TryParse(value, out result) && result > TimeSpan.Zero;
-        }
-
-        private static string Format(DateTime value)
-        {
-            return value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
         }
 
         private static void PrintUsage()

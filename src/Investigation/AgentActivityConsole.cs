@@ -11,9 +11,9 @@ namespace ArcaneEDR
         public static int PrintSummary(string baseDirectory, string[] args)
         {
             MonitorConfig config = MonitorConfig.Load(baseDirectory);
-            TimeSpan lookback = ParseLookback(args, TimeSpan.FromHours(24));
+            TimeSpan lookback = InvestigationConsoleOptions.ParseLookback(args, TimeSpan.FromHours(24));
 
-            Console.WriteLine("Agent activity from the last " + Describe(lookback) + " using " + config.AgentActivityLedgerFile);
+            Console.WriteLine("Agent activity from the last " + InvestigationConsoleOptions.Describe(lookback) + " using " + config.AgentActivityLedgerFile);
             if (!File.Exists(config.AgentActivityLedgerFile))
             {
                 Console.WriteLine("No agent activity ledger found.");
@@ -76,19 +76,19 @@ namespace ArcaneEDR
                 if (parsed == null) return null;
 
                 DateTime timestampUtc;
-                if (!TryParseUtc(ReadString(parsed, "timestamp_utc"), out timestampUtc)) return null;
+                if (!UtcTimestamp.TryParse(JsonFields.ReadString(parsed, "timestamp_utc"), out timestampUtc)) return null;
 
                 AgentActivityRecord record = new AgentActivityRecord();
                 record.TimestampUtc = timestampUtc;
-                record.RuleId = NullToUnknown(ReadString(parsed, "rule_id"));
-                record.Category = NullToUnknown(ReadString(parsed, "category"));
-                record.Severity = NullToUnknown(ReadString(parsed, "severity"));
-                record.Score = ReadInt(parsed, "score");
-                record.MaintenanceContext = ReadBool(parsed, "maintenance_context");
-                record.ProcessFamily = NullToUnknown(ReadString(parsed, "process_family"));
-                record.CommandCategory = NullToUnknown(ReadString(parsed, "command_category"));
-                record.EndpointCategory = NullToUnknown(ReadString(parsed, "endpoint_category"));
-                record.FileCategory = NullToUnknown(ReadString(parsed, "file_category"));
+                record.RuleId = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "rule_id"));
+                record.Category = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "category"));
+                record.Severity = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "severity"));
+                record.Score = JsonFields.ReadInt(parsed, "score");
+                record.MaintenanceContext = JsonFields.ReadBool(parsed, "maintenance_context");
+                record.ProcessFamily = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "process_family"));
+                record.CommandCategory = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "command_category"));
+                record.EndpointCategory = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "endpoint_category"));
+                record.FileCategory = TextFormatting.UnknownIfBlank(JsonFields.ReadString(parsed, "file_category"));
                 return record;
             }
             catch
@@ -156,7 +156,7 @@ namespace ArcaneEDR
             for (int index = start; index < records.Count; index++)
             {
                 AgentActivityRecord record = records[index];
-                Console.WriteLine("  " + record.TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture) +
+                Console.WriteLine("  " + UtcTimestamp.Format(record.TimestampUtc) +
                     " score=" + record.Score.ToString(CultureInfo.InvariantCulture) +
                     " rule=" + record.RuleId +
                     " process=" + record.ProcessFamily +
@@ -179,109 +179,6 @@ namespace ArcaneEDR
             return "unknown";
         }
 
-        private static TimeSpan ParseLookback(string[] args, TimeSpan fallback)
-        {
-            for (int index = 0; args != null && index < args.Length - 1; index++)
-            {
-                if (args[index].Equals("--last", StringComparison.OrdinalIgnoreCase))
-                {
-                    TimeSpan parsed;
-                    if (TryParseDuration(args[index + 1], out parsed)) return parsed;
-                }
-            }
-
-            return fallback;
-        }
-
-        private static bool TryParseDuration(string value, out TimeSpan result)
-        {
-            result = TimeSpan.Zero;
-            if (String.IsNullOrWhiteSpace(value)) return false;
-
-            string trimmed = value.Trim().ToLowerInvariant();
-            double number;
-            if (trimmed.EndsWith("m", StringComparison.OrdinalIgnoreCase) &&
-                Double.TryParse(trimmed.Substring(0, trimmed.Length - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out number))
-            {
-                result = TimeSpan.FromMinutes(number);
-                return number > 0;
-            }
-
-            if (trimmed.EndsWith("h", StringComparison.OrdinalIgnoreCase) &&
-                Double.TryParse(trimmed.Substring(0, trimmed.Length - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out number))
-            {
-                result = TimeSpan.FromHours(number);
-                return number > 0;
-            }
-
-            if (trimmed.EndsWith("d", StringComparison.OrdinalIgnoreCase) &&
-                Double.TryParse(trimmed.Substring(0, trimmed.Length - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out number))
-            {
-                result = TimeSpan.FromDays(number);
-                return number > 0;
-            }
-
-            return TimeSpan.TryParse(value, out result) && result > TimeSpan.Zero;
-        }
-
-        private static string Describe(TimeSpan value)
-        {
-            if (value.TotalDays >= 1 && value.TotalDays == Math.Floor(value.TotalDays))
-            {
-                return value.TotalDays.ToString("0", CultureInfo.InvariantCulture) + "d";
-            }
-
-            if (value.TotalHours >= 1 && value.TotalHours == Math.Floor(value.TotalHours))
-            {
-                return value.TotalHours.ToString("0", CultureInfo.InvariantCulture) + "h";
-            }
-
-            return value.TotalMinutes.ToString("0", CultureInfo.InvariantCulture) + "m";
-        }
-
-        private static bool TryParseUtc(string value, out DateTime result)
-        {
-            result = DateTime.MinValue;
-            if (String.IsNullOrWhiteSpace(value)) return false;
-
-            DateTime parsed;
-            if (!DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out parsed))
-            {
-                return false;
-            }
-
-            result = parsed.ToUniversalTime();
-            return true;
-        }
-
-        private static string ReadString(Dictionary<string, object> parsed, string key)
-        {
-            object value;
-            return parsed.TryGetValue(key, out value) && value != null ? value.ToString() : "";
-        }
-
-        private static int ReadInt(Dictionary<string, object> parsed, string key)
-        {
-            object value;
-            if (!parsed.TryGetValue(key, out value) || value == null) return 0;
-
-            int parsedInt;
-            return Int32.TryParse(value.ToString(), out parsedInt) ? parsedInt : 0;
-        }
-
-        private static bool ReadBool(Dictionary<string, object> parsed, string key)
-        {
-            object value;
-            if (!parsed.TryGetValue(key, out value) || value == null) return false;
-
-            bool parsedBool;
-            return Boolean.TryParse(value.ToString(), out parsedBool) && parsedBool;
-        }
-
-        private static string NullToUnknown(string value)
-        {
-            return String.IsNullOrWhiteSpace(value) ? "unknown" : value;
-        }
     }
 
     internal sealed class AgentActivityRecord

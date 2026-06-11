@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <DirectoryRef Id="BinFolder">
+      <Component Id="ArcaneServiceComponent" Guid="{8DE498F8-677C-4C77-8B2D-A19EF0B08C5D}">
+        <File
+          Id="ArcaneServiceExe"
+          Source="$(var.StageRoot)\bin\ArcaneEDR.exe"
+          KeyPath="yes" />
+        <ServiceInstall
+          Id="ArcaneServiceInstall"
+          Name="ArcaneEDR"
+          DisplayName="Arcane EDR"
+          Description="Arcane EDR local workstation safety monitor"
+          Type="ownProcess"
+          Start="auto"
+          ErrorControl="normal"
+          Account="LocalSystem" />
+        <ServiceControl
+          Id="ArcaneServiceControl"
+          Name="ArcaneEDR"
+          Start="install"
+          Stop="both"
+          Remove="uninstall"
+          Wait="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="ProgramMenuDir">
+      <Component Id="GuiShortcutComponent" Guid="{5F76B230-C6D9-4240-B0C7-6C9F4514563F}">
+        <Shortcut
+          Id="ArcaneGuiShortcut"
+          Name="Arcane EDR"
+          Description="Open the Arcane EDR operator console"
+          Target="[GuiFolder]ArcaneEDR.Gui.exe"
+          WorkingDirectory="GuiFolder"
+          Icon="ArcaneIcon.ico" />
+        <RemoveFolder Id="RemoveProgramMenuDir" Directory="ProgramMenuDir" On="uninstall" />
+        <RegistryValue Root="HKLM" Key="Software\ArcaneEDR" Name="GuiShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>

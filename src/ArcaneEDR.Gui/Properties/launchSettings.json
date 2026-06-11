@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "ArcaneEDR.Gui (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "ArcaneEDR.Gui (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

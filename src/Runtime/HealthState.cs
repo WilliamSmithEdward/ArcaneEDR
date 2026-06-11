@@ -51,11 +51,11 @@ namespace ArcaneEDR
             Directory.CreateDirectory(Path.GetDirectoryName(path));
             string[] lines = new string[]
             {
-                "LastStartUtc=" + WriteDate(LastStartUtc),
-                "LastCleanStopUtc=" + WriteDate(LastCleanStopUtc),
-                "LastHeartbeatUtc=" + WriteDate(LastHeartbeatUtc),
-                "LastDailySummaryUtc=" + WriteDate(LastDailySummaryUtc),
-                "LastAIAnalysisUtc=" + WriteDate(LastAIAnalysisUtc),
+                "LastStartUtc=" + UtcTimestamp.Format(LastStartUtc),
+                "LastCleanStopUtc=" + UtcTimestamp.Format(LastCleanStopUtc),
+                "LastHeartbeatUtc=" + UtcTimestamp.Format(LastHeartbeatUtc),
+                "LastDailySummaryUtc=" + UtcTimestamp.Format(LastDailySummaryUtc),
+                "LastAIAnalysisUtc=" + UtcTimestamp.Format(LastAIAnalysisUtc),
                 "LastRunId=" + (LastRunId ?? ""),
                 "Running=" + (Running ? "true" : "false"),
                 "PollCount=" + PollCount.ToString(CultureInfo.InvariantCulture),
@@ -70,13 +70,7 @@ namespace ArcaneEDR
         {
             if (String.IsNullOrWhiteSpace(value)) return null;
             DateTime parsed;
-            if (!DateTime.TryParse(value, out parsed)) return null;
-            return parsed.ToUniversalTime();
-        }
-
-        private static string WriteDate(DateTime? value)
-        {
-            return value.HasValue ? value.Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture) : "";
+            return UtcTimestamp.TryParse(value, out parsed) ? parsed : (DateTime?)null;
         }
 
         private static long ReadLong(string value)

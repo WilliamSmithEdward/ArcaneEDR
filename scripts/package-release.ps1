@@ -57,8 +57,6 @@ $stage = Join-Path $OutputRoot $packageName
 $zip = Join-Path $OutputRoot "$packageName.zip"
 $checksum = Join-Path $OutputRoot "$packageName.zip.sha256.txt"
 
-& (Join-Path $PSScriptRoot "build.ps1")
-
 New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
 if (Test-Path $stage) {
     Remove-Item -LiteralPath $stage -Recurse -Force
@@ -72,12 +70,15 @@ if (Test-Path $checksum) {
 
 New-Item -ItemType Directory -Force -Path `
     (Join-Path $stage "bin"), `
+    (Join-Path $stage "gui"), `
     (Join-Path $stage "config"), `
     (Join-Path $stage "scripts"), `
     (Join-Path $stage "docs"), `
+    (Join-Path $stage "installer"), `
     (Join-Path $stage "src\Assets") | Out-Null
 
-Copy-Item -LiteralPath (Join-Path $root "bin\$executableName") -Destination (Join-Path $stage "bin") -Force
+& (Join-Path $PSScriptRoot "build.ps1") -OutputPath (Join-Path $stage "bin\$executableName")
+& (Join-Path $PSScriptRoot "build-gui.ps1") -OutputPath (Join-Path $stage "gui")
 Copy-Item -LiteralPath (Join-Path $root "config\ArcaneEDR.example.config") -Destination (Join-Path $stage "config") -Force
 Copy-Item -LiteralPath (Join-Path $root "config\Deployment.example.config") -Destination (Join-Path $stage "config") -Force
 Copy-Item -LiteralPath (Join-Path $root "config\arcaneedr-sysmon.xml") -Destination (Join-Path $stage "config") -Force
@@ -86,6 +87,8 @@ Copy-Item -LiteralPath (Join-Path $root "config\arcane-policy.example.json") -De
 Copy-Item -Path (Join-Path $root "scripts\*.ps1") -Destination (Join-Path $stage "scripts") -Force
 Copy-Item -Path (Join-Path $root "scripts\*.cmd") -Destination (Join-Path $stage "scripts") -Force
 Copy-Item -Path (Join-Path $root "docs\*.md") -Destination (Join-Path $stage "docs") -Force
+Copy-Item -Path (Join-Path $root "installer\*.wxs") -Destination (Join-Path $stage "installer") -Force
+Copy-Item -Path (Join-Path $root "installer\*.rtf") -Destination (Join-Path $stage "installer") -Force
 if (Test-Path (Join-Path $root "src\Assets")) {
     Copy-Item -Path (Join-Path $root "src\Assets\*") -Destination (Join-Path $stage "src\Assets") -Force
 }

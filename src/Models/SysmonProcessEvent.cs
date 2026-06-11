@@ -25,22 +25,17 @@ namespace ArcaneEDR
         {
             get
             {
-                return "process=" + Safe(ProcessName) +
+                return "process=" + TextFormatting.EmptyIfNull(ProcessName) +
                     " pid=" + ProcessId.ToString(CultureInfo.InvariantCulture) +
-                    " image=" + Safe(Image) +
-                    " command_line=" + Safe(CommandLine) +
-                    " parent=" + Safe(ParentProcessName) +
+                    " image=" + TextFormatting.EmptyIfNull(Image) +
+                    " command_line=" + TextFormatting.EmptyIfNull(CommandLine) +
+                    " parent=" + TextFormatting.EmptyIfNull(ParentProcessName) +
                     " parent_pid=" + ParentProcessId.ToString(CultureInfo.InvariantCulture) +
-                    " parent_image=" + Safe(ParentImage) +
-                    " parent_command_line=" + Safe(ParentCommandLine) +
-                    " user=" + Safe(User) +
-                    " hashes=" + Safe(Hashes);
+                    " parent_image=" + TextFormatting.EmptyIfNull(ParentImage) +
+                    " parent_command_line=" + TextFormatting.EmptyIfNull(ParentCommandLine) +
+                    " user=" + TextFormatting.EmptyIfNull(User) +
+                    " hashes=" + TextFormatting.EmptyIfNull(Hashes);
             }
-        }
-
-        private static string Safe(string value)
-        {
-            return value == null ? "" : value;
         }
     }
 }

@@ -66,26 +66,26 @@ namespace ArcaneEDR
                     " local=" + LocalAddress + ":" + LocalPort.ToString(CultureInfo.InvariantCulture) +
                     " remote=" + RemoteAddress + ":" + RemotePort.ToString(CultureInfo.InvariantCulture) +
                     " remote_ip=" + RemoteAddress +
-                    " remote_host=" + Safe(RemoteHost) +
-                    " rdns=" + Safe(RemoteRdns) +
-                    " dns_names=" + Safe(String.Join(";", RemoteDnsNames.ToArray())) +
-                    " sni_hostname=" + Safe(SniHostname) +
-                    " resolved_domain=" + Safe(ResolvedDomain) +
-                    " registrable_domain=" + Safe(RegistrableDomain) +
-                    " asn=" + Safe(RemoteAsn) +
-                    " asn_org=" + Safe(RemoteAsnOrg) +
-                    " remote_owner=" + Safe(RemoteOwner) +
-                    " country=" + Safe(RemoteCountry) +
-                    " country_lookup=" + Safe(RemoteCountryLookupStatus) +
-                    " enrichment_source=" + Safe(RemoteEnrichmentSource) +
+                    " remote_host=" + TextFormatting.EmptyIfNull(RemoteHost) +
+                    " rdns=" + TextFormatting.EmptyIfNull(RemoteRdns) +
+                    " dns_names=" + TextFormatting.EmptyIfNull(String.Join(";", RemoteDnsNames.ToArray())) +
+                    " sni_hostname=" + TextFormatting.EmptyIfNull(SniHostname) +
+                    " resolved_domain=" + TextFormatting.EmptyIfNull(ResolvedDomain) +
+                    " registrable_domain=" + TextFormatting.EmptyIfNull(RegistrableDomain) +
+                    " asn=" + TextFormatting.EmptyIfNull(RemoteAsn) +
+                    " asn_org=" + TextFormatting.EmptyIfNull(RemoteAsnOrg) +
+                    " remote_owner=" + TextFormatting.EmptyIfNull(RemoteOwner) +
+                    " country=" + TextFormatting.EmptyIfNull(RemoteCountry) +
+                    " country_lookup=" + TextFormatting.EmptyIfNull(RemoteCountryLookupStatus) +
+                    " enrichment_source=" + TextFormatting.EmptyIfNull(RemoteEnrichmentSource) +
                     " state=" + State +
-                    " source=" + Safe(Source) +
-                    " process_path=" + Safe(Process == null ? "" : Process.ExecutablePath) +
-                    " command_line=" + Safe(Process == null ? "" : Process.CommandLine) +
-                    " parent=" + Safe(Process == null ? "" : Process.ParentProcessName) +
+                    " source=" + TextFormatting.EmptyIfNull(Source) +
+                    " process_path=" + TextFormatting.EmptyIfNull(Process == null ? "" : Process.ExecutablePath) +
+                    " command_line=" + TextFormatting.EmptyIfNull(Process == null ? "" : Process.CommandLine) +
+                    " parent=" + TextFormatting.EmptyIfNull(Process == null ? "" : Process.ParentProcessName) +
                     " parent_pid=" + (Process == null ? "" : Process.ParentProcessId.ToString(CultureInfo.InvariantCulture)) +
-                    " sha256=" + Safe(Process == null ? "" : Process.Sha256) +
-                    " signer=" + Safe(Process == null ? "" : Process.Signer);
+                    " sha256=" + TextFormatting.EmptyIfNull(Process == null ? "" : Process.Sha256) +
+                    " signer=" + TextFormatting.EmptyIfNull(Process == null ? "" : Process.Signer);
             }
         }
 
@@ -96,28 +96,28 @@ namespace ArcaneEDR
                 " " + State +
                 " pid=" + ProcessId.ToString(CultureInfo.InvariantCulture) +
                 " process=" + ProcessName +
-                " remote_context=" + Safe(RemoteContextSummary()) +
-                " path=" + Safe(Process == null ? "" : Process.ExecutablePath);
+                " remote_context=" + TextFormatting.EmptyIfNull(RemoteContextSummary()) +
+                " path=" + TextFormatting.EmptyIfNull(Process == null ? "" : Process.ExecutablePath);
         }
 
         public string RemoteContextText()
         {
-            return Safe(RemoteHost) + " " +
-                Safe(RemoteRdns) + " " +
-                Safe(String.Join(" ", RemoteDnsNames.ToArray())) + " " +
-                Safe(SniHostname) + " " +
-                Safe(ResolvedDomain) + " " +
-                Safe(RegistrableDomain) + " " +
-                Safe(RemoteAsn) + " " +
-                Safe(RemoteAsnOrg) + " " +
-                Safe(RemoteOwner) + " " +
-                Safe(RemoteCountry);
+            return TextFormatting.EmptyIfNull(RemoteHost) + " " +
+                TextFormatting.EmptyIfNull(RemoteRdns) + " " +
+                TextFormatting.EmptyIfNull(String.Join(" ", RemoteDnsNames.ToArray())) + " " +
+                TextFormatting.EmptyIfNull(SniHostname) + " " +
+                TextFormatting.EmptyIfNull(ResolvedDomain) + " " +
+                TextFormatting.EmptyIfNull(RegistrableDomain) + " " +
+                TextFormatting.EmptyIfNull(RemoteAsn) + " " +
+                TextFormatting.EmptyIfNull(RemoteAsnOrg) + " " +
+                TextFormatting.EmptyIfNull(RemoteOwner) + " " +
+                TextFormatting.EmptyIfNull(RemoteCountry);
         }
 
         public string RemoteContextSummary()
         {
             string summary = "";
-            Append(ref summary, "domain", FirstNonEmpty(SniHostname, ResolvedDomain, RemoteHost, RemoteRdns));
+            Append(ref summary, "domain", AlertEntityTokens.FirstNonEmpty(SniHostname, ResolvedDomain, RemoteHost, RemoteRdns));
             Append(ref summary, "registrable_domain", RegistrableDomain);
             Append(ref summary, "asn", RemoteAsn);
             Append(ref summary, "asn_org", RemoteAsnOrg);
@@ -134,19 +134,5 @@ namespace ArcaneEDR
             summary += name + "=" + value;
         }
 
-        private static string FirstNonEmpty(params string[] values)
-        {
-            foreach (string value in values)
-            {
-                if (!String.IsNullOrWhiteSpace(value)) return value;
-            }
-
-            return "";
-        }
-
-        private static string Safe(string value)
-        {
-            return value == null ? "" : value;
-        }
     }
 }

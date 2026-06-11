@@ -83,7 +83,7 @@ namespace ArcaneEDR
                 }
 
                 string line = kind + "\t" + key + "\t" +
-                    DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture) + "\t" +
+                    UtcTimestamp.Format(DateTime.UtcNow) + "\t" +
                     Clean(detail);
                 File.AppendAllText(config.ReputationCacheFile, line + Environment.NewLine);
             }

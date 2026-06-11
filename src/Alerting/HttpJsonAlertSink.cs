@@ -31,7 +31,7 @@ namespace ArcaneEDR
             this.url = url;
             this.secretEnvironmentVariable = secretEnvironmentVariable;
             this.secretHeaderName = secretHeaderName;
-            this.secretPrefix = NormalizePrefix(secretPrefix);
+            this.secretPrefix = HttpAuthHeader.NormalizePrefix(secretPrefix);
             this.timeoutSeconds = timeoutSeconds <= 0 ? 15 : timeoutSeconds;
             this.logger = logger;
             this.secretProvider = secretProvider;
@@ -84,7 +84,7 @@ namespace ArcaneEDR
                 logger.Info("Sent " + name + " alert for " + alert.RuleId +
                     " score=" + alert.Score.ToString(CultureInfo.InvariantCulture) +
                     " status=" + ((int)response.StatusCode).ToString(CultureInfo.InvariantCulture) +
-                    " response=" + AlertMessageFormatter.Compact(ReadResponse(response), 300));
+                    " response=" + AlertMessageFormatter.Compact(HttpResponseText.Read(response), 300));
             }
 
             return true;
@@ -109,26 +109,5 @@ namespace ArcaneEDR
             }
         }
 
-        private static string ReadResponse(HttpWebResponse response)
-        {
-            using (Stream stream = response.GetResponseStream())
-            using (StreamReader reader = new StreamReader(stream))
-            {
-                return reader.ReadToEnd();
-            }
-        }
-
-        private static string NormalizePrefix(string prefix)
-        {
-            if (String.IsNullOrWhiteSpace(prefix)) return "";
-            string trimmed = prefix.Trim();
-            if (trimmed.Equals("Bearer", StringComparison.OrdinalIgnoreCase) ||
-                trimmed.Equals("Token", StringComparison.OrdinalIgnoreCase))
-            {
-                return trimmed + " ";
-            }
-
-            return prefix;
-        }
     }
 }

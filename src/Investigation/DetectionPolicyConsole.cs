@@ -12,16 +12,16 @@ namespace ArcaneEDR
         public static int Preview(string baseDirectory, string[] args)
         {
             MonitorConfig config = MonitorConfig.Load(baseDirectory);
-            TimeSpan lookback = ParseLookback(args, TimeSpan.FromHours(24));
+            TimeSpan lookback = InvestigationConsoleOptions.ParseLookback(args, TimeSpan.FromHours(24));
             int limit = ParseLimit(args, 20);
             string samplePath = FirstOptionValue(args, "--sample-alert", "--sample-json");
-            string sampleRule = OptionValue(args, "--sample-rule", "");
+            string sampleRule = InvestigationConsoleOptions.OptionValue(args, "--sample-rule", "");
             bool sampleMode = !String.IsNullOrWhiteSpace(samplePath) || !String.IsNullOrWhiteSpace(sampleRule);
 
             Console.WriteLine("Detection policy preview");
             Console.WriteLine("PolicyFile=" + config.PolicyFile);
             Console.WriteLine("Mode=" + (sampleMode ? "sample" : "recent-alerts"));
-            if (!sampleMode) Console.WriteLine("Lookback=" + Describe(lookback));
+            if (!sampleMode) Console.WriteLine("Lookback=" + InvestigationConsoleOptions.Describe(lookback));
 
             if (!config.EnableDetectionPolicy)
             {
@@ -119,14 +119,14 @@ namespace ArcaneEDR
             Console.WriteLine(FormatTime(alert.TimestampUtc) +
                 " rule=" + Safe(alert.RuleId) +
                 " score=" + originalScore.ToString(CultureInfo.InvariantCulture) + "->" + alert.Score.ToString(CultureInfo.InvariantCulture) +
-                " title=" + Compact(alert.Title, 96));
+                " title=" + InvestigationConsoleOptions.CompactForConsole(alert.Title, 96));
             Console.WriteLine("  external=" + ExternalRead(alert));
             foreach (DetectionPolicyAppliedRule applied in result.AppliedRules)
             {
                 Console.WriteLine("  matched " + Safe(applied.Id) +
                     " action=" + Safe(applied.Action) +
                     " score=" + applied.ScoreBefore.ToString(CultureInfo.InvariantCulture) + "->" + applied.ScoreAfter.ToString(CultureInfo.InvariantCulture) +
-                    " reason=" + Compact(applied.Reason, 140));
+                    " reason=" + InvestigationConsoleOptions.CompactForConsole(applied.Reason, 140));
             }
         }
 
@@ -180,7 +180,7 @@ namespace ArcaneEDR
                 IDictionary root = parsed as IDictionary;
                 if (root != null)
                 {
-                    IList alerts = DetectionPolicy.Value(root, "alerts") as IList;
+                    IList alerts = PolicyJsonReader.Value(root, "alerts") as IList;
                     if (alerts != null)
                     {
                         foreach (object item in alerts)
@@ -213,19 +213,19 @@ namespace ArcaneEDR
         private static Alert BuildSampleAlert(string[] args, string sampleRule)
         {
             int score = ParseIntOption(args, "--sample-score", 60);
-            string title = OptionValue(args, "--sample-title", "Sample policy preview alert");
-            string body = OptionValue(args, "--sample-body", "Sample alert generated for detection policy preview.");
-            string entity = OptionValue(args, "--sample-entity", "");
+            string title = InvestigationConsoleOptions.OptionValue(args, "--sample-title", "Sample policy preview alert");
+            string body = InvestigationConsoleOptions.OptionValue(args, "--sample-body", "Sample alert generated for detection policy preview.");
+            string entity = InvestigationConsoleOptions.OptionValue(args, "--sample-entity", "");
             List<string> sampleFields = new List<string>();
-            AddSampleField(sampleFields, "process", OptionValue(args, "--sample-process", ""));
-            AddSampleField(sampleFields, "parent", OptionValue(args, "--sample-parent", ""));
-            AddSampleField(sampleFields, "user", OptionValue(args, "--sample-user", ""));
+            AddSampleField(sampleFields, "process", InvestigationConsoleOptions.OptionValue(args, "--sample-process", ""));
+            AddSampleField(sampleFields, "parent", InvestigationConsoleOptions.OptionValue(args, "--sample-parent", ""));
+            AddSampleField(sampleFields, "user", InvestigationConsoleOptions.OptionValue(args, "--sample-user", ""));
             AddSampleField(sampleFields, "destination_domain", FirstOptionValue(args, "--sample-destination-domain", "--sample-domain", "--sample-destination"));
             AddSampleField(sampleFields, "ip", FirstOptionValue(args, "--sample-ip", "--sample-remote-ip"));
             AddSampleField(sampleFields, "port", FirstOptionValue(args, "--sample-port", "--sample-remote-port"));
             AddSampleField(sampleFields, "path", FirstOptionValue(args, "--sample-path", "--sample-path-prefix"));
-            AddSampleField(sampleFields, "signer", OptionValue(args, "--sample-signer", ""));
-            AddSampleField(sampleFields, "hash", OptionValue(args, "--sample-hash", ""));
+            AddSampleField(sampleFields, "signer", InvestigationConsoleOptions.OptionValue(args, "--sample-signer", ""));
+            AddSampleField(sampleFields, "hash", InvestigationConsoleOptions.OptionValue(args, "--sample-hash", ""));
             AddSampleField(sampleFields, "command", FirstOptionValue(args, "--sample-command", "--sample-command-line"));
             if (sampleFields.Count > 0)
             {
@@ -243,7 +243,7 @@ namespace ArcaneEDR
                 body,
                 "Review policy preview output.",
                 "policy-preview|" + sampleRule);
-            alert.Category = OptionValue(args, "--sample-category", AlertRuleCatalog.CategoryFor(sampleRule));
+            alert.Category = InvestigationConsoleOptions.OptionValue(args, "--sample-category", AlertRuleCatalog.CategoryFor(sampleRule));
             alert.EntitySummary = String.IsNullOrWhiteSpace(entity) ? "sample=policy-preview" : entity;
             alert.TimestampUtc = DateTime.UtcNow;
             alert.SetScore(score);
@@ -282,7 +282,7 @@ namespace ArcaneEDR
             if (parsed == null) return null;
 
             DateTime timestampUtc;
-            if (!TryParseUtc(Read(parsed, "timestamp_utc"), out timestampUtc))
+            if (!UtcTimestamp.TryParse(Read(parsed, "timestamp_utc"), out timestampUtc))
             {
                 if (requireTimestamp) return null;
                 timestampUtc = DateTime.UtcNow;
@@ -290,7 +290,7 @@ namespace ArcaneEDR
 
             Alert alert = new Alert();
             alert.TimestampUtc = timestampUtc;
-            alert.RuleId = FirstNonEmpty(Read(parsed, "rule_id"), Read(parsed, "rule"));
+            alert.RuleId = AlertEntityTokens.FirstNonEmpty(Read(parsed, "rule_id"), Read(parsed, "rule"));
             alert.Category = Read(parsed, "category");
             if (String.IsNullOrWhiteSpace(alert.Category)) alert.Category = AlertRuleCatalog.CategoryFor(alert.RuleId);
             alert.Score = ReadInt(parsed, "score");
@@ -298,7 +298,7 @@ namespace ArcaneEDR
             if (String.IsNullOrWhiteSpace(alert.Severity)) alert.SetScore(alert.Score);
             alert.Title = Read(parsed, "title");
             alert.Body = Read(parsed, "body");
-            alert.EntitySummary = FirstNonEmpty(Read(parsed, "entity"), Read(parsed, "entity_summary"));
+            alert.EntitySummary = AlertEntityTokens.FirstNonEmpty(Read(parsed, "entity"), Read(parsed, "entity_summary"));
             alert.Recommendation = Read(parsed, "recommendation");
             alert.PolicyContext = Read(parsed, "policy_context");
             alert.MaintenanceContext = ReadBool(parsed, "maintenance_context");
@@ -312,20 +312,6 @@ namespace ArcaneEDR
             if (alert.ExternalSuppressedByPolicy) return "suppressed_by_policy";
             if (alert.ExternalForcedByPolicy) return "forced_by_policy";
             return "unchanged";
-        }
-
-        private static TimeSpan ParseLookback(string[] args, TimeSpan fallback)
-        {
-            for (int index = 0; args != null && index < args.Length - 1; index++)
-            {
-                if (args[index].Equals("--last", StringComparison.OrdinalIgnoreCase))
-                {
-                    TimeSpan parsed;
-                    if (TryParseDuration(args[index + 1], out parsed)) return parsed;
-                }
-            }
-
-            return fallback;
         }
 
         private static int ParseLimit(string[] args, int fallback)
@@ -344,102 +330,20 @@ namespace ArcaneEDR
 
         private static string FirstOptionValue(string[] args, string firstName, string secondName)
         {
-            string value = OptionValue(args, firstName, "");
-            return String.IsNullOrWhiteSpace(value) ? OptionValue(args, secondName, "") : value;
+            string value = InvestigationConsoleOptions.OptionValue(args, firstName, "");
+            return String.IsNullOrWhiteSpace(value) ? InvestigationConsoleOptions.OptionValue(args, secondName, "") : value;
         }
 
         private static string FirstOptionValue(string[] args, string firstName, string secondName, string thirdName)
         {
             string value = FirstOptionValue(args, firstName, secondName);
-            return String.IsNullOrWhiteSpace(value) ? OptionValue(args, thirdName, "") : value;
-        }
-
-        private static string OptionValue(string[] args, string name, string fallback)
-        {
-            if (args == null || String.IsNullOrWhiteSpace(name)) return fallback;
-            string equalsPrefix = name + "=";
-            for (int index = 0; index < args.Length; index++)
-            {
-                if (args[index].Equals(name, StringComparison.OrdinalIgnoreCase) &&
-                    index + 1 < args.Length)
-                {
-                    return args[index + 1];
-                }
-
-                if (args[index].StartsWith(equalsPrefix, StringComparison.OrdinalIgnoreCase))
-                {
-                    return args[index].Substring(equalsPrefix.Length);
-                }
-            }
-
-            return fallback;
+            return String.IsNullOrWhiteSpace(value) ? InvestigationConsoleOptions.OptionValue(args, thirdName, "") : value;
         }
 
         private static int ParseIntOption(string[] args, string name, int fallback)
         {
             int parsed;
-            return Int32.TryParse(OptionValue(args, name, ""), out parsed) ? parsed : fallback;
-        }
-
-        private static bool TryParseDuration(string value, out TimeSpan result)
-        {
-            result = TimeSpan.Zero;
-            if (String.IsNullOrWhiteSpace(value)) return false;
-
-            string trimmed = value.Trim().ToLowerInvariant();
-            double number;
-            if (trimmed.EndsWith("m", StringComparison.OrdinalIgnoreCase) &&
-                Double.TryParse(trimmed.Substring(0, trimmed.Length - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out number))
-            {
-                result = TimeSpan.FromMinutes(number);
-                return number > 0;
-            }
-
-            if (trimmed.EndsWith("h", StringComparison.OrdinalIgnoreCase) &&
-                Double.TryParse(trimmed.Substring(0, trimmed.Length - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out number))
-            {
-                result = TimeSpan.FromHours(number);
-                return number > 0;
-            }
-
-            if (trimmed.EndsWith("d", StringComparison.OrdinalIgnoreCase) &&
-                Double.TryParse(trimmed.Substring(0, trimmed.Length - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out number))
-            {
-                result = TimeSpan.FromDays(number);
-                return number > 0;
-            }
-
-            return TimeSpan.TryParse(value, out result) && result > TimeSpan.Zero;
-        }
-
-        private static string Describe(TimeSpan value)
-        {
-            if (value.TotalDays >= 1 && value.TotalDays == Math.Floor(value.TotalDays))
-            {
-                return value.TotalDays.ToString("0", CultureInfo.InvariantCulture) + "d";
-            }
-
-            if (value.TotalHours >= 1 && value.TotalHours == Math.Floor(value.TotalHours))
-            {
-                return value.TotalHours.ToString("0", CultureInfo.InvariantCulture) + "h";
-            }
-
-            return value.TotalMinutes.ToString("0", CultureInfo.InvariantCulture) + "m";
-        }
-
-        private static bool TryParseUtc(string value, out DateTime result)
-        {
-            result = DateTime.MinValue;
-            if (String.IsNullOrWhiteSpace(value)) return false;
-
-            DateTime parsed;
-            if (!DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out parsed))
-            {
-                return false;
-            }
-
-            result = parsed.ToUniversalTime();
-            return true;
+            return Int32.TryParse(InvestigationConsoleOptions.OptionValue(args, name, ""), out parsed) ? parsed : fallback;
         }
 
         private static string Read(IDictionary parsed, string key)
@@ -457,11 +361,6 @@ namespace ArcaneEDR
             return "";
         }
 
-        private static string FirstNonEmpty(string first, string second)
-        {
-            return String.IsNullOrWhiteSpace(first) ? (second ?? "") : first;
-        }
-
         private static int ReadInt(IDictionary parsed, string key)
         {
             int value;
@@ -476,7 +375,7 @@ namespace ArcaneEDR
 
         private static string FormatTime(DateTime utc)
         {
-            return utc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
+            return UtcTimestamp.Format(utc);
         }
 
         private static string Safe(string value)
@@ -484,18 +383,5 @@ namespace ArcaneEDR
             return String.IsNullOrWhiteSpace(value) ? "unknown" : value.Trim();
         }
 
-        private static string Compact(string value, int maxLength)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return "unknown";
-            string compact = value.Replace("\r", " ").Replace("\n", " ").Replace("\t", " ").Trim();
-            while (compact.IndexOf("  ", StringComparison.Ordinal) >= 0)
-            {
-                compact = compact.Replace("  ", " ");
-            }
-
-            if (compact.Length <= maxLength) return compact;
-            if (maxLength <= 3) return compact.Substring(0, maxLength);
-            return compact.Substring(0, maxLength - 3) + "...";
-        }
     }
 }

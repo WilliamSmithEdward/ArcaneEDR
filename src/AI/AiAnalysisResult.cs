@@ -19,12 +19,12 @@ namespace ArcaneEDR
         {
             StringBuilder builder = new StringBuilder();
             builder.AppendLine("AI compact log analysis");
-            builder.AppendLine("Provider: " + Safe(ProviderName));
+            builder.AppendLine("Provider: " + TextFormatting.EmptyIfNull(ProviderName));
             builder.AppendLine("Alertable: " + Alertable);
             builder.AppendLine("Score: " + Score.ToString(CultureInfo.InvariantCulture));
-            builder.AppendLine("Title: " + Safe(Title));
-            builder.AppendLine("Summary: " + Safe(Summary));
-            builder.AppendLine("RecommendedAction: " + Safe(RecommendedAction));
+            builder.AppendLine("Title: " + TextFormatting.EmptyIfNull(Title));
+            builder.AppendLine("Summary: " + TextFormatting.EmptyIfNull(Summary));
+            builder.AppendLine("RecommendedAction: " + TextFormatting.EmptyIfNull(RecommendedAction));
 
             if (ProviderOutcomes.Count > 1)
             {
@@ -32,20 +32,15 @@ namespace ArcaneEDR
                 builder.AppendLine("Provider results:");
                 foreach (AiProviderAnalysisOutcome outcome in ProviderOutcomes)
                 {
-                    builder.AppendLine("- " + Safe(outcome.ProviderName) +
-                        " status=" + Safe(outcome.Status) +
+                    builder.AppendLine("- " + TextFormatting.EmptyIfNull(outcome.ProviderName) +
+                        " status=" + TextFormatting.EmptyIfNull(outcome.Status) +
                         " alertable=" + outcome.Alertable +
                         " score=" + outcome.Score.ToString(CultureInfo.InvariantCulture) +
-                        " title=" + Safe(outcome.Title));
+                        " title=" + TextFormatting.EmptyIfNull(outcome.Title));
                 }
             }
 
             return builder.ToString();
-        }
-
-        private static string Safe(string value)
-        {
-            return value == null ? "" : value;
         }
     }
 

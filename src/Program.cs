@@ -106,6 +106,12 @@ namespace ArcaneEDR
                 return;
             }
 
+            if (args.Length > 0 && args[0].Equals("--policy-inspect", StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.ExitCode = PolicyInspectConsole.Run(AppDomain.CurrentDomain.BaseDirectory, args);
+                return;
+            }
+
             if (args.Length > 0 && args[0].Equals("--support-bundle", StringComparison.OrdinalIgnoreCase))
             {
                 Environment.ExitCode = SupportBundleConsole.Generate(AppDomain.CurrentDomain.BaseDirectory);
@@ -180,6 +186,7 @@ namespace ArcaneEDR
             Console.WriteLine("  ArcaneEDR.exe --policy-preview --last <duration> [--limit <n>]");
             Console.WriteLine("  ArcaneEDR.exe --policy-preview --sample-rule <rule-id> [sample context options]");
             Console.WriteLine("  ArcaneEDR.exe --policy-preview --sample-alert <json-path>");
+            Console.WriteLine("  ArcaneEDR.exe --policy-inspect [--json]");
             Console.WriteLine("  ArcaneEDR.exe --incidents --last <duration>");
             Console.WriteLine("  ArcaneEDR.exe --timeline <incident-id>");
             Console.WriteLine("  ArcaneEDR.exe --support-bundle");

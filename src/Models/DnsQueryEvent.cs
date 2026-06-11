@@ -30,17 +30,12 @@ namespace ArcaneEDR
             {
                 return "process=" + ProcessName +
                     " pid=" + ProcessId.ToString(CultureInfo.InvariantCulture) +
-                    " image=" + Safe(Image) +
-                    " user=" + Safe(User) +
-                    " query=" + Safe(QueryName) +
-                    " status=" + Safe(QueryStatus) +
-                    " results=" + Safe(QueryResults);
+                    " image=" + TextFormatting.EmptyIfNull(Image) +
+                    " user=" + TextFormatting.EmptyIfNull(User) +
+                    " query=" + TextFormatting.EmptyIfNull(QueryName) +
+                    " status=" + TextFormatting.EmptyIfNull(QueryStatus) +
+                    " results=" + TextFormatting.EmptyIfNull(QueryResults);
             }
-        }
-
-        private static string Safe(string value)
-        {
-            return value == null ? "" : value;
         }
     }
 }

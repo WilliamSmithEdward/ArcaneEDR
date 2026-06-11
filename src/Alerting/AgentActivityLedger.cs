@@ -22,7 +22,7 @@ namespace ArcaneEDR
             if (alert == null || config == null || !config.EnableAgentActivityLedger) return;
             if (alert.Score < config.AgentActivityLedgerMinimumScore) return;
 
-            string text = AlertText(alert);
+            string text = AlertText.Build(alert);
             if (text.IndexOf("agent_context=involved", StringComparison.OrdinalIgnoreCase) < 0) return;
 
             try
@@ -44,22 +44,22 @@ namespace ArcaneEDR
             List<string> agentReasonLabels = AgentReasonLabels(text);
 
             return "{" +
-                "\"timestamp_utc\":\"" + JsonEscape(alert.TimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)) + "\"," +
-                "\"system_local_time\":\"" + JsonEscape(alert.SystemLocalTime) + "\"," +
-                "\"system_time_zone\":\"" + JsonEscape(alert.SystemTimeZoneId) + "\"," +
-                "\"system_utc_offset\":\"" + JsonEscape(alert.SystemUtcOffset) + "\"," +
-                "\"rule_id\":\"" + JsonEscape(alert.RuleId) + "\"," +
-                "\"category\":\"" + JsonEscape(AlertRulePolicy.AlertCategory(alert)) + "\"," +
-                "\"severity\":\"" + JsonEscape(alert.Severity) + "\"," +
+                "\"timestamp_utc\":\"" + JsonFields.Escape(UtcTimestamp.Format(alert.TimestampUtc)) + "\"," +
+                "\"system_local_time\":\"" + JsonFields.Escape(alert.SystemLocalTime) + "\"," +
+                "\"system_time_zone\":\"" + JsonFields.Escape(alert.SystemTimeZoneId) + "\"," +
+                "\"system_utc_offset\":\"" + JsonFields.Escape(alert.SystemUtcOffset) + "\"," +
+                "\"rule_id\":\"" + JsonFields.Escape(alert.RuleId) + "\"," +
+                "\"category\":\"" + JsonFields.Escape(AlertRulePolicy.AlertCategory(alert)) + "\"," +
+                "\"severity\":\"" + JsonFields.Escape(alert.Severity) + "\"," +
                 "\"score\":" + alert.Score.ToString(CultureInfo.InvariantCulture) + "," +
                 "\"maintenance_context\":" + (alert.MaintenanceContext ? "true" : "false") + "," +
-                "\"process_family\":\"" + JsonEscape(ProcessFamily(text, "process")) + "\"," +
-                "\"parent_family\":\"" + JsonEscape(ProcessFamily(text, "parent")) + "\"," +
+                "\"process_family\":\"" + JsonFields.Escape(ProcessFamily(text, "process")) + "\"," +
+                "\"parent_family\":\"" + JsonFields.Escape(ProcessFamily(text, "parent")) + "\"," +
                 "\"agent_reason_labels\":" + JsonArray(agentReasonLabels) + "," +
-                "\"command_category\":\"" + JsonEscape(CommandCategory(alert, text)) + "\"," +
-                "\"endpoint_category\":\"" + JsonEscape(EndpointCategory(alert, text)) + "\"," +
-                "\"file_category\":\"" + JsonEscape(FileCategory(text)) + "\"," +
-                "\"rule_hit\":\"" + JsonEscape(alert.RuleId) + "\"" +
+                "\"command_category\":\"" + JsonFields.Escape(CommandCategory(alert, text)) + "\"," +
+                "\"endpoint_category\":\"" + JsonFields.Escape(EndpointCategory(alert, text)) + "\"," +
+                "\"file_category\":\"" + JsonFields.Escape(FileCategory(text)) + "\"," +
+                "\"rule_hit\":\"" + JsonFields.Escape(alert.RuleId) + "\"" +
                 "}";
         }
 
@@ -68,23 +68,8 @@ namespace ArcaneEDR
             lock (gate)
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
-                RotateIfNeeded(path);
+                LogFileRotation.RotateIfNeeded(path, config.MaxLogFileBytes);
                 File.AppendAllText(path, line + Environment.NewLine);
-            }
-        }
-
-        private void RotateIfNeeded(string path)
-        {
-            try
-            {
-                FileInfo file = new FileInfo(path);
-                if (!file.Exists || file.Length < config.MaxLogFileBytes) return;
-
-                string rotated = path + "." + DateTime.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture) + ".old";
-                File.Move(path, rotated);
-            }
-            catch
-            {
             }
         }
 
@@ -95,13 +80,13 @@ namespace ArcaneEDR
             if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixAgentSecret)) return "agent-secret-reference";
             if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixAgentSupply)) return "agent-supply-chain";
             if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixAgent)) return "agent-guardrail";
-            if (Contains(ruleId, "ENCODED") || Contains(text, "base64")) return "encoded";
-            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixPowerShellDefender) || Contains(text, "defender")) return "security-control-change";
+            if (TextFormatting.ContainsIgnoreCase(ruleId, "ENCODED") || TextFormatting.ContainsIgnoreCase(text, "base64")) return "encoded";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixPowerShellDefender) || TextFormatting.ContainsIgnoreCase(text, "defender")) return "security-control-change";
             if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixPowerShellPersistence) ||
                 AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixPersistence)) return "persistence";
             if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixFile)) return "file-write";
-            if (Contains(ruleId, "DOWNLOAD") || Contains(text, "download")) return "download-or-staging";
-            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixNetworkLan) || Contains(ruleId, "LATERAL")) return "lateral-or-admin-access";
+            if (TextFormatting.ContainsIgnoreCase(ruleId, "DOWNLOAD") || TextFormatting.ContainsIgnoreCase(text, "download")) return "download-or-staging";
+            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixNetworkLan) || TextFormatting.ContainsIgnoreCase(ruleId, "LATERAL")) return "lateral-or-admin-access";
             if (AlertRuleTaxonomy.HasAnyPrefix(ruleId, AlertRuleTaxonomy.PrefixNetwork, AlertRuleTaxonomy.PrefixDns, AlertRuleTaxonomy.PrefixRat)) return "network";
             if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixAuth)) return "auth";
             if (AlertRuleTaxonomy.HasAnyPrefix(ruleId, AlertRuleTaxonomy.PrefixProcess, AlertRuleTaxonomy.PrefixReputation)) return "process";
@@ -114,44 +99,37 @@ namespace ArcaneEDR
             if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixNetworkLanInbound)) return "lan-inbound-admin";
             if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixNetworkLanEgress)) return "lan-egress-admin";
             if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixNetworkInbound)) return "external-inbound";
-            if (Contains(ruleId, "DIRECT-IP")) return "external-direct-ip-web";
-            if (Contains(ruleId, "BEACON")) return "external-beacon-like";
-            if (Contains(ruleId, "HIGH-RISK-PORT") || Contains(ruleId, "UNUSUAL-PORT") || Contains(ruleId, "PORT-MISUSE")) return "external-unusual-port";
+            if (TextFormatting.ContainsIgnoreCase(ruleId, "DIRECT-IP")) return "external-direct-ip-web";
+            if (TextFormatting.ContainsIgnoreCase(ruleId, "BEACON")) return "external-beacon-like";
+            if (TextFormatting.ContainsIgnoreCase(ruleId, "HIGH-RISK-PORT") || TextFormatting.ContainsIgnoreCase(ruleId, "UNUSUAL-PORT") || TextFormatting.ContainsIgnoreCase(ruleId, "PORT-MISUSE")) return "external-unusual-port";
             if (AlertRuleTaxonomy.IsDnsRule(ruleId)) return "dns";
             if (AlertRuleTaxonomy.HasAnyPrefix(ruleId, AlertRuleTaxonomy.PrefixNetworkEgress, AlertRuleTaxonomy.PrefixRat)) return "external-egress";
-            if (Contains(text, "remote=")) return "network";
+            if (TextFormatting.ContainsIgnoreCase(text, "remote=")) return "network";
             return "none";
         }
 
         private string FileCategory(string text)
         {
             string normalized = NormalizePathText(text);
-            if (Contains(normalized, "\\start menu\\programs\\startup\\") || Contains(normalized, "\\startup\\")) return "startup";
-            if (Contains(normalized, "\\windows\\system32\\tasks\\")) return "scheduled-task-storage";
-            if (Contains(normalized, "\\extensions\\")) return "browser-extension";
+            if (TextFormatting.ContainsIgnoreCase(normalized, "\\start menu\\programs\\startup\\") || TextFormatting.ContainsIgnoreCase(normalized, "\\startup\\")) return "startup";
+            if (TextFormatting.ContainsIgnoreCase(normalized, "\\windows\\system32\\tasks\\")) return "scheduled-task-storage";
+            if (TextFormatting.ContainsIgnoreCase(normalized, "\\extensions\\")) return "browser-extension";
             if (ContainsAnyConfiguredRoot(normalized, config.AgentWorkspaceRoots)) return "agent-workspace";
             if (ContainsAnyConfiguredRoot(normalized, config.AgentPublishRoots)) return "agent-publish-root";
-            if (ContainsAnyConfigured(normalized, config.SensitiveFileNameIndicators) ||
-                ContainsAnyConfigured(normalized, config.AgentSecretIndicatorTerms)) return "sensitive-name";
+            if (ConfiguredValues.ContainsAnyNormalizedPathTerm(normalized, config.SensitiveFileNameIndicators) ||
+                ConfiguredValues.ContainsAnyNormalizedPathTerm(normalized, config.AgentSecretIndicatorTerms)) return "sensitive-name";
             if (FileSystemRules.IsUserWritablePath(normalized, config)) return "user-writable";
             return "none";
         }
 
         private static string ProcessFamily(string text, string key)
         {
-            string value = FirstNonEmpty(ExtractToken(text, key), ExtractToken(text, key + "_name"));
+            string value = AlertEntityTokens.FirstNonEmpty(
+                AlertEntityTokens.Get(text, key),
+                AlertEntityTokens.Get(text, key + "_name"));
             if (String.IsNullOrWhiteSpace(value)) return "unknown";
 
-            try
-            {
-                string fileName = Path.GetFileName(value);
-                if (!String.IsNullOrWhiteSpace(fileName)) value = fileName;
-            }
-            catch
-            {
-            }
-
-            return SafeToken(value, 80);
+            return SafeToken(AlertEntityTokens.FileNameOrValue(value), 80);
         }
 
         private static List<string> AgentReasonLabels(string text)
@@ -202,35 +180,6 @@ namespace ArcaneEDR
             values.Add(value);
         }
 
-        private static string ExtractToken(string text, string key)
-        {
-            if (String.IsNullOrWhiteSpace(text) || String.IsNullOrWhiteSpace(key)) return "";
-
-            string prefix = key + "=";
-            int index = text.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
-            if (index < 0) return "";
-
-            int start = index + prefix.Length;
-            int end = text.IndexOf(' ', start);
-            if (end < 0) end = text.Length;
-            return text.Substring(start, end - start).Trim().Trim('"');
-        }
-
-        private static bool ContainsAnyConfigured(string text, HashSet<string> terms)
-        {
-            if (String.IsNullOrWhiteSpace(text) || terms == null) return false;
-            foreach (string term in terms)
-            {
-                if (!String.IsNullOrWhiteSpace(term) &&
-                    text.IndexOf(NormalizePathText(term), StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
         private static bool ContainsAnyConfiguredRoot(string text, HashSet<string> roots)
         {
             if (String.IsNullOrWhiteSpace(text) || roots == null) return false;
@@ -247,19 +196,9 @@ namespace ArcaneEDR
             return false;
         }
 
-        private static string FirstNonEmpty(string first, string second)
-        {
-            return !String.IsNullOrWhiteSpace(first) ? first : second;
-        }
-
-        private static bool Contains(string value, string term)
-        {
-            return value != null && value.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0;
-        }
-
         private static string NormalizePathText(string value)
         {
-            return value == null ? "" : value.Replace('/', '\\');
+            return ConfiguredValues.NormalizePathText(value);
         }
 
         private static string NormalizeRoot(string value)
@@ -289,28 +228,11 @@ namespace ArcaneEDR
             List<string> encoded = new List<string>();
             foreach (string value in values)
             {
-                encoded.Add("\"" + JsonEscape(value) + "\"");
+                encoded.Add("\"" + JsonFields.Escape(value) + "\"");
             }
 
             return "[" + String.Join(",", encoded.ToArray()) + "]";
         }
 
-        private static string JsonEscape(string value)
-        {
-            if (value == null) return "";
-            return value
-                .Replace("\\", "\\\\")
-                .Replace("\"", "\\\"")
-                .Replace("\r", "\\r")
-                .Replace("\n", "\\n");
-        }
-
-        private static string AlertText(Alert alert)
-        {
-            return (alert.RuleId ?? "") + " " +
-                (alert.Title ?? "") + " " +
-                (alert.Body ?? "") + " " +
-                (alert.EntitySummary ?? "");
-        }
     }
 }

@@ -1,83 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Text;
 
 namespace ArcaneEDR
 {
     internal sealed class ExternalAlertGroupingPlanner
     {
-        private const string GroupedCooldownPrefix = "alert-group|";
         private readonly MonitorConfig config;
-
-        private static readonly string[] EntityTokenKeys = new[]
-        {
-            "agent_context",
-            "asn",
-            "asn_org",
-            "command",
-            "command_line",
-            "country",
-            "country_lookup",
-            "dns_names",
-            "enrichment_source",
-            "event_id",
-            "host_application",
-            "image",
-            "item",
-            "local",
-            "maintenance_context",
-            "message",
-            "name",
-            "owner",
-            "parent",
-            "parent_command_line",
-            "parent_path",
-            "parent_pid",
-            "path",
-            "pid",
-            "policy",
-            "process",
-            "process_command_line",
-            "process_path",
-            "process_sha256",
-            "process_signer",
-            "process_user",
-            "protocol",
-            "query",
-            "rdns",
-            "reason",
-            "reasons",
-            "record_id",
-            "registrable_domain",
-            "remote",
-            "remote_host",
-            "remote_ip",
-            "remote_owner",
-            "resolved_domain",
-            "script_block",
-            "service",
-            "sha256",
-            "signer",
-            "sni_hostname",
-            "source",
-            "state",
-            "target",
-            "thread_id",
-            "user"
-        };
 
         public ExternalAlertGroupingPlanner(MonitorConfig config)
         {
             this.config = config;
-        }
-
-        public static bool IsGroupedSummary(Alert alert)
-        {
-            return alert != null &&
-                alert.CooldownKey != null &&
-                alert.CooldownKey.StartsWith(GroupedCooldownPrefix, StringComparison.OrdinalIgnoreCase);
         }
 
         public List<Alert> Plan(IEnumerable<Alert> alerts)
@@ -94,7 +28,7 @@ namespace ArcaneEDR
                     continue;
                 }
 
-                string key = IsGroupingCandidate(alert) ? BuildGroupKey(alert) : "";
+                string key = IsGroupingCandidate(alert) ? AlertSourceRoot.BuildGroupingKey(alert) : "";
                 if (String.IsNullOrWhiteSpace(key))
                 {
                     planned.Add(new OrderedAlert(order, alert));
@@ -153,52 +87,6 @@ namespace ArcaneEDR
                 config.ExternalAlertGroupingCategories.Contains(category);
         }
 
-        private static string BuildGroupKey(Alert alert)
-        {
-            string entity = alert.EntitySummary ?? "";
-            string ruleId = alert.RuleId ?? "";
-            string category = AlertRulePolicy.AlertCategory(alert);
-            string process = FirstNonEmpty(
-                ExtractToken(entity, "process"),
-                FileNameOrValue(ExtractToken(entity, "image")),
-                FileNameOrValue(ExtractToken(entity, "process_path")),
-                ExtractToken(entity, "host_application"));
-            string parent = FirstNonEmpty(
-                ExtractToken(entity, "parent"),
-                FileNameOrValue(ExtractToken(entity, "parent_path")));
-            string protocol = ExtractToken(entity, "protocol");
-
-            if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixNetworkListen))
-            {
-                return Join(ruleId, category, FirstNonEmpty(process, "unknown-process"), parent, protocol, ExtractToken(entity, "local"));
-            }
-
-            if (category.Equals(AlertRuleTaxonomy.CategoryNetwork, StringComparison.OrdinalIgnoreCase) ||
-                category.Equals(AlertRuleTaxonomy.CategoryRat, StringComparison.OrdinalIgnoreCase))
-            {
-                return Join(ruleId, category, FirstNonEmpty(process, "unknown-process"), parent, protocol, FileNameOrValue(ExtractToken(entity, "process_path")));
-            }
-
-            if (category.Equals(AlertRuleTaxonomy.CategoryDns, StringComparison.OrdinalIgnoreCase) ||
-                AlertRuleTaxonomy.IsDnsRule(ruleId))
-            {
-                return Join(ruleId, category, FirstNonEmpty(process, "unknown-process"), parent, FileNameOrValue(ExtractToken(entity, "process_path")));
-            }
-
-            if (category.Equals(AlertRuleTaxonomy.CategoryBaseline, StringComparison.OrdinalIgnoreCase))
-            {
-                return Join(ruleId, category, FirstNonEmpty(process, "unknown-process"), parent, FileNameOrValue(ExtractToken(entity, "process_path")));
-            }
-
-            if (category.Equals(AlertRuleTaxonomy.CategoryReputation, StringComparison.OrdinalIgnoreCase) ||
-                category.Equals(AlertRuleTaxonomy.CategoryProcess, StringComparison.OrdinalIgnoreCase))
-            {
-                return Join(ruleId, category, FirstNonEmpty(process, "unknown-process"), parent, FileNameOrValue(FirstNonEmpty(ExtractToken(entity, "image"), ExtractToken(entity, "process_path"))));
-            }
-
-            return Join(ruleId, category, process, parent, alert.CooldownKey);
-        }
-
         private Alert BuildSummary(GroupBucket bucket)
         {
             string title = "Grouped alert notification: " + bucket.Count.ToString(CultureInfo.InvariantCulture) +
@@ -206,14 +94,14 @@ namespace ArcaneEDR
             string body = BuildSummaryBody(bucket);
             string recommendation = "Review the grouped local alerts if this source, destination set, or timing was unexpected. Arcane preserved each original alert locally; this notification only dampens external delivery for the burst.";
             Alert summary = Alert.SystemAlert(
-                FirstNonEmpty(FirstTopKey(bucket.RuleCounts), "ALERT-GROUPED"),
+                AlertEntityTokens.FirstNonEmpty(FirstTopKey(bucket.RuleCounts), "ALERT-GROUPED"),
                 title,
                 bucket.MaxScore,
                 body,
                 recommendation,
                 BuildSummaryEntity(bucket));
             summary.Category = bucket.Category;
-            summary.CooldownKey = GroupedCooldownPrefix + bucket.Key;
+            summary.CooldownKey = AlertSourceRoot.GroupedCooldownPrefix + bucket.Key;
             summary.MaintenanceContext = bucket.AnyMaintenanceContext;
             summary.AddWhy("Grouped " + bucket.Count.ToString(CultureInfo.InvariantCulture) + " same-root external notifications into one deterministic summary.");
             summary.AddWhy("Local alert logs, incident grouping, and response handling were already preserved for each original alert.");
@@ -227,8 +115,8 @@ namespace ArcaneEDR
             builder.AppendLine("Arcane grouped related external notifications from one dispatch.");
             builder.AppendLine("Grouped alert count: " + bucket.Count.ToString(CultureInfo.InvariantCulture));
             builder.AppendLine("Highest score: " + bucket.MaxScore.ToString(CultureInfo.InvariantCulture));
-            builder.AppendLine("First observed UTC: " + bucket.FirstTimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture));
-            builder.AppendLine("Last observed UTC: " + bucket.LastTimestampUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture));
+            builder.AppendLine("First observed UTC: " + UtcTimestamp.Format(bucket.FirstTimestampUtc));
+            builder.AppendLine("Last observed UTC: " + UtcTimestamp.Format(bucket.LastTimestampUtc));
             builder.AppendLine();
             AppendCounts(builder, "Rules", bucket.RuleCounts, config.ExternalAlertGroupingMaxItems);
             AppendCounts(builder, "Titles", bucket.TitleCounts, config.ExternalAlertGroupingMaxItems);
@@ -306,48 +194,11 @@ namespace ArcaneEDR
             return String.Join(";", values.ToArray());
         }
 
-        private static string Destination(Alert alert)
-        {
-            string entity = alert.EntitySummary ?? "";
-            return FirstNonEmpty(
-                ExtractToken(entity, "remote"),
-                ExtractToken(entity, "remote_ip"),
-                ExtractToken(entity, "resolved_domain"),
-                ExtractToken(entity, "registrable_domain"),
-                ExtractToken(entity, "sni_hostname"),
-                ExtractToken(entity, "remote_host"),
-                ExtractToken(entity, "query"),
-                ExtractToken(entity, "target"),
-                ExtractToken(entity, "name"),
-                ExtractToken(entity, "path"),
-                alert.Title);
-        }
-
-        private static string Company(Alert alert)
-        {
-            string entity = alert.EntitySummary ?? "";
-            return FirstNonEmpty(
-                ExtractToken(entity, "remote_owner"),
-                ExtractToken(entity, "owner"),
-                ExtractToken(entity, "asn_org"));
-        }
-
-        private static string Process(Alert alert)
-        {
-            string entity = alert.EntitySummary ?? "";
-            return FirstNonEmpty(
-                ExtractToken(entity, "process"),
-                FileNameOrValue(ExtractToken(entity, "image")),
-                FileNameOrValue(ExtractToken(entity, "process_path")),
-                ExtractToken(entity, "host_application"),
-                "unknown-process");
-        }
-
         private static void Increment(Dictionary<string, int> counts, string value)
         {
             if (counts == null || String.IsNullOrWhiteSpace(value)) return;
 
-            string clean = Compact(value, 180);
+            string clean = TextFormatting.CompactOrEmpty(value, 180);
             if (String.IsNullOrWhiteSpace(clean) ||
                 clean.Equals("unknown", StringComparison.OrdinalIgnoreCase) ||
                 clean.Equals("n/a", StringComparison.OrdinalIgnoreCase))
@@ -358,113 +209,6 @@ namespace ArcaneEDR
             int existing;
             counts.TryGetValue(clean, out existing);
             counts[clean] = existing + 1;
-        }
-
-        private static string ExtractToken(string entity, string key)
-        {
-            if (String.IsNullOrWhiteSpace(entity) || String.IsNullOrWhiteSpace(key)) return "";
-
-            string prefix = key + "=";
-            int index = entity.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
-            while (index > 0 && !Char.IsWhiteSpace(entity[index - 1]))
-            {
-                index = entity.IndexOf(prefix, index + prefix.Length, StringComparison.OrdinalIgnoreCase);
-            }
-
-            if (index < 0) return "";
-
-            int start = index + prefix.Length;
-            int end = FindNextEntityTokenStart(entity, start);
-            if (end < 0) end = entity.Length;
-            return entity.Substring(start, end - start).Trim().Trim('"');
-        }
-
-        private static int FindNextEntityTokenStart(string entity, int start)
-        {
-            if (String.IsNullOrWhiteSpace(entity) || start < 0 || start >= entity.Length) return -1;
-
-            for (int index = start; index < entity.Length; index++)
-            {
-                if (!Char.IsWhiteSpace(entity[index])) continue;
-
-                int candidate = index + 1;
-                while (candidate < entity.Length && Char.IsWhiteSpace(entity[candidate]))
-                {
-                    candidate++;
-                }
-
-                if (candidate >= entity.Length) return -1;
-                foreach (string key in EntityTokenKeys)
-                {
-                    if (HasEntityTokenPrefix(entity, candidate, key))
-                    {
-                        return index;
-                    }
-                }
-            }
-
-            return -1;
-        }
-
-        private static bool HasEntityTokenPrefix(string entity, int index, string key)
-        {
-            if (String.IsNullOrWhiteSpace(entity) || String.IsNullOrWhiteSpace(key)) return false;
-
-            string prefix = key + "=";
-            if (index < 0 || index + prefix.Length > entity.Length) return false;
-            return String.Compare(entity, index, prefix, 0, prefix.Length, StringComparison.OrdinalIgnoreCase) == 0;
-        }
-
-        private static string FileNameOrValue(string value)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return "";
-
-            try
-            {
-                string fileName = Path.GetFileName(value);
-                if (!String.IsNullOrWhiteSpace(fileName)) return fileName;
-            }
-            catch
-            {
-            }
-
-            return value;
-        }
-
-        private static string FirstNonEmpty(params string[] values)
-        {
-            foreach (string value in values)
-            {
-                if (!String.IsNullOrWhiteSpace(value)) return value;
-            }
-
-            return "";
-        }
-
-        private static string Join(params string[] values)
-        {
-            List<string> parts = new List<string>();
-            foreach (string value in values)
-            {
-                string normalized = Normalize(value);
-                if (normalized.Length > 0) parts.Add(normalized);
-            }
-
-            return String.Join("|", parts.ToArray());
-        }
-
-        private static string Normalize(string value)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return "";
-            return value.Trim().ToLowerInvariant();
-        }
-
-        private static string Compact(string value, int maxLength)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return "";
-            string compact = value.Replace("\r", " ").Replace("\n", " ").Trim();
-            if (compact.Length <= maxLength) return compact;
-            return compact.Substring(0, maxLength) + "...";
         }
 
         private static string TokenValue(string value)
@@ -522,10 +266,10 @@ namespace ArcaneEDR
                 if (alert.TimestampUtc > LastTimestampUtc) LastTimestampUtc = alert.TimestampUtc;
                 Increment(RuleCounts, alert.RuleId);
                 Increment(TitleCounts, alert.Title);
-                Increment(ProcessCounts, Process(alert));
-                Increment(DestinationCounts, Destination(alert));
-                Increment(CountryCounts, ExtractToken(alert.EntitySummary ?? "", "country"));
-                Increment(CompanyCounts, Company(alert));
+                Increment(ProcessCounts, AlertSourceRoot.Process(alert));
+                Increment(DestinationCounts, AlertSourceRoot.Destination(alert));
+                Increment(CountryCounts, AlertEntityTokens.Get(alert.EntitySummary ?? "", "country"));
+                Increment(CompanyCounts, AlertSourceRoot.Company(alert));
             }
         }
     }

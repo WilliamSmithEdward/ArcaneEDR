@@ -46,7 +46,7 @@ namespace ArcaneEDR
             items.Add(item);
             Save();
 
-            logger.Warn("Queued external alert retry for " + alert.RuleId + " after send failure. NextAttemptUtc=" + Format(item.NextAttemptUtc));
+            logger.Warn("Queued external alert retry for " + alert.RuleId + " after send failure. NextAttemptUtc=" + UtcTimestamp.Format(item.NextAttemptUtc));
         }
 
         public void RetryDue(ExternalAlertSendAttempt sendAttempt)
@@ -204,7 +204,7 @@ namespace ArcaneEDR
             string remoteAddress = alert.ResponseRemoteAddress == null ? "" : alert.ResponseRemoteAddress.ToString();
             string[] fields = new string[]
             {
-                Format(item.NextAttemptUtc),
+                UtcTimestamp.Format(item.NextAttemptUtc),
                 item.Attempts.ToString(CultureInfo.InvariantCulture),
                 Encode(alert.RuleId),
                 Encode(alert.Title),
@@ -214,11 +214,11 @@ namespace ArcaneEDR
                 Encode(alert.Recommendation),
                 Encode(alert.EntitySummary),
                 Encode(alert.CooldownKey),
-                Format(alert.TimestampUtc),
+                UtcTimestamp.Format(alert.TimestampUtc),
                 alert.ResponseProcessId.ToString(CultureInfo.InvariantCulture),
                 Encode(remoteAddress),
                 Encode(item.LastFailureReason),
-                Encode(WhyText(alert)),
+                Encode(AlertWhyText.Join(alert, "\n")),
                 Encode(AlertRulePolicy.AlertCategory(alert)),
                 alert.MaintenanceContext ? "true" : "false",
                 Encode(alert.SystemLocalTime),
@@ -290,11 +290,6 @@ namespace ArcaneEDR
             return true;
         }
 
-        private static string Format(DateTime value)
-        {
-            return value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
-        }
-
         private static string Encode(string value)
         {
             return Convert.ToBase64String(Encoding.UTF8.GetBytes(value ?? ""));
@@ -312,11 +307,6 @@ namespace ArcaneEDR
             }
         }
 
-        private static string WhyText(Alert alert)
-        {
-            if (alert.Why == null || alert.Why.Count == 0) return "";
-            return String.Join("\n", alert.Why.ToArray());
-        }
     }
 
     internal sealed class ExternalAlertRetryItem
