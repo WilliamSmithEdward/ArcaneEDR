@@ -89,7 +89,12 @@ internal sealed class ArcanePaths
             current = parent;
         }
 
-        yield return @"C:\Applications\ArcaneEDR";
+        string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        if (!String.IsNullOrWhiteSpace(programFiles))
+        {
+            yield return Path.Combine(programFiles, "Arcane EDR");
+        }
+
         yield return @"C:\Development\ArcaneEDR";
     }
 

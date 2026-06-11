@@ -56,6 +56,12 @@ MSI is the preferred operator install, upgrade, repair, and uninstall path for
 local deployments. It keeps the service, GUI, Start menu shortcut, versioned
 product files, and future installer checks on one coherent track.
 
+The standard MSI-owned product folder is:
+
+```text
+C:\Program Files\Arcane EDR
+```
+
 Run the MSI from an elevated installer prompt or by approving UAC:
 
 ```powershell
@@ -73,39 +79,33 @@ The MSI installs:
 The MSI starts the `ArcaneEDR` service during install and stops/removes it
 during uninstall.
 
-## Legacy Local Migration
+## Local MSI Install
 
-Older local deployments may have a script-installed service under
-`C:\Applications\ArcaneEDR` without Windows Installer product state. Do not run
-the stale `PublishRestart` task against a GUI-era checkout unless the protected
-admin runner has been refreshed; old runners compile every `src\*.cs` file and
-will trip over the WinUI project.
-
-For this migration, use the dedicated MSI-local installer from an elevated
-PowerShell session:
+Use the dedicated MSI-local installer from an elevated PowerShell session:
 
 ```powershell
 .\scripts\build-msi.cmd
-.\scripts\install-msi-local.cmd -MigrateLegacyService
+.\scripts\install-msi-local.cmd -ReplaceExistingService
 ```
 
 The script:
 
 - requires an elevated PowerShell session
 - resolves the MSI from `artifacts`
-- installs into the folder from `config\Deployment.config`, normally
-  `C:\Applications\ArcaneEDR` for local operator deployments
-- creates a timestamped operator-state backup under `C:\Security\AdminTasks`
-- restores existing non-example config files and local state folders after MSI
-  product files are installed
-- preserves local JSONL evidence, reports, incidents, and support bundles
-- stops and deletes only the legacy Windows service registration when
-  `-MigrateLegacyService` is supplied
+- installs product files under `C:\Program Files\Arcane EDR` by default
+- removes an existing service registration only when
+  `-ReplaceExistingService` is supplied
+- writes installed `Deployment.config` to point at `C:\Program Files`
 - lets MSI own the service, GUI, Start menu shortcut, repair, upgrade, and
-  uninstall path after migration
+  uninstall path
 - writes a verbose MSI log under `C:\Security\AdminTasks`
+- verifies the Windows service points at
+  `C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe`
 - runs `--version` and `--validate-config` after install
 - starts the service after validation
+
+After this verification passes, `C:\Applications\ArcaneEDR` is no longer part
+of the product runtime path and may be deleted by the operator if present.
 
 ## Script-Based Deployment
 

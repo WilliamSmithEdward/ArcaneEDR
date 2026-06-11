@@ -161,7 +161,7 @@ public sealed partial class ConfigurationPage : Page
 
         LogDirectoryBox.Text = bundle.Runtime.Get("LogDirectory", "logs");
         PolicyFileBox.Text = bundle.Runtime.Get("PolicyFile", "arcane-policy.example.json");
-        DestinationRootBox.Text = bundle.Deployment.Get("DestinationRoot", @"C:\ProgramData");
+        DestinationRootBox.Text = bundle.Deployment.Get("DestinationRoot", @"C:\Program Files");
         ExecutableNameBox.Text = bundle.Deployment.Get("ExecutableName", "ArcaneEDR.exe");
     }
 

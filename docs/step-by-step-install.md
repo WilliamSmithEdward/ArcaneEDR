@@ -1,14 +1,14 @@
 # Step-By-Step Install Guide
 
-This guide installs Arcane EDR from a release ZIP and gets the Windows service
-running. It assumes no project knowledge.
+This guide installs Arcane EDR from the release MSI and gets the Windows
+service running. It assumes no project knowledge.
 
 Use this guide when you want the normal installed app. Developers who want to
 edit source code should use the source-clone workflow in the README.
 
 ## What You Will End With
 
-- Arcane EDR installed in `C:\Applications\ArcaneEDR`.
+- Arcane EDR installed in `C:\Program Files\Arcane EDR`.
 - Logs written to `C:\Security`.
 - A Windows service named `ArcaneEDR`.
 - Local alert logs, even if email or external alerting is not configured.
@@ -21,7 +21,7 @@ You need:
 - A Windows machine where you are allowed to install services.
 - PowerShell.
 - Administrator rights.
-- The Arcane EDR release ZIP from the GitHub releases page.
+- The Arcane EDR release MSI from the GitHub releases page.
 
 Optional:
 
@@ -38,29 +38,27 @@ Open the Start menu, search for `PowerShell`, right-click it, and choose
 
 Most commands in this guide assume that Administrator PowerShell window.
 
-## 2. Create The Install And Log Folders
+## 2. Create The Log Folder
 
 ```powershell
-New-Item -ItemType Directory -Force -Path C:\Applications
 New-Item -ItemType Directory -Force -Path C:\Security
 ```
 
-## 3. Unzip Arcane EDR
+## 3. Install Arcane EDR
 
-Put the downloaded release ZIP in your Downloads folder. Then run:
+Put the downloaded release MSI in your Downloads folder. Then run:
 
 ```powershell
-$zip = Get-ChildItem "$env:USERPROFILE\Downloads\ArcaneEDR-*.zip" |
+$msi = Get-ChildItem "$env:USERPROFILE\Downloads\ArcaneEDR-*.msi" |
     Sort-Object LastWriteTime -Descending |
     Select-Object -First 1
 
-if (!$zip) {
-    throw "No ArcaneEDR release ZIP found in Downloads."
+if (!$msi) {
+    throw "No ArcaneEDR release MSI found in Downloads."
 }
 
-New-Item -ItemType Directory -Force -Path C:\Applications\ArcaneEDR
-Expand-Archive -LiteralPath $zip.FullName -DestinationPath C:\Applications\ArcaneEDR -Force
-cd C:\Applications\ArcaneEDR
+msiexec.exe /i $msi.FullName /l*v "$env:TEMP\ArcaneEDR-install.log"
+cd "C:\Program Files\Arcane EDR"
 ```
 
 You should now see folders such as `bin`, `config`, `scripts`, and `docs`.
@@ -200,7 +198,7 @@ Validation summary: 0 error(s), 0 warning(s).
 ```
 
 Warnings do not always block install, but review them before continuing.
-Errors should be fixed before installing the service.
+Errors should be fixed before relying on the service.
 
 ## 9. Optional: Install Sysmon
 
@@ -210,7 +208,7 @@ and hash telemetry.
 Download Sysmon from Microsoft Sysinternals. Put `Sysmon64.exe` here:
 
 ```text
-C:\Applications\ArcaneEDR\tools\Sysmon64.exe
+C:\Program Files\Arcane EDR\tools\Sysmon64.exe
 ```
 
 If the `tools` folder does not exist, create it:
@@ -234,27 +232,32 @@ Get-WinEvent -ListLog "Microsoft-Windows-Sysmon/Operational"
 
 Sysmon should show as `Running`.
 
-## 10. Install The Windows Service
+## 10. Confirm The Windows Service
 
-Run:
-
-```powershell
-.\scripts\install-service.cmd
-```
-
-Expected result:
-
-```text
-Installed and started ArcaneEDR
-```
-
-Check the service:
+The MSI installs and starts the `ArcaneEDR` Windows service. Check it:
 
 ```powershell
 Get-Service ArcaneEDR
 ```
 
-The status should be `Running`.
+The status should be `Running`. Confirm the service is using the MSI-owned
+Program Files path:
+
+```powershell
+sc.exe qc ArcaneEDR
+```
+
+The binary path should be:
+
+```text
+C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe
+```
+
+If you changed config after MSI install, restart the service:
+
+```powershell
+Restart-Service ArcaneEDR
+```
 
 ## 11. Confirm Logs Are Being Written
 
@@ -322,22 +325,22 @@ Get-Service ArcaneEDR
 
 ## 14. Uninstall
 
-From Administrator PowerShell in `C:\Applications\ArcaneEDR`:
+Use Windows Settings > Apps, or run from Administrator PowerShell:
 
 ```powershell
-.\scripts\uninstall-service.cmd
+msiexec.exe /x {PRODUCT-CODE-FROM-APPS-AND-FEATURES}
 ```
 
-This removes the Windows service. It does not delete your logs.
+The MSI stops/removes the Windows service and removes product files. Local logs
+under `C:\Security` are not deleted.
 
 ## Troubleshooting
 
 ### PowerShell says scripts are disabled
 
-Use the `.cmd` wrappers:
+Use the `.cmd` wrappers for optional script-based maintenance tasks:
 
 ```powershell
-.\scripts\install-service.cmd
 .\scripts\install-sysmon.cmd
 ```
 
@@ -345,16 +348,22 @@ The wrappers handle the execution policy for that command.
 
 ### The service already exists
 
-Uninstall first:
+For a clean cutover to the MSI-owned Program Files install, run the helper from
+an elevated PowerShell session:
 
 ```powershell
-.\scripts\uninstall-service.cmd
+.\scripts\install-msi-local.cmd -ReplaceExistingService
 ```
 
-Then install again:
+This removes an existing service registration only when explicitly requested,
+then verifies the new service path.
+
+### Repair Or Reinstall MSI
+
+Run the MSI again from Administrator PowerShell:
 
 ```powershell
-.\scripts\install-service.cmd
+msiexec.exe /fa .\ArcaneEDR-<version>.msi /l*v "$env:TEMP\ArcaneEDR-repair.log"
 ```
 
 ### No email arrived
@@ -385,7 +394,7 @@ Restart-Service ArcaneEDR
 Check that this file exists:
 
 ```powershell
-Test-Path C:\Applications\ArcaneEDR\tools\Sysmon64.exe
+Test-Path "C:\Program Files\Arcane EDR\tools\Sysmon64.exe"
 ```
 
 If it returns `False`, download Sysmon from Microsoft Sysinternals and put

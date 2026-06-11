@@ -20,7 +20,7 @@
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
     <UIRef Id="WixUI_ErrorProgressText" />
 
-    <StandardDirectory Id="ProgramFilesFolder">
+    <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="Arcane EDR">
         <Directory Id="BinFolder" Name="bin" />
         <Directory Id="GuiFolder" Name="gui" />

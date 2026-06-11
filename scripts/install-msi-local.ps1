@@ -2,8 +2,8 @@ param(
     [string]$MsiPath = "",
     [string]$InstallFolder = "",
     [string]$LogPath = "",
-    [string]$ServiceName = "",
-    [switch]$MigrateLegacyService,
+    [string]$ServiceName = "ArcaneEDR",
+    [switch]$ReplaceExistingService,
     [switch]$Quiet
 )
 
@@ -12,39 +12,6 @@ $ErrorActionPreference = "Stop"
 function Test-IsAdministrator {
     $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
-
-function Get-ConfigValue {
-    param(
-        [string]$Path,
-        [string]$Name,
-        [string]$Default
-    )
-
-    if (Test-Path -LiteralPath $Path) {
-        foreach ($rawLine in Get-Content -LiteralPath $Path) {
-            $line = $rawLine.Trim()
-            if ($line.Length -eq 0 -or $line.StartsWith("#")) { continue }
-            $equals = $line.IndexOf("=")
-            if ($equals -le 0) { continue }
-            $key = $line.Substring(0, $equals).Trim()
-            if ($key.Equals($Name, [System.StringComparison]::OrdinalIgnoreCase)) {
-                return $line.Substring($equals + 1).Trim()
-            }
-        }
-    }
-
-    return $Default
-}
-
-function Resolve-ConfigPath {
-    param(
-        [string]$Primary,
-        [string]$Example
-    )
-
-    if (Test-Path -LiteralPath $Primary) { return $Primary }
-    return $Example
 }
 
 function Get-VersionFromSource {
@@ -92,39 +59,68 @@ function Resolve-MsiPath {
     throw "No Arcane EDR MSI was found under artifacts. Run scripts\build-msi.cmd first."
 }
 
-function Test-MsiProductRegistered {
-    $uninstallRoots = @(
-        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall",
-        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
-    )
+function Get-ArcaneExecutableVersion {
+    param([string]$Path)
 
-    foreach ($root in $uninstallRoots) {
-        if (!(Test-Path -LiteralPath $root)) { continue }
-        foreach ($item in Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue) {
-            $displayName = (Get-ItemProperty -LiteralPath $item.PSPath -ErrorAction SilentlyContinue).DisplayName
-            if ($displayName -eq "Arcane EDR") { return $true }
+    if (!(Test-Path -LiteralPath $Path)) { return "" }
+
+    try {
+        $output = & $Path --version 2>$null
+        foreach ($line in $output) {
+            if ($line -match 'Arcane EDR\s+([0-9]+\.[0-9]+\.[0-9]+)') {
+                return $Matches[1]
+            }
+        }
+    }
+    catch {
+        return ""
+    }
+
+    return ""
+}
+
+function Get-ServiceExecutablePath {
+    param([string]$Name)
+
+    $escapedName = $Name.Replace("'", "''")
+    $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='$escapedName'" -ErrorAction SilentlyContinue
+    if (!$service -or [string]::IsNullOrWhiteSpace($service.PathName)) { return "" }
+
+    $pathName = $service.PathName.Trim()
+    if ($pathName.StartsWith('"')) {
+        $endQuote = $pathName.IndexOf('"', 1)
+        if ($endQuote -gt 1) {
+            return $pathName.Substring(1, $endQuote - 1)
         }
     }
 
-    return $false
+    $exeIndex = $pathName.IndexOf(".exe", [System.StringComparison]::OrdinalIgnoreCase)
+    if ($exeIndex -ge 0) {
+        return $pathName.Substring(0, $exeIndex + 4)
+    }
+
+    return $pathName
 }
 
-function Remove-LegacyServiceRegistration {
+function Stop-ArcaneServiceIfRunning {
     param([string]$Name)
 
     $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
-    if (!$svc) {
-        Write-Host "Service $Name is not currently installed."
-        return
-    }
-
-    if ($svc.Status -ne "Stopped") {
+    if ($svc -and $svc.Status -ne "Stopped") {
         Write-Host "Stopping service $Name"
         Stop-Service -Name $Name -Force
         $svc.WaitForStatus("Stopped", "00:00:30")
     }
+}
 
-    Write-Host "Deleting legacy service registration $Name"
+function Remove-ServiceRegistration {
+    param([string]$Name)
+
+    Stop-ArcaneServiceIfRunning -Name $Name
+    $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
+    if (!$svc) { return }
+
+    Write-Host "Deleting existing service registration $Name"
     sc.exe delete $Name | Out-Host
 
     $deadline = (Get-Date).AddSeconds(30)
@@ -144,103 +140,59 @@ function Quote-MsiArgument {
     return '"' + $Value.Replace('"', '\"') + '"'
 }
 
-function New-OperatorStateBackup {
+function Write-InstalledDeploymentConfig {
     param(
         [string]$InstallFolder,
-        [string]$BackupRoot
+        [string]$DestinationRoot
     )
 
-    New-Item -ItemType Directory -Force -Path $BackupRoot | Out-Null
+    $configDirectory = Join-Path $InstallFolder "config"
+    New-Item -ItemType Directory -Force -Path $configDirectory | Out-Null
 
-    $stateNames = @(
-        "config",
-        "logs",
-        "reports",
-        "incidents",
-        "support-bundles"
-    )
-
-    foreach ($name in $stateNames) {
-        $source = Join-Path $InstallFolder $name
-        if (Test-Path -LiteralPath $source) {
-            Copy-Item -LiteralPath $source -Destination (Join-Path $BackupRoot $name) -Recurse -Force
-        }
-    }
-
-    return $BackupRoot
-}
-
-function Restore-OperatorState {
-    param(
-        [string]$BackupRoot,
-        [string]$InstallFolder
-    )
-
-    if (!(Test-Path -LiteralPath $BackupRoot)) { return }
-
-    $configBackup = Join-Path $BackupRoot "config"
-    $configDestination = Join-Path $InstallFolder "config"
-    $exampleConfigNames = @(
-        "ArcaneEDR.example.config",
-        "Deployment.example.config",
-        "arcane-policy.example.json",
-        "policy-rules.example.json",
-        "remote-endpoint-policy.example.json"
-    )
-
-    if (Test-Path -LiteralPath $configBackup) {
-        New-Item -ItemType Directory -Force -Path $configDestination | Out-Null
-        foreach ($item in Get-ChildItem -LiteralPath $configBackup -Force) {
-            if (!$item.PSIsContainer -and $exampleConfigNames -contains $item.Name) {
-                continue
-            }
-
-            Copy-Item -LiteralPath $item.FullName -Destination $configDestination -Recurse -Force
-        }
-    }
-
-    foreach ($name in @("logs", "reports", "incidents", "support-bundles")) {
-        $source = Join-Path $BackupRoot $name
-        if (Test-Path -LiteralPath $source) {
-            $destination = Join-Path $InstallFolder $name
-            New-Item -ItemType Directory -Force -Path $destination | Out-Null
-            Get-ChildItem -LiteralPath $source -Force | Copy-Item -Destination $destination -Recurse -Force
-        }
-    }
+    @(
+        "# Deployment-specific settings. Keep machine/user-specific install choices here.",
+        "ApplicationName=Arcane EDR",
+        ("DestinationRoot=" + $DestinationRoot.TrimEnd('\')),
+        "ExecutableName=ArcaneEDR.exe",
+        "SysmonExecutableName=Sysmon64.exe",
+        "SysmonConfigFile=arcaneedr-sysmon.xml"
+    ) | Set-Content -LiteralPath (Join-Path $configDirectory "Deployment.config") -Encoding ASCII
 }
 
 $root = Split-Path -Parent $PSScriptRoot
-$deploymentConfig = Resolve-ConfigPath `
-    -Primary (Join-Path $root "config\Deployment.config") `
-    -Example (Join-Path $root "config\Deployment.example.config")
+$programFiles = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)
+if ([string]::IsNullOrWhiteSpace($programFiles)) {
+    $programFiles = "C:\Program Files"
+}
 
-$applicationName = Get-ConfigValue -Path $deploymentConfig -Name "ApplicationName" -Default "ArcaneEDR"
-$destinationRoot = Get-ConfigValue -Path $deploymentConfig -Name "DestinationRoot" -Default "C:\Applications"
 if ([string]::IsNullOrWhiteSpace($InstallFolder)) {
-    $InstallFolder = Join-Path $destinationRoot $applicationName
+    $InstallFolder = Join-Path $programFiles "Arcane EDR"
 }
-
-$installedRuntimeConfig = Join-Path $InstallFolder "config\ArcaneEDR.config"
-$runtimeConfig = Resolve-ConfigPath `
-    -Primary $installedRuntimeConfig `
-    -Example (Resolve-ConfigPath `
-        -Primary (Join-Path $root "config\ArcaneEDR.config") `
-        -Example (Join-Path $root "config\ArcaneEDR.example.config"))
-
-if ([string]::IsNullOrWhiteSpace($ServiceName)) {
-    $ServiceName = Get-ConfigValue -Path $runtimeConfig -Name "ServiceName" -Default "ArcaneEDR"
-}
-
 if (!([System.IO.Path]::IsPathRooted($InstallFolder))) {
     throw "InstallFolder must be an absolute path: $InstallFolder"
 }
 
 if (!$(Test-IsAdministrator)) {
     $scriptPath = Join-Path $PSScriptRoot "install-msi-local.ps1"
-    throw "Run this script from an elevated PowerShell session. Example: powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -MigrateLegacyService"
+    throw "Run this script from an elevated PowerShell session. Example: powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -ReplaceExistingService"
 }
 
 $resolvedMsi = Resolve-MsiPath -Root $root -RequestedPath $MsiPath
+$targetVersion = Get-VersionFromSource -Root $root
+$exe = Join-Path $InstallFolder "bin\ArcaneEDR.exe"
+
+$existingServicePath = Get-ServiceExecutablePath -Name $ServiceName
+if (![string]::IsNullOrWhiteSpace($existingServicePath) -and
+    !$existingServicePath.Equals($exe, [System.StringComparison]::OrdinalIgnoreCase)) {
+    if (!$ReplaceExistingService) {
+        throw "Service $ServiceName points to '$existingServicePath'. Re-run with -ReplaceExistingService to remove that registration before installing to '$exe'."
+    }
+
+    Remove-ServiceRegistration -Name $ServiceName
+}
+else {
+    Stop-ArcaneServiceIfRunning -Name $ServiceName
+}
 
 $stamp = Get-Date -Format "yyyyMMddHHmmss"
 if ([string]::IsNullOrWhiteSpace($LogPath)) {
@@ -248,19 +200,7 @@ if ([string]::IsNullOrWhiteSpace($LogPath)) {
     New-Item -ItemType Directory -Force -Path $logRoot | Out-Null
     $LogPath = Join-Path $logRoot ("ArcaneEDR-msi-install-" + $stamp + ".log")
 }
-
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $LogPath) | Out-Null
-$stateBackupRoot = Join-Path (Split-Path -Parent $LogPath) ("ArcaneEDR-state-backup-" + $stamp)
-$stateBackupRoot = New-OperatorStateBackup -InstallFolder $InstallFolder -BackupRoot $stateBackupRoot
-
-$existingService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-if ($existingService -and !(Test-MsiProductRegistered)) {
-    if (!$MigrateLegacyService) {
-        throw "Service $ServiceName exists but Arcane EDR is not registered as an MSI product. Re-run with -MigrateLegacyService to stop/delete only the legacy service registration before MSI install."
-    }
-
-    Remove-LegacyServiceRegistration -Name $ServiceName
-}
 
 $uiMode = if ($Quiet) { "/qn" } else { "/passive" }
 $arguments = @(
@@ -276,32 +216,36 @@ $arguments = @(
 Write-Host "Installing MSI: $resolvedMsi"
 Write-Host "Install folder: $InstallFolder"
 Write-Host "MSI log: $LogPath"
-Write-Host "Operator state backup: $stateBackupRoot"
 
 $process = Start-Process -FilePath "msiexec.exe" -ArgumentList $arguments -Wait -PassThru
 if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) {
     throw "MSI install failed with exit code $($process.ExitCode). See $LogPath"
 }
 
-$exe = Join-Path $InstallFolder "bin\ArcaneEDR.exe"
 if (!(Test-Path -LiteralPath $exe)) {
     throw "MSI completed but service executable was not found: $exe"
 }
 
-$installedService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-if ($installedService -and $installedService.Status -ne "Stopped") {
-    Write-Host "Stopping service $ServiceName before restoring operator config"
-    Stop-Service -Name $ServiceName -Force
-    $installedService.WaitForStatus("Stopped", "00:00:30")
-}
-
-Restore-OperatorState -BackupRoot $stateBackupRoot -InstallFolder $InstallFolder
+Write-InstalledDeploymentConfig -InstallFolder $InstallFolder -DestinationRoot $programFiles
 
 Write-Host ""
-& $exe --version
+$versionOutput = & $exe --version
+$versionOutput | ForEach-Object { Write-Host $_ }
 if ($LASTEXITCODE -ne 0) {
     throw "Installed executable version check failed."
 }
+
+$installedVersion = Get-ArcaneExecutableVersion -Path $exe
+if ($installedVersion -ne $targetVersion) {
+    throw "Installed executable reports version '$installedVersion', expected '$targetVersion'. See $LogPath"
+}
+
+Write-Host ""
+$serviceExecutable = Get-ServiceExecutablePath -Name $ServiceName
+if (!$serviceExecutable.Equals($exe, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Service $ServiceName points to '$serviceExecutable', expected '$exe'. See $LogPath"
+}
+Write-Host "Service executable: $serviceExecutable"
 
 Write-Host ""
 & $exe --validate-config

@@ -79,7 +79,7 @@ false positives, and safe tests.
 
 ## Quick Start
 
-For a release-ZIP install with every step spelled out, start with
+For a release-MSI install with every step spelled out, start with
 [docs/step-by-step-install.md](docs/step-by-step-install.md).
 
 Clone the repo and create local config files from the tracked templates:
@@ -207,14 +207,16 @@ elevated PowerShell session:
 
 ```powershell
 .\scripts\build-msi.cmd
-.\scripts\install-msi-local.cmd -MigrateLegacyService
+.\scripts\install-msi-local.cmd -ReplaceExistingService
 ```
 
-The migration helper installs to the folder from `config\Deployment.config`,
-backs up operator state under `C:\Security\AdminTasks`, restores existing
-non-example config and local evidence after MSI lays down product files,
-removes only the legacy service registration, and then lets MSI own future
-service repair, upgrade, and uninstall behavior.
+The install helper installs product files under `C:\Program Files\Arcane EDR`,
+removes an existing service registration only when `-ReplaceExistingService`
+is supplied, rewrites installed `Deployment.config` to `C:\Program Files`, and
+then verifies the installed executable version, service path, config, and
+service status. After validation confirms the service points at
+`C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe`, any old
+`C:\Applications\ArcaneEDR` folder may be deleted.
 
 For source development or break-glass repair, publish to the destination
 configured in local `config\Deployment.config`, or the example deployment
@@ -251,13 +253,16 @@ configuration and JSONL evidence are preserved by default; the GUI
 Configuration page provides a guarded reset-to-defaults flow with an explicit
 warning checkbox and backup-before-reset behavior.
 
+The standard MSI-owned product folder is `C:\Program Files\Arcane EDR`.
+
 ## Install As A Windows Service
 
 MSI is the preferred operator path for installing and upgrading the service.
 Use the direct service scripts only for source development, diagnostics, or
 break-glass repair.
 
-Run PowerShell as Administrator from the published application folder:
+For a script-based development install, run PowerShell as Administrator from
+the published application folder:
 
 ```powershell
 .\scripts\install-service.ps1
@@ -1143,7 +1148,7 @@ EnableAgentProfile=true
 AgentProcessNames=Codex.exe,codex.exe
 AgentChildProcessNames=powershell.exe,pwsh.exe,cmd.exe,git.exe,git-remote-https.exe,node.exe,npm.exe,npm.cmd,python.exe,pip.exe,curl.exe
 AgentWorkspaceRoots=C:\Development\
-AgentPublishRoots=C:\Applications\
+AgentPublishRoots=
 AgentPackageManagerProcesses=git.exe,git-remote-https.exe,node.exe,npm.exe,npm.cmd,python.exe,pip.exe,curl.exe
 AgentApprovedAdminTaskNames=\ArcaneEDR\PublishRestart,\ArcaneEDR\InstallService,\ArcaneEDR\ValidateAdmin
 AgentSecretIndicatorTerms=apikey,api_key,access_token,refresh_token,client_secret,private_key,id_rsa,.pem,.pfx,.env

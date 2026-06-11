@@ -23,7 +23,7 @@ C:\Development\ArcaneEDR
 Default live application folder:
 
 ```text
-C:\Applications\ArcaneEDR
+C:\Program Files\Arcane EDR
 ```
 
 Default log folder:
@@ -65,18 +65,23 @@ redeploy.
 
 ## Tagged Release Deployment
 
-When a new release tag is intentionally cut, the release process can publish the
-new build to the live application folder and restart the service.
+When a new release tag is intentionally cut, the release process creates ZIP
+and MSI artifacts. For operator machines, use the MSI so Windows Installer owns
+the service, GUI, shortcut, repair, upgrade, and uninstall path.
 
-Preferred deployment path:
+Preferred deployment path from an elevated PowerShell session:
 
 ```powershell
 cd C:\Development\ArcaneEDR
-.\scripts\run-admin-task.cmd -TaskName PublishRestart
+.\scripts\install-msi-local.cmd -ReplaceExistingService
 ```
 
-This uses the constrained admin task bridge and preserves live machine-specific
-config by default.
+This installs product files under `C:\Program Files\Arcane EDR`, replaces an
+existing service registration when explicitly requested, and verifies the
+installed executable version, service path, config, and service status.
+
+The constrained admin task bridge remains available for source-driven
+development, diagnostics, and break-glass repair.
 
 ## Explicit Live Update
 
@@ -101,8 +106,15 @@ Publishing must preserve live machine-specific files unless replacement is
 explicitly requested:
 
 ```text
-C:\Applications\ArcaneEDR\config\ArcaneEDR.config
-C:\Applications\ArcaneEDR\config\Deployment.config
+C:\Program Files\Arcane EDR\config\ArcaneEDR.config
+C:\Program Files\Arcane EDR\config\Deployment.config
+```
+
+If a previous source/script install left this folder behind, it is not part of
+the MSI-owned runtime path after verification passes:
+
+```text
+C:\Applications\ArcaneEDR
 ```
 
 Machine-specific values, secrets, recipient addresses, local paths, and local
