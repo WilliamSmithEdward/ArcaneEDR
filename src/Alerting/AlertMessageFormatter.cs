@@ -9,6 +9,60 @@ namespace ArcaneEDR
     {
         private const int EmailContentWidthPixels = 760;
         private const string WrapStyle = "word-break:break-word;overflow-wrap:anywhere;";
+        private static readonly string[] EntityTokenKeys = new[]
+        {
+            "agent_context",
+            "asn",
+            "asn_org",
+            "command",
+            "command_line",
+            "country",
+            "country_lookup",
+            "dns_names",
+            "enrichment_source",
+            "event_id",
+            "host_application",
+            "image",
+            "item",
+            "local",
+            "maintenance_context",
+            "message",
+            "name",
+            "parent",
+            "parent_command_line",
+            "parent_path",
+            "parent_pid",
+            "path",
+            "pid",
+            "policy",
+            "process",
+            "process_command_line",
+            "process_path",
+            "process_sha256",
+            "process_signer",
+            "process_user",
+            "protocol",
+            "rdns",
+            "reason",
+            "reasons",
+            "record_id",
+            "registrable_domain",
+            "remote",
+            "remote_host",
+            "remote_ip",
+            "remote_owner",
+            "resolved_domain",
+            "script_block",
+            "service",
+            "sha256",
+            "signer",
+            "sni_hostname",
+            "source",
+            "state",
+            "target",
+            "thread_id",
+            "user"
+        };
 
         public static string BuildSubject(Alert alert)
         {
@@ -39,6 +93,7 @@ namespace ArcaneEDR
                 BuildAlertFieldHtml("Rule", alert.RuleId) +
                 BuildAlertFieldHtml("Category", AlertRulePolicy.AlertCategory(alert)) +
                 BuildAlertFieldHtml("Source", BuildSourceSummary(alert)) +
+                BuildOptionalAlertFieldHtml("Remote Context", BuildRemoteContextSummary(alert)) +
                 BuildAlertFieldHtml("Maintenance Context", alert.MaintenanceContext ? "true" : "false") +
                 BuildAlertFieldHtml("Severity", alert.Severity) +
                 BuildAlertFieldHtml("Score", alert.Score.ToString(CultureInfo.InvariantCulture)) +
@@ -59,11 +114,17 @@ namespace ArcaneEDR
                 return NullToEmpty(alert.Body) + Environment.NewLine + BuildScoreContextPlainText();
             }
 
+            string remoteContext = BuildRemoteContextSummary(alert);
+            string remoteContextLine = String.IsNullOrWhiteSpace(remoteContext)
+                ? ""
+                : "RemoteContext: " + remoteContext + Environment.NewLine;
+
             return
                 alert.Title + Environment.NewLine + Environment.NewLine +
                 "Rule: " + alert.RuleId + Environment.NewLine +
                 "Category: " + AlertRulePolicy.AlertCategory(alert) + Environment.NewLine +
                 "Source: " + BuildSourceSummary(alert) + Environment.NewLine +
+                remoteContextLine +
                 "MaintenanceContext: " + alert.MaintenanceContext + Environment.NewLine +
                 "Severity: " + alert.Severity + Environment.NewLine +
                 "Score: " + alert.Score.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +
@@ -143,6 +204,11 @@ namespace ArcaneEDR
                 HtmlEscape(label) + ":</strong> " + HtmlEscape(value) + "</p>";
         }
 
+        private static string BuildOptionalAlertFieldHtml(string label, string value)
+        {
+            return String.IsNullOrWhiteSpace(value) ? "" : BuildAlertFieldHtml(label, value);
+        }
+
         private static string BuildWrappedPreHtml(string value)
         {
             return "<pre style=\"display:block;box-sizing:border-box;width:100%;max-width:100%;white-space:pre-wrap;" +
@@ -181,6 +247,38 @@ namespace ArcaneEDR
             AddSummaryPart(parts, "service", ExtractEntityToken(entity, "service"));
 
             return parts.Count == 0 ? "n/a" : String.Join("; ", parts.ToArray());
+        }
+
+        private static string BuildRemoteContextSummary(Alert alert)
+        {
+            if (alert == null) return "";
+
+            string entity = NullToEmpty(alert.EntitySummary);
+            List<string> parts = new List<string>();
+            string company = FirstNonEmpty(
+                ExtractEntityToken(entity, "remote_owner"),
+                ExtractEntityToken(entity, "asn_org"));
+            string domain = FirstNonEmpty(
+                ExtractEntityToken(entity, "resolved_domain"),
+                FirstNonEmpty(
+                    ExtractEntityToken(entity, "registrable_domain"),
+                    FirstNonEmpty(
+                        ExtractEntityToken(entity, "sni_hostname"),
+                        FirstNonEmpty(
+                            ExtractEntityToken(entity, "remote_host"),
+                            FirstNonEmpty(
+                                ExtractEntityToken(entity, "rdns"),
+                                ExtractEntityToken(entity, "dns_names"))))));
+
+            AddSummaryPart(parts, "remote", FirstNonEmpty(ExtractEntityToken(entity, "remote"), ExtractEntityToken(entity, "remote_ip")));
+            AddSummaryPart(parts, "country", ExtractEntityToken(entity, "country"));
+            AddSummaryPart(parts, "company", Compact(company, 180));
+            AddSummaryPart(parts, "asn", ExtractEntityToken(entity, "asn"));
+            AddSummaryPart(parts, "domain", Compact(domain, 180));
+            AddSummaryPart(parts, "country_lookup", ExtractEntityToken(entity, "country_lookup"));
+            AddSummaryPart(parts, "enrichment", ExtractEntityToken(entity, "enrichment_source"));
+
+            return parts.Count == 0 ? "" : String.Join("; ", parts.ToArray());
         }
 
         private static void AddSummaryPart(List<string> parts, string label, string value)
@@ -234,9 +332,45 @@ namespace ArcaneEDR
             if (index < 0) return "";
 
             int start = index + prefix.Length;
-            int end = entity.IndexOf(' ', start);
+            int end = FindNextEntityTokenStart(entity, start);
             if (end < 0) end = entity.Length;
             return entity.Substring(start, end - start).Trim().Trim('"');
+        }
+
+        private static int FindNextEntityTokenStart(string entity, int start)
+        {
+            if (String.IsNullOrWhiteSpace(entity) || start < 0 || start >= entity.Length) return -1;
+
+            for (int index = start; index < entity.Length; index++)
+            {
+                if (!Char.IsWhiteSpace(entity[index])) continue;
+
+                int candidate = index + 1;
+                while (candidate < entity.Length && Char.IsWhiteSpace(entity[candidate]))
+                {
+                    candidate++;
+                }
+
+                if (candidate >= entity.Length) return -1;
+                foreach (string key in EntityTokenKeys)
+                {
+                    if (HasEntityTokenPrefix(entity, candidate, key))
+                    {
+                        return index;
+                    }
+                }
+            }
+
+            return -1;
+        }
+
+        private static bool HasEntityTokenPrefix(string entity, int index, string key)
+        {
+            if (String.IsNullOrWhiteSpace(entity) || String.IsNullOrWhiteSpace(key)) return false;
+
+            string prefix = key + "=";
+            if (index < 0 || index + prefix.Length > entity.Length) return false;
+            return String.Compare(entity, index, prefix, 0, prefix.Length, StringComparison.OrdinalIgnoreCase) == 0;
         }
 
         private static string FileNameOrValue(string value)

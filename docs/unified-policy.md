@@ -27,13 +27,15 @@ and response mode remain in `ArcaneEDR.config`.
 The default policy:
 
 - Allows Arcane EDR service self-traffic before generic network analysis.
-- Suppresses external delivery for clean `SERVICE-STARTED` notifications while
-  preserving local health evidence.
-- Trusts known major provider ownership context, such as Microsoft and
-  Cloudflare, before non-allowed-country escalation.
+- Suppresses external email for Codex-launched PowerShell web checks to known
+  major provider infrastructure while preserving local RAT/LOLBin evidence.
+- Keeps service lifecycle notifications eligible for external delivery; rate
+  limits do not block clean starts, clean stops, crash recovery, or daily
+  summaries.
+- Trusts known major provider remote identity inside an allowed country for
+  clean network-shape dampening. Country alone does not lower score.
 - Treats countries in `allowlists.allowed_remote_countries` as acceptable
-  country context and skips owner/company lookup when one of those countries is
-  already known.
+  country context and avoids country-only escalation.
 - Escalates fully unresolved country plus missing DNS/domain identity after
   enabled local/provider enrichment.
 - Treats ordinary country-unavailable context as an observe score enhancer.

@@ -709,7 +709,7 @@ namespace ArcaneEDR
 
             if (policy.HasOwnerCriteria && !hasOwnerSource)
             {
-                Warn(warnings, "Remote endpoint policy contains owner/ASN criteria but all remote owner/ASN enrichment sources are disabled; owner/ASN matching will not be available.");
+                Warn(warnings, "Remote endpoint policy contains owner/ASN/remote_identity criteria but all remote owner/ASN enrichment sources are disabled; provider-identity matching may be limited to DNS/domain context.");
             }
 
             if (policy.Errors.Count == 0)

@@ -545,14 +545,18 @@ EnableRemoteEndpointPolicy=true
 
 Remote allow, trust, block, and critical country/owner/domain/CIDR decisions
 belong in `remote_endpoint_policies` inside `PolicyFile`. First enabled match
-wins. The tracked default trusts Arcane EDR service self-traffic, treats known
-major provider ownership such as Microsoft or Cloudflare as trusted remote
-context before country-based escalation, treats fully unresolved country/domain
-context after enabled local or provider geolocation enrichment as critical,
-observes ordinary country-unavailable outcomes as a score enhancer, and treats
-countries outside `allowlists.allowed_remote_countries` as critical when no
-earlier trust rule matched. Default allowed countries are `US`, `CA`, `GB`,
-`IE`, `DE`, `NL`, `FR`, `SE`, `CH`, `AU`, `NZ`, `JP`, and `SG`.
+wins. Keep two remote heuristics separate: `allowed_remote_countries` prevents
+country-only escalation, while `action: "trust"` with a known
+`remote_identity` is the deterministic score-dampening path for trusted
+providers. The tracked default trusts Arcane EDR service self-traffic, trusts
+known major provider identity such as Microsoft, Cloudflare, Amazon, GitHub,
+Anthropic, or Vercel only inside the allowed-country set, treats fully
+unresolved country/domain context after enabled local or provider geolocation
+enrichment as critical, observes ordinary country-unavailable outcomes as a
+score enhancer, and treats countries outside
+`allowlists.allowed_remote_countries` as critical when no earlier trust rule
+matched. Default allowed countries are `US`, `CA`, `GB`, `IE`, `DE`, `NL`,
+`FR`, `SE`, `CH`, `AU`, `NZ`, `JP`, and `SG`.
 Country unavailable also becomes critical when paired with first-seen app/IP
 context or another stronger suspicious endpoint signal.
 
@@ -563,10 +567,12 @@ reads those files locally; it does not download country data at runtime.
 `RemoteEndpointGeoProviderMaxLookupsPerPoll` caps combined `ip-api` and
 `ipwhois` requests per poll so free/non-commercial endpoints are not hammered.
 Arcane tries local country blocks first. If the resolved country is in
-`allowlists.allowed_remote_countries`, Arcane does not need RDAP, `ip-api`, or
-`ipwhois` owner/company context for that endpoint. Otherwise it tries RDAP for
-registry owner/ASN context, then these optional providers only when country or
-useful owner/ASN context is still missing.
+`allowlists.allowed_remote_countries`, country alone does not escalate the
+alert. If no DNS/domain/company identity is available, Arcane can still use
+enabled RDAP, `ip-api`, or `ipwhois` lookups within configured caps so a known
+provider `trust` rule can match. Otherwise it tries RDAP for registry owner/ASN
+context, then these optional providers only when country or useful owner/ASN
+context is still missing.
 
 ```json
 {
@@ -576,7 +582,8 @@ useful owner/ASN context is still missing.
   "reason": "Expected agent backend traffic.",
   "match": {
     "process_name": "codex.exe",
-    "owner": "Cloudflare",
+    "country": "US",
+    "remote_identity": "Cloudflare",
     "port": 443
   }
 }

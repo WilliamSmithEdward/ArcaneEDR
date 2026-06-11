@@ -13,10 +13,12 @@ local copy.
 The default example policy treats these conditions differently:
 
 - Arcane EDR service self-traffic: allow before generic network analysis.
-- Known major provider owner context, such as Microsoft or Cloudflare: trust
-  before non-allowed-country escalation.
+- Known major provider remote identity, such as Microsoft, Cloudflare, Amazon,
+  GitHub, Anthropic, or Vercel, inside an allowed country: trust clean
+  network-shape context.
 - Countries in `allowlists.allowed_remote_countries` are acceptable country
-  context. They do not need owner/company enrichment when the country is known.
+  context. Country allowlisting prevents country-only escalation, but it does
+  not lower score by itself.
 - Local country-block enrichment was enabled, no country was found, and no
   DNS/domain identity was available: critical. The same applies when configured
   geolocation providers such as `ip-api` or `ipwhois` are tried and still no
@@ -49,10 +51,11 @@ Country-block data is administrative/delegation context; keep treating it as a
 triage signal, not proof of physical server location.
 
 If local country blocks resolve a country listed in
-`allowlists.allowed_remote_countries`, Arcane skips RDAP, `ip-api`, and
-`ipwhois` owner/company lookup for that endpoint. That avoids external lookups
-for common cloud-hosting countries while leaving unrelated suspicious process,
-port, command-line, RAT/RMM, and blocked-indicator signals alertable.
+`allowlists.allowed_remote_countries`, Arcane does not escalate on country
+alone. If no DNS/domain/company identity is available, Arcane can still use
+enabled RDAP, `ip-api`, or `ipwhois` lookups within the configured per-poll
+caps to classify the remote identity. That lets a later `trust` policy match a
+known provider without treating the country itself as a safety signal.
 
 ## Optional Geolocation Providers
 
@@ -65,13 +68,40 @@ requires the provider's paid/commercial plan.
 These providers are used as bounded enrichment sources, not as blocking
 dependencies. `RemoteEndpointGeoProviderMaxLookupsPerPoll` caps combined
 `ip-api` and `ipwhois` requests per poll. Arcane tries local country blocks
-first, then stops if the country is in `allowlists.allowed_remote_countries`.
-Otherwise it tries RDAP for registry owner/ASN context, then these providers
-only when country or useful owner/ASN context is still missing. If a provider
-is enabled but the cap prevents a lookup, Arcane records country lookup status as
-`deferred-after-*` rather than `missing-after-*`, so the default
+first, then RDAP/provider identity lookups only when country is missing,
+provider identity is missing, or no DNS/domain identity was observed. If a
+provider is enabled but the cap prevents a lookup, Arcane records country lookup
+status as `deferred-after-*` rather than `missing-after-*`, so the default
 fully-unresolved critical policy does not fire before the enabled source has
 actually been tried.
+
+## Two Remote Heuristics
+
+Keep these separate when tuning:
+
+- `allowlists.allowed_remote_countries`: country allowlist. This only prevents
+  country-only escalation for common legitimate hosting regions.
+- `remote_endpoint_policies` with `action: "trust"`: provider trust. Use this
+  for a known-good remote identity, usually with both `country` and
+  `remote_identity`. A trust match can lower clean direct-IP or timing-only
+  network-shape alerts, but it does not suppress or lower separate RAT,
+  PowerShell, persistence, risky-port, blocked-indicator, or command-line
+  detections.
+
+Example:
+
+```json
+{
+  "id": "trust-known-provider-in-allowed-country",
+  "enabled": true,
+  "action": "trust",
+  "reason": "Known provider identity in an allowed country.",
+  "match": {
+    "country": ["US", "CA", "GB"],
+    "remote_identity": "regex:(Cloudflare|Microsoft|GitHub|Amazon|Anthropic|Vercel)"
+  }
+}
+```
 
 ## Evaluation
 
@@ -101,6 +131,7 @@ Supported match fields:
 - `asn`
 - `asn_org`
 - `owner`
+- `remote_identity`: owner, ASN, ASN org, and remote domain context.
 - `domain`
 - `rdns`
 - `dns_name`
@@ -157,7 +188,8 @@ ranges, and invalid regex entries before the service uses the policy.
       "reason": "Expected agent backend traffic.",
       "match": {
         "process_name": "codex.exe",
-        "owner": "Cloudflare",
+        "country": "US",
+        "remote_identity": "Cloudflare",
         "port": 443
       }
     }

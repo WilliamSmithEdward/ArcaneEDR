@@ -542,12 +542,10 @@ namespace ArcaneEDR
             {
                 bool lowRiskSignedProcess = IsSignedNonUserWritableProcess(endpoint) &&
                     !HasStrongSuspiciousEndpointContext(endpoint, trustedProcess, false, remotePolicy);
-                bool trustedRemoteContext = remotePolicy.IsTrust &&
-                    IsExpectedRemoteContextProcess(endpoint, trustedProcess) &&
-                    !HasStrongSuspiciousEndpointContext(endpoint, trustedProcess, false, remotePolicy);
+                bool trustedRemoteContext = remotePolicy.IsTrust;
                 bool lowerRiskContext = lowRiskSignedProcess || trustedRemoteContext;
 
-                alerts.Add(Alert.FromEndpoint(
+                Alert alert = Alert.FromEndpoint(
                     lowerRiskContext ? "NET-DIRECT-IP-WEB-EGRESS-SIGNED" : "NET-DIRECT-IP-WEB-EGRESS",
                     lowerRiskContext ? "Lower-risk direct-IP web connection" : "Untrusted process made direct-IP web connection",
                     trustedRemoteContext ? 35 : (lowRiskSignedProcess ? 45 : 60),
@@ -557,7 +555,9 @@ namespace ArcaneEDR
                     lowerRiskContext
                         ? "Keep as local context unless it repeats with suspicious process lineage, persistence, PowerShell staging, risky ports, or threat intelligence."
                         : "Correlate with DNS telemetry. Direct IP HTTPS from unusual processes is common in RAT and loader traffic.",
-                    endpoint));
+                    endpoint);
+                ApplyTrustedRemotePolicyContext(alert, remotePolicy);
+                alerts.Add(alert);
             }
         }
 
@@ -667,6 +667,16 @@ namespace ArcaneEDR
             alert.AddWhy("Observed remote endpoint policy added review weight: " + Compact(remotePolicy.Reason, 140) + ".");
         }
 
+        private static void ApplyTrustedRemotePolicyContext(Alert alert, RemoteEndpointPolicyDecision remotePolicy)
+        {
+            if (alert == null || remotePolicy == null || !remotePolicy.IsTrust || !remotePolicy.Matched) return;
+
+            string policyContext = "remote_endpoint_policy=" + SafePolicyToken(remotePolicy.RuleId) + ":" + SafePolicyToken(remotePolicy.Action);
+            alert.AddPolicyContext(policyContext);
+            alert.EntitySummary = AppendEntity(alert.EntitySummary, "policy=" + policyContext);
+            alert.AddWhy("Trusted remote endpoint policy lowered only this clean network-shape alert: " + Compact(remotePolicy.Reason, 140) + ".");
+        }
+
         private void AnalyzeBeaconing(NetworkEndpoint endpoint, DateTime timestampUtc, RemoteEndpointPolicyDecision remotePolicy, List<Alert> alerts)
         {
             string flowKey = endpoint.ProcessName + "|" + endpoint.RemoteAddress + "|" + endpoint.RemotePort.ToString(CultureInfo.InvariantCulture);
@@ -700,7 +710,7 @@ namespace ArcaneEDR
                 lowRiskTimingOnly = true;
             }
 
-            alerts.Add(Alert.FromEndpoint(
+            Alert alert = Alert.FromEndpoint(
                 lowRiskTimingOnly ? "NET-BEACON-TIMING-LOW-RISK" : "NET-C2-BEACON-PATTERN",
                 lowRiskTimingOnly ? "Beacon-like timing from low-risk process" : "Potential beaconing activity",
                 lowRiskTimingOnly ? 55 : 90,
@@ -710,7 +720,13 @@ namespace ArcaneEDR
                 lowRiskTimingOnly
                     ? "Keep as local context. Escalate if paired with unsigned/user-writable execution, persistence, PowerShell staging, unusual ports, suspicious parentage, or threat intelligence."
                     : "Investigate for command-and-control behavior. Check the process path, parent process, persistence, and destination reputation.",
-                endpoint));
+                endpoint);
+            if (lowRiskTimingOnly)
+            {
+                ApplyTrustedRemotePolicyContext(alert, remotePolicy);
+            }
+
+            alerts.Add(alert);
         }
 
         private void AnalyzeConnectionBursts(Dictionary<string, int> externalConnectionCounts, List<Alert> alerts)

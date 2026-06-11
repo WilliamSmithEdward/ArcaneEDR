@@ -329,6 +329,7 @@ namespace ArcaneEDR
         public readonly List<string> Asns = new List<string>();
         public readonly List<string> AsnOrgs = new List<string>();
         public readonly List<string> Owners = new List<string>();
+        public readonly List<string> RemoteIdentities = new List<string>();
         public readonly List<string> Domains = new List<string>();
         public readonly List<string> RdnsNames = new List<string>();
         public readonly List<string> DnsNames = new List<string>();
@@ -358,6 +359,7 @@ namespace ArcaneEDR
                 if (Asns.Count > 0) count++;
                 if (AsnOrgs.Count > 0) count++;
                 if (Owners.Count > 0) count++;
+                if (RemoteIdentities.Count > 0) count++;
                 if (Domains.Count > 0) count++;
                 if (RdnsNames.Count > 0) count++;
                 if (DnsNames.Count > 0) count++;
@@ -380,7 +382,7 @@ namespace ArcaneEDR
 
         public bool HasOwnerCriteria
         {
-            get { return Asns.Count > 0 || AsnOrgs.Count > 0 || Owners.Count > 0; }
+            get { return Asns.Count > 0 || AsnOrgs.Count > 0 || Owners.Count > 0 || RemoteIdentities.Count > 0; }
         }
 
         public static RemoteEndpointPolicyMatch Parse(IDictionary map, string ruleId, RemoteEndpointPolicy policy)
@@ -421,6 +423,7 @@ namespace ArcaneEDR
             if (Asns.Count > 0 && !TextPatternMatcher.IsMatch(endpoint.RemoteAsn, Asns)) return false;
             if (AsnOrgs.Count > 0 && !TextPatternMatcher.IsMatch(endpoint.RemoteAsnOrg, AsnOrgs)) return false;
             if (Owners.Count > 0 && !TextPatternMatcher.IsMatch(endpoint.RemoteOwner, Owners)) return false;
+            if (RemoteIdentities.Count > 0 && !TextPatternMatcher.IsMatch(RemoteIdentityText(endpoint), RemoteIdentities)) return false;
             if (Domains.Count > 0 && !TextPatternMatcher.IsMatch(RemoteDomainText(endpoint), Domains)) return false;
             if (RdnsNames.Count > 0 && !TextPatternMatcher.IsMatch(endpoint.RemoteRdns, RdnsNames)) return false;
             if (DnsNames.Count > 0 && !TextPatternMatcher.IsMatch(String.Join(" ", endpoint.RemoteDnsNames.ToArray()), DnsNames)) return false;
@@ -463,6 +466,7 @@ namespace ArcaneEDR
             else if (field.Equals("asn", StringComparison.OrdinalIgnoreCase)) AddTextValues(match.Asns, values, ruleId, field, policy);
             else if (field.Equals("asn_org", StringComparison.OrdinalIgnoreCase)) AddTextValues(match.AsnOrgs, values, ruleId, field, policy);
             else if (field.Equals("owner", StringComparison.OrdinalIgnoreCase)) AddTextValues(match.Owners, values, ruleId, field, policy);
+            else if (field.Equals("remote_identity", StringComparison.OrdinalIgnoreCase)) AddTextValues(match.RemoteIdentities, values, ruleId, field, policy);
             else if (field.Equals("domain", StringComparison.OrdinalIgnoreCase)) AddTextValues(match.Domains, values, ruleId, field, policy);
             else if (field.Equals("rdns", StringComparison.OrdinalIgnoreCase)) AddTextValues(match.RdnsNames, values, ruleId, field, policy);
             else if (field.Equals("dns_name", StringComparison.OrdinalIgnoreCase)) AddTextValues(match.DnsNames, values, ruleId, field, policy);
@@ -511,6 +515,8 @@ namespace ArcaneEDR
             if (normalized.Equals("asn", StringComparison.OrdinalIgnoreCase)) return "asn";
             if (normalized.Equals("asn_org", StringComparison.OrdinalIgnoreCase)) return "asn_org";
             if (normalized.Equals("owner", StringComparison.OrdinalIgnoreCase)) return "owner";
+            if (normalized.Equals("remote_identity", StringComparison.OrdinalIgnoreCase)) return "remote_identity";
+            if (normalized.Equals("provider_identity", StringComparison.OrdinalIgnoreCase)) return "remote_identity";
             if (normalized.Equals("domain", StringComparison.OrdinalIgnoreCase)) return "domain";
             if (normalized.Equals("rdns", StringComparison.OrdinalIgnoreCase)) return "rdns";
             if (normalized.Equals("dns_name", StringComparison.OrdinalIgnoreCase)) return "dns_name";
@@ -639,6 +645,15 @@ namespace ArcaneEDR
                 (endpoint.SniHostname ?? "") + " " +
                 (endpoint.ResolvedDomain ?? "") + " " +
                 (endpoint.RegistrableDomain ?? "");
+        }
+
+        private static string RemoteIdentityText(NetworkEndpoint endpoint)
+        {
+            if (endpoint == null) return "";
+            return (endpoint.RemoteAsn ?? "") + " " +
+                (endpoint.RemoteAsnOrg ?? "") + " " +
+                (endpoint.RemoteOwner ?? "") + " " +
+                RemoteDomainText(endpoint);
         }
 
         private static string RemoteEndpointText(NetworkEndpoint endpoint)

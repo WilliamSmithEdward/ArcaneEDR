@@ -38,7 +38,8 @@ namespace ArcaneEDR
                 if (endpoint == null || !IpRules.IsExternal(endpoint.RemoteAddress)) continue;
 
                 bool hasLocalDns = ApplyLocalDns(endpoint, dnsNamesByIp);
-                RemoteEndpointEnrichment enrichment = Lookup(endpoint.RemoteAddress, ref rdapLookups, ref geoProviderLookups);
+                bool hasEndpointIdentity = HasDomainIdentity(endpoint);
+                RemoteEndpointEnrichment enrichment = Lookup(endpoint.RemoteAddress, hasEndpointIdentity, ref rdapLookups, ref geoProviderLookups);
                 Apply(endpoint, enrichment);
                 if (hasLocalDns)
                 {
@@ -50,7 +51,7 @@ namespace ArcaneEDR
             }
         }
 
-        private RemoteEndpointEnrichment Lookup(IPAddress address, ref int rdapLookups, ref int geoProviderLookups)
+        private RemoteEndpointEnrichment Lookup(IPAddress address, bool hasEndpointIdentity, ref int rdapLookups, ref int geoProviderLookups)
         {
             if (address == null) return new RemoteEndpointEnrichment();
 
@@ -86,7 +87,7 @@ namespace ArcaneEDR
                 }
             }
 
-            if (!HasAllowedRemoteCountry(enrichment) &&
+            if (NeedsRdapEnrichment(enrichment, hasEndpointIdentity) &&
                 config.EnableRemoteEndpointRdapEnrichment &&
                 rdapLookups < Math.Max(0, config.RemoteEndpointRdapMaxLookupsPerPoll))
             {
@@ -95,7 +96,7 @@ namespace ArcaneEDR
                 ApplyRdap(address, enrichment);
             }
 
-            if (NeedsGeoProviderEnrichment(enrichment) &&
+            if (NeedsGeoProviderEnrichment(enrichment, hasEndpointIdentity) &&
                 config.EnableRemoteEndpointIpApiGeolocation)
             {
                 if (CanUseGeoProviderLookup(geoProviderLookups))
@@ -110,7 +111,7 @@ namespace ArcaneEDR
                 }
             }
 
-            if (NeedsGeoProviderEnrichment(enrichment) &&
+            if (NeedsGeoProviderEnrichment(enrichment, hasEndpointIdentity) &&
                 config.EnableRemoteEndpointIpWhoisGeolocation)
             {
                 if (CanUseGeoProviderLookup(geoProviderLookups))
@@ -278,12 +279,28 @@ namespace ArcaneEDR
             return geoProviderLookups < Math.Max(0, config.RemoteEndpointGeoProviderMaxLookupsPerPoll);
         }
 
-        private bool NeedsGeoProviderEnrichment(RemoteEndpointEnrichment enrichment)
+        private bool NeedsRdapEnrichment(RemoteEndpointEnrichment enrichment, bool hasEndpointIdentity)
         {
             if (enrichment == null) return false;
 
             if (String.IsNullOrWhiteSpace(enrichment.Country)) return true;
-            if (HasAllowedRemoteCountry(enrichment)) return false;
+            if (HasAllowedRemoteCountry(enrichment) && hasEndpointIdentity) return false;
+            return MissingProviderIdentity(enrichment);
+        }
+
+        private bool NeedsGeoProviderEnrichment(RemoteEndpointEnrichment enrichment, bool hasEndpointIdentity)
+        {
+            if (enrichment == null) return false;
+
+            if (String.IsNullOrWhiteSpace(enrichment.Country)) return true;
+            if (HasAllowedRemoteCountry(enrichment) && hasEndpointIdentity) return false;
+            return MissingProviderIdentity(enrichment);
+        }
+
+        private static bool MissingProviderIdentity(RemoteEndpointEnrichment enrichment)
+        {
+            if (enrichment == null) return false;
+
             if (String.IsNullOrWhiteSpace(enrichment.Owner)) return true;
             return String.IsNullOrWhiteSpace(enrichment.Asn) &&
                 String.IsNullOrWhiteSpace(enrichment.AsnOrg);

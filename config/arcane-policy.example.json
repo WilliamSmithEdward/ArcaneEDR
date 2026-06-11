@@ -150,12 +150,27 @@
       }
     },
     {
-      "id": "default-trust-known-provider-owner",
+      "id": "default-trust-known-provider-in-allowed-country",
       "enabled": true,
       "action": "trust",
-      "reason": "Known major provider ownership context can make foreign country geolocation expected. This trusts only remote context; process, command-line, RAT, risky-port, and other suspicious signals still alert.",
+      "reason": "Known major provider identity inside an allowed country lowers clean network-shape noise only. Country alone does not lower score, and process, command-line, RAT, risky-port, persistence, and other suspicious signals still alert.",
       "match": {
-        "text_contains": "regex:(Microsoft|MSFT|Cloudflare|CLOUDFLARENET|Google|GOOGLE|Amazon|AMAZON|AWS|Akamai|Fastly|GitHub|Apple)"
+        "country": [
+          "US",
+          "CA",
+          "GB",
+          "IE",
+          "DE",
+          "NL",
+          "FR",
+          "SE",
+          "CH",
+          "AU",
+          "NZ",
+          "JP",
+          "SG"
+        ],
+        "remote_identity": "regex:(Microsoft|MSFT|Cloudflare|CLOUDFLARENET|Google|GOOGLE|Amazon|AMAZON|AWS|Akamai|Fastly|GitHub|Apple|Anthropic|Vercel)"
       }
     },
     {
@@ -259,17 +274,6 @@
   ],
   "detection_policies": [
     {
-      "id": "default-suppress-arcane-service-start",
-      "enabled": true,
-      "action": "suppress_external",
-      "reason": "Clean Arcane EDR service-start notifications are local health evidence, not operator-paging material. Crash recovery uses a separate rule and still alerts.",
-      "owner": "product-default",
-      "match": {
-        "rule_id": "SERVICE-STARTED",
-        "text_contains": "Arcane EDR started"
-      }
-    },
-    {
       "id": "default-suppress-arcane-self-network-alerts",
       "enabled": true,
       "action": "suppress_external",
@@ -278,6 +282,35 @@
       "match": {
         "category": "Network",
         "process_name": "ArcaneEDR.exe"
+      }
+    },
+    {
+      "id": "default-suppress-codex-powershell-known-provider-web-check",
+      "enabled": true,
+      "action": "suppress_external",
+      "reason": "Expected Codex-driven PowerShell web checks against known major provider infrastructure. Suppress external email only when PowerShell is launched by Codex, the command contains HTTP/HTTPS context, and the destination identity is a known provider. Preserve local RAT/LOLBin evidence.",
+      "owner": "product-default",
+      "match": {
+        "rule_id": "RAT-LOLBIN-SUSPICIOUS-EGRESS",
+        "process_name": "powershell.exe",
+        "parent_process": "codex.exe",
+        "command_terms": [
+          "http"
+        ],
+        "text_contains": [
+          "Cloudflare",
+          "CLOUDFLARENET",
+          "Amazon",
+          "AMAZON",
+          "AWS",
+          "Akamai",
+          "Fastly",
+          "GitHub",
+          "Google",
+          "Microsoft",
+          "Anthropic",
+          "Vercel"
+        ]
       }
     },
     {
