@@ -68,33 +68,36 @@ namespace ArcaneEDR
             string ruleId = alert.RuleId ?? "";
             string entity = alert.EntitySummary ?? "";
             string process = ExtractToken(entity, "process");
+            string parent = ExtractToken(entity, "parent");
+            string protocol = ExtractToken(entity, "protocol");
+            string processPath = FileNameOrValue(ExtractToken(entity, "process_path"));
 
             if (AlertRuleTaxonomy.HasPrefix(ruleId, AlertRuleTaxonomy.PrefixNetworkListen))
             {
-                return Join(ruleId, process, ExtractToken(entity, "local"));
+                return Join(ruleId, FirstNonEmpty(process, "unknown-process"), parent, protocol, ExtractToken(entity, "local"));
             }
 
             if (category.Equals("Network", StringComparison.OrdinalIgnoreCase) ||
                 category.Equals("RAT", StringComparison.OrdinalIgnoreCase))
             {
-                return Join(ruleId, process, FirstNonEmpty(ExtractToken(entity, "remote_host"), ExtractToken(entity, "remote")));
+                return Join(ruleId, FirstNonEmpty(process, "unknown-process"), parent, protocol, processPath);
             }
 
             if (category.Equals("DNS", StringComparison.OrdinalIgnoreCase) ||
                 AlertRuleTaxonomy.IsDnsRule(ruleId))
             {
-                return Join(ruleId, process, ExtractToken(entity, "query"));
+                return Join(ruleId, FirstNonEmpty(process, "unknown-process"), parent, processPath);
             }
 
             if (category.Equals("Baseline", StringComparison.OrdinalIgnoreCase))
             {
-                return Join(ruleId, process, FirstNonEmpty(ExtractToken(entity, "query"), ExtractToken(entity, "remote"), alert.CooldownKey));
+                return Join(ruleId, FirstNonEmpty(process, "unknown-process"), parent, processPath);
             }
 
             if (category.Equals("Reputation", StringComparison.OrdinalIgnoreCase) ||
                 category.Equals("Process", StringComparison.OrdinalIgnoreCase))
             {
-                return Join(ruleId, process, FirstNonEmpty(ExtractToken(entity, "image"), ExtractToken(entity, "parent"), alert.Title));
+                return Join(ruleId, FirstNonEmpty(process, "unknown-process"), parent, FileNameOrValue(FirstNonEmpty(ExtractToken(entity, "image"), processPath)));
             }
 
             return Join(ruleId, alert.CooldownKey);
@@ -122,6 +125,22 @@ namespace ArcaneEDR
             }
 
             return "";
+        }
+
+        private static string FileNameOrValue(string value)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return "";
+
+            try
+            {
+                string fileName = System.IO.Path.GetFileName(value);
+                if (!String.IsNullOrWhiteSpace(fileName)) return fileName;
+            }
+            catch
+            {
+            }
+
+            return value;
         }
 
         private static string Join(params string[] values)

@@ -636,18 +636,34 @@ Low-value repeat dampening reduces external notification volume for the same
 stable behavior while preserving local evidence:
 
 ```ini
+EnableExternalAlertGrouping=true
+ExternalAlertGroupingMinimumCount=2
+ExternalAlertGroupingMaximumScore=89
+ExternalAlertGroupingMaxItems=8
+ExternalAlertGroupingCategories=Network,DNS,Baseline,Reputation,Process
 EnableLowValueRepeatDampening=true
 LowValueRepeatDampeningMaximumScore=60
 LowValueRepeatDampeningWindowMinutes=60
-LowValueRepeatDampeningMaxExternalAlertsPerWindow=2
+LowValueRepeatDampeningMaxExternalAlertsPerWindow=1
 LowValueRepeatDampeningCategories=Network,DNS,Baseline,Reputation,Process
 ```
 
-When enabled, Arcane allows the first few matching low-score external alerts in
-the window, then suppresses additional external delivery for the same repeat
-key. Local alert logs, incident grouping, response handling, and high-score
-alerts are not affected. Leave `LowValueRepeatDampeningCategories` populated;
-an explicitly blank category list disables repeat dampening matches.
+When grouping is enabled, Arcane first records each alert locally, then combines
+same-dispatch external notification candidates with the same rule/category and
+source root into one external summary. The summary includes grouped counts and
+representative rules, titles, processes, destinations, countries, and companies.
+Alerts above `ExternalAlertGroupingMaximumScore`, forced-policy alerts, service
+lifecycle notifications, daily reports, and distinct source roots still break
+through independently.
+
+Repeat dampening is the follow-on guardrail for matching low-score alerts that
+reappear later in the configured window. With the default value of
+`LowValueRepeatDampeningMaxExternalAlertsPerWindow=1`, Arcane allows one
+external notification for the repeat key, then suppresses additional external
+delivery until the window expires. Local alert logs, incident grouping, response
+handling, and high-score alerts are not affected. Leave
+`LowValueRepeatDampeningCategories` populated; an explicitly blank category list
+disables repeat dampening matches.
 
 Authentication special-privilege tuning keeps Windows `4672` events
 correlation-first:
@@ -752,6 +768,11 @@ ExternalAlertProviderMinimumScores=
 ExternalAlertProviderMaxPerHour=
 ExternalAlertMaxPerDispatch=3
 ExternalAlertMaxPerHour=24
+EnableExternalAlertGrouping=true
+ExternalAlertGroupingMinimumCount=2
+ExternalAlertGroupingMaximumScore=89
+ExternalAlertGroupingMaxItems=8
+ExternalAlertGroupingCategories=Network,DNS,Baseline,Reputation,Process
 BrevoApiKeyEnvironmentVariable=<configured env var>
 BrevoSenderEmail=<verified sender>
 BrevoRecipientEmail=<recipient>
@@ -797,6 +818,11 @@ bursts.
 alerts, AI notifications, and retry deliveries. Daily summary reports and
 service lifecycle notifications bypass this cap so scheduled reports and
 restart/recovery notices do not compete with alert bursts.
+
+`EnableExternalAlertGrouping` runs before per-dispatch and hourly external
+delivery limits. A burst of matching same-root alerts therefore counts as one
+planned external notification while every original alert remains in local logs,
+incidents, daily reports, and response evaluation.
 
 SMTP:
 

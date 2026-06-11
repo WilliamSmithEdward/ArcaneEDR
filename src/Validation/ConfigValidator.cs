@@ -59,6 +59,7 @@ namespace ArcaneEDR
             if (config.ExternalAlertRetryMaxQueued < 0) Fail(errors, "ExternalAlertRetryMaxQueued must not be negative.");
             if (config.ExternalAlertRetryMaxPerPoll < 0) Fail(errors, "ExternalAlertRetryMaxPerPoll must not be negative.");
             ValidateExternalAlertProviders(config, errors, warnings);
+            ValidateExternalAlertGrouping(config, errors, warnings);
             ValidateTermGroups(config.ExternalAlertSuppressionTermGroups, "ExternalAlertSuppressionTermGroups", warnings);
             ValidateLowValueRepeatDampening(config, errors, warnings);
             ValidateTermGroups(config.MaintenanceContextTermGroups, "MaintenanceContextTermGroups", warnings);
@@ -418,6 +419,39 @@ namespace ArcaneEDR
                 if (!AlertRuleCatalog.IsKnownCategory(category))
                 {
                     Warn(warnings, "LowValueRepeatDampeningCategories contains an unknown category: " + category);
+                }
+            }
+        }
+
+        private static void ValidateExternalAlertGrouping(MonitorConfig config, List<string> errors, List<string> warnings)
+        {
+            if (!config.EnableExternalAlertGrouping) return;
+
+            if (config.ExternalAlertGroupingMinimumCount < 2)
+            {
+                Fail(errors, "ExternalAlertGroupingMinimumCount must be at least 2 when external alert grouping is enabled.");
+            }
+
+            if (config.ExternalAlertGroupingMaximumScore < 0 || config.ExternalAlertGroupingMaximumScore > 100)
+            {
+                Warn(warnings, "ExternalAlertGroupingMaximumScore is outside the usual 0-100 range.");
+            }
+
+            if (config.ExternalAlertGroupingMaxItems <= 0)
+            {
+                Fail(errors, "ExternalAlertGroupingMaxItems must be greater than zero when external alert grouping is enabled.");
+            }
+
+            if (config.ExternalAlertGroupingCategories.Count == 0)
+            {
+                Warn(warnings, "ExternalAlertGroupingCategories is empty; external alert grouping will not match any categories.");
+            }
+
+            foreach (string category in config.ExternalAlertGroupingCategories)
+            {
+                if (!AlertRuleCatalog.IsKnownCategory(category))
+                {
+                    Warn(warnings, "ExternalAlertGroupingCategories contains an unknown category: " + category);
                 }
             }
         }

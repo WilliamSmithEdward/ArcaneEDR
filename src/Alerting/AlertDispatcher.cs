@@ -12,6 +12,7 @@ namespace ArcaneEDR
         private readonly ExternalAlertRetryQueue retryQueue;
         private readonly IncidentStore incidentStore;
         private readonly LowValueRepeatDampener lowValueRepeatDampener;
+        private readonly ExternalAlertGroupingPlanner externalAlertGroupingPlanner;
         private readonly AgentActivityLedger agentActivityLedger;
         private readonly DetectionPolicyEngine detectionPolicyEngine;
         private readonly Dictionary<string, DateTime> cooldowns = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
@@ -27,6 +28,7 @@ namespace ArcaneEDR
             retryQueue = new ExternalAlertRetryQueue(config, logger);
             incidentStore = new IncidentStore(config, logger);
             lowValueRepeatDampener = new LowValueRepeatDampener(config);
+            externalAlertGroupingPlanner = new ExternalAlertGroupingPlanner(config);
             agentActivityLedger = new AgentActivityLedger(config, logger);
             detectionPolicyEngine = new DetectionPolicyEngine(config, logger);
         }
@@ -36,20 +38,23 @@ namespace ArcaneEDR
             RetryExternalAlerts();
 
             int sentThisDispatch = 0;
+            List<Alert> externalCandidates = new List<Alert>();
             foreach (Alert alert in alerts)
             {
                 try
                 {
-                    DispatchOne(alert, ref sentThisDispatch);
+                    DispatchOne(alert, externalCandidates);
                 }
                 catch (Exception ex)
                 {
                     logger.Error("Alert dispatch failed; continuing with remaining alerts: " + ex);
                 }
             }
+
+            SendExternalCandidates(externalCandidates, ref sentThisDispatch);
         }
 
-        private void DispatchOne(Alert alert, ref int sentThisDispatch)
+        private void DispatchOne(Alert alert, List<Alert> externalCandidates)
         {
             if (alert == null) return;
             Alert annotatedAlert = Annotate(alert);
@@ -74,18 +79,9 @@ namespace ArcaneEDR
             agentActivityLedger.Record(annotatedAlert);
             responseManager.Handle(annotatedAlert);
 
-            if (ShouldSendExternal(annotatedAlert, sentThisDispatch))
+            if (IsExternallyEligible(annotatedAlert))
             {
-                string failureReason;
-                if (TrySendExternalAlert(annotatedAlert, out failureReason))
-                {
-                    RememberExternalSend();
-                    sentThisDispatch++;
-                }
-                else
-                {
-                    QueueFailedExternal(annotatedAlert, failureReason);
-                }
+                externalCandidates.Add(annotatedAlert);
             }
         }
 
@@ -217,7 +213,39 @@ namespace ArcaneEDR
             return false;
         }
 
-        private bool ShouldSendExternal(Alert alert, int sentThisDispatch)
+        private void SendExternalCandidates(List<Alert> externalCandidates, ref int sentThisDispatch)
+        {
+            if (externalCandidates == null || externalCandidates.Count == 0) return;
+
+            List<Alert> plannedAlerts = externalAlertGroupingPlanner.Plan(externalCandidates);
+            foreach (Alert plannedAlert in plannedAlerts)
+            {
+                try
+                {
+                    if (!ShouldSendPlannedExternal(plannedAlert, sentThisDispatch))
+                    {
+                        continue;
+                    }
+
+                    string failureReason;
+                    if (TrySendExternalAlert(plannedAlert, out failureReason))
+                    {
+                        RememberExternalSend();
+                        sentThisDispatch++;
+                    }
+                    else
+                    {
+                        QueueFailedExternal(plannedAlert, failureReason);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.Error("External alert dispatch failed; continuing with remaining planned alerts: " + ex);
+                }
+            }
+        }
+
+        private bool IsExternallyEligible(Alert alert)
         {
             if (alert.ExternalSuppressedByPolicy)
             {
@@ -265,6 +293,12 @@ namespace ArcaneEDR
                 return false;
             }
 
+            return true;
+        }
+
+        private bool ShouldSendPlannedExternal(Alert alert, int sentThisDispatch)
+        {
+            bool forceExternal = alert != null && alert.ExternalForcedByPolicy;
             if (!forceExternal && lowValueRepeatDampener.ShouldDampen(alert))
             {
                 WarnThrottled("repeated low-value alert dampened");

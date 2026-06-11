@@ -28,6 +28,7 @@ namespace ArcaneEDR
             "maintenance_context",
             "message",
             "name",
+            "owner",
             "parent",
             "parent_command_line",
             "parent_path",
@@ -93,7 +94,7 @@ namespace ArcaneEDR
                 BuildAlertFieldHtml("Rule", alert.RuleId) +
                 BuildAlertFieldHtml("Category", AlertRulePolicy.AlertCategory(alert)) +
                 BuildAlertFieldHtml("Source", BuildSourceSummary(alert)) +
-                BuildOptionalAlertFieldHtml("Remote Context", BuildRemoteContextSummary(alert)) +
+                BuildRemoteHeaderFieldsHtml(alert) +
                 BuildAlertFieldHtml("Maintenance Context", alert.MaintenanceContext ? "true" : "false") +
                 BuildAlertFieldHtml("Severity", alert.Severity) +
                 BuildAlertFieldHtml("Score", alert.Score.ToString(CultureInfo.InvariantCulture)) +
@@ -114,17 +115,14 @@ namespace ArcaneEDR
                 return NullToEmpty(alert.Body) + Environment.NewLine + BuildScoreContextPlainText();
             }
 
-            string remoteContext = BuildRemoteContextSummary(alert);
-            string remoteContextLine = String.IsNullOrWhiteSpace(remoteContext)
-                ? ""
-                : "RemoteContext: " + remoteContext + Environment.NewLine;
+            string remoteHeaderLines = BuildRemoteHeaderFieldsPlainText(alert);
 
             return
                 alert.Title + Environment.NewLine + Environment.NewLine +
                 "Rule: " + alert.RuleId + Environment.NewLine +
                 "Category: " + AlertRulePolicy.AlertCategory(alert) + Environment.NewLine +
                 "Source: " + BuildSourceSummary(alert) + Environment.NewLine +
-                remoteContextLine +
+                remoteHeaderLines +
                 "MaintenanceContext: " + alert.MaintenanceContext + Environment.NewLine +
                 "Severity: " + alert.Severity + Environment.NewLine +
                 "Score: " + alert.Score.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +
@@ -249,15 +247,47 @@ namespace ArcaneEDR
             return parts.Count == 0 ? "n/a" : String.Join("; ", parts.ToArray());
         }
 
-        private static string BuildRemoteContextSummary(Alert alert)
+        private static string BuildRemoteHeaderFieldsHtml(Alert alert)
         {
-            if (alert == null) return "";
+            RemoteHeaderMetadata metadata = BuildRemoteHeaderMetadata(alert);
+            if (!metadata.HasAny) return "";
+
+            return BuildOptionalAlertFieldHtml("Remote Endpoint", metadata.Endpoint) +
+                BuildOptionalAlertFieldHtml("Remote Country", metadata.Country) +
+                BuildOptionalAlertFieldHtml("Remote Company", metadata.Company) +
+                BuildOptionalAlertFieldHtml("Remote ASN", metadata.Asn) +
+                BuildOptionalAlertFieldHtml("Remote Domain", metadata.Domain) +
+                BuildOptionalAlertFieldHtml("Remote Enrichment", metadata.Enrichment);
+        }
+
+        private static string BuildRemoteHeaderFieldsPlainText(Alert alert)
+        {
+            RemoteHeaderMetadata metadata = BuildRemoteHeaderMetadata(alert);
+            if (!metadata.HasAny) return "";
+
+            string text = "";
+            AppendOptionalPlainTextField(ref text, "RemoteEndpoint", metadata.Endpoint);
+            AppendOptionalPlainTextField(ref text, "RemoteCountry", metadata.Country);
+            AppendOptionalPlainTextField(ref text, "RemoteCompany", metadata.Company);
+            AppendOptionalPlainTextField(ref text, "RemoteASN", metadata.Asn);
+            AppendOptionalPlainTextField(ref text, "RemoteDomain", metadata.Domain);
+            AppendOptionalPlainTextField(ref text, "RemoteEnrichment", metadata.Enrichment);
+            return text;
+        }
+
+        private static RemoteHeaderMetadata BuildRemoteHeaderMetadata(Alert alert)
+        {
+            RemoteHeaderMetadata metadata = new RemoteHeaderMetadata();
+            if (alert == null) return metadata;
 
             string entity = NullToEmpty(alert.EntitySummary);
-            List<string> parts = new List<string>();
             string company = FirstNonEmpty(
                 ExtractEntityToken(entity, "remote_owner"),
-                ExtractEntityToken(entity, "asn_org"));
+                FirstNonEmpty(
+                    ExtractEntityToken(entity, "owner"),
+                    ExtractEntityToken(entity, "asn_org")));
+            string asn = ExtractEntityToken(entity, "asn");
+            string asnOrg = ExtractEntityToken(entity, "asn_org");
             string domain = FirstNonEmpty(
                 ExtractEntityToken(entity, "resolved_domain"),
                 FirstNonEmpty(
@@ -269,16 +299,18 @@ namespace ArcaneEDR
                             FirstNonEmpty(
                                 ExtractEntityToken(entity, "rdns"),
                                 ExtractEntityToken(entity, "dns_names"))))));
+            string lookup = ExtractEntityToken(entity, "country_lookup");
+            string enrichmentSource = ExtractEntityToken(entity, "enrichment_source");
 
-            AddSummaryPart(parts, "remote", FirstNonEmpty(ExtractEntityToken(entity, "remote"), ExtractEntityToken(entity, "remote_ip")));
-            AddSummaryPart(parts, "country", ExtractEntityToken(entity, "country"));
-            AddSummaryPart(parts, "company", Compact(company, 180));
-            AddSummaryPart(parts, "asn", ExtractEntityToken(entity, "asn"));
-            AddSummaryPart(parts, "domain", Compact(domain, 180));
-            AddSummaryPart(parts, "country_lookup", ExtractEntityToken(entity, "country_lookup"));
-            AddSummaryPart(parts, "enrichment", ExtractEntityToken(entity, "enrichment_source"));
-
-            return parts.Count == 0 ? "" : String.Join("; ", parts.ToArray());
+            metadata.Endpoint = CleanHeaderValue(
+                FirstNonEmpty(ExtractEntityToken(entity, "remote"), ExtractEntityToken(entity, "remote_ip")),
+                120);
+            metadata.Country = CleanHeaderValue(ExtractEntityToken(entity, "country"), 80);
+            metadata.Company = CleanHeaderValue(company, 180);
+            metadata.Asn = CleanHeaderValue(BuildAsnSummary(asn, asnOrg), 180);
+            metadata.Domain = CleanHeaderValue(domain, 180);
+            metadata.Enrichment = CleanHeaderValue(BuildEnrichmentSummary(enrichmentSource, lookup), 180);
+            return metadata;
         }
 
         private static void AddSummaryPart(List<string> parts, string label, string value)
@@ -286,13 +318,52 @@ namespace ArcaneEDR
             if (parts == null || String.IsNullOrWhiteSpace(label) || String.IsNullOrWhiteSpace(value)) return;
 
             string clean = value.Trim();
-            if (clean.Equals("unknown", StringComparison.OrdinalIgnoreCase) ||
-                clean.Equals("n/a", StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
+            if (!IsMeaningfulHeaderValue(clean)) return;
 
             parts.Add(label + "=" + clean);
+        }
+
+        private static void AppendOptionalPlainTextField(ref string text, string label, string value)
+        {
+            if (String.IsNullOrWhiteSpace(label) || String.IsNullOrWhiteSpace(value)) return;
+            text += label + ": " + value + Environment.NewLine;
+        }
+
+        private static string BuildAsnSummary(string asn, string asnOrg)
+        {
+            string cleanAsn = CleanHeaderValue(asn, 80);
+            string cleanOrg = CleanHeaderValue(asnOrg, 160);
+
+            if (String.IsNullOrWhiteSpace(cleanAsn)) return cleanOrg;
+            if (String.IsNullOrWhiteSpace(cleanOrg)) return cleanAsn;
+            return cleanAsn + " (" + cleanOrg + ")";
+        }
+
+        private static string BuildEnrichmentSummary(string enrichmentSource, string lookup)
+        {
+            string cleanSource = CleanHeaderValue(enrichmentSource, 120);
+            string cleanLookup = CleanHeaderValue(lookup, 120);
+
+            if (String.IsNullOrWhiteSpace(cleanSource)) return cleanLookup;
+            if (String.IsNullOrWhiteSpace(cleanLookup)) return cleanSource;
+            return cleanSource + " / " + cleanLookup;
+        }
+
+        private static string CleanHeaderValue(string value, int maxLength)
+        {
+            string clean = Compact(value, maxLength);
+            return IsMeaningfulHeaderValue(clean) ? clean : "";
+        }
+
+        private static bool IsMeaningfulHeaderValue(string value)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return false;
+
+            string clean = value.Trim();
+            return !clean.Equals("unknown", StringComparison.OrdinalIgnoreCase) &&
+                !clean.Equals("n/a", StringComparison.OrdinalIgnoreCase) &&
+                !clean.Equals("none", StringComparison.OrdinalIgnoreCase) &&
+                !clean.Equals("-", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string InferTelemetrySource(Alert alert)
@@ -737,6 +808,29 @@ namespace ArcaneEDR
         private static string NullToEmpty(string value)
         {
             return value ?? "";
+        }
+
+        private sealed class RemoteHeaderMetadata
+        {
+            public string Endpoint = "";
+            public string Country = "";
+            public string Company = "";
+            public string Asn = "";
+            public string Domain = "";
+            public string Enrichment = "";
+
+            public bool HasAny
+            {
+                get
+                {
+                    return !String.IsNullOrWhiteSpace(Endpoint) ||
+                        !String.IsNullOrWhiteSpace(Country) ||
+                        !String.IsNullOrWhiteSpace(Company) ||
+                        !String.IsNullOrWhiteSpace(Asn) ||
+                        !String.IsNullOrWhiteSpace(Domain) ||
+                        !String.IsNullOrWhiteSpace(Enrichment);
+                }
+            }
         }
     }
 }

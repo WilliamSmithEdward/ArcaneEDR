@@ -52,9 +52,21 @@ coverage unless the operator explicitly scopes them out. The GUI should stay in
 lockstep with the service feature set instead of becoming a stale wrapper around
 older config.
 
-Current active milestone: `v0.8.0` planning. `v0.7.2` is the current
-`v0.7.x` patch release for remote endpoint enrichment, report delivery, and
-unified policy hardening.
+Current active milestone: `v0.8.0` planning. `v0.7.3` is the current
+`v0.7.x` patch release for alert email context and deterministic external
+notification grouping.
+
+Recently completed `v0.7.3` patch:
+
+- Added remote country, company/owner, ASN, domain, endpoint, and enrichment
+  source metadata to the first section of alert emails when available.
+- Added deterministic same-dispatch external alert grouping so repeated
+  same-root notification candidates produce one summary email while each
+  original alert remains locally logged, incident-grouped, and available for
+  response evaluation.
+- Changed low-value repeat dampening defaults to allow one external
+  notification per repeat window, then suppress additional same-root low-score
+  delivery until the window expires.
 
 Recently completed `v0.7.2` patch:
 

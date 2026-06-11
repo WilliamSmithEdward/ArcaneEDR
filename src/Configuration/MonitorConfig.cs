@@ -29,11 +29,16 @@ namespace ArcaneEDR
         public Dictionary<string, int> ExternalAlertProviderMaxPerHour = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public int ExternalAlertMaxPerDispatch = 3;
         public int ExternalAlertMaxPerHour = 24;
+        public bool EnableExternalAlertGrouping = true;
+        public int ExternalAlertGroupingMinimumCount = 2;
+        public int ExternalAlertGroupingMaximumScore = 89;
+        public int ExternalAlertGroupingMaxItems = 8;
+        public HashSet<string> ExternalAlertGroupingCategories = DefaultExternalAlertGroupingCategories();
         public HashSet<string> ExternalAlertSuppressionTermGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public bool EnableLowValueRepeatDampening = true;
         public int LowValueRepeatDampeningMaximumScore = 60;
         public int LowValueRepeatDampeningWindowMinutes = 60;
-        public int LowValueRepeatDampeningMaxExternalAlertsPerWindow = 2;
+        public int LowValueRepeatDampeningMaxExternalAlertsPerWindow = 1;
         public HashSet<string> LowValueRepeatDampeningCategories = DefaultLowValueRepeatDampeningCategories();
         public bool EnableMaintenanceContext = true;
         public HashSet<string> MaintenanceContextTermGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -307,6 +312,13 @@ namespace ArcaneEDR
             config.ExternalAlertProviderMaxPerHour = ReadStringIntMap(values, "ExternalAlertProviderMaxPerHour");
             config.ExternalAlertMaxPerDispatch = ReadInt(values, "ExternalAlertMaxPerDispatch", config.ExternalAlertMaxPerDispatch);
             config.ExternalAlertMaxPerHour = ReadInt(values, "ExternalAlertMaxPerHour", config.ExternalAlertMaxPerHour);
+            config.EnableExternalAlertGrouping = ReadBool(values, "EnableExternalAlertGrouping", config.EnableExternalAlertGrouping);
+            config.ExternalAlertGroupingMinimumCount = ReadInt(values, "ExternalAlertGroupingMinimumCount", config.ExternalAlertGroupingMinimumCount);
+            config.ExternalAlertGroupingMaximumScore = ReadInt(values, "ExternalAlertGroupingMaximumScore", config.ExternalAlertGroupingMaximumScore);
+            config.ExternalAlertGroupingMaxItems = ReadInt(values, "ExternalAlertGroupingMaxItems", config.ExternalAlertGroupingMaxItems);
+            config.ExternalAlertGroupingCategories = values.ContainsKey("ExternalAlertGroupingCategories")
+                ? ReadStringSet(values, "ExternalAlertGroupingCategories")
+                : DefaultExternalAlertGroupingCategories();
             config.ExternalAlertSuppressionTermGroups = ReadStringSet(values, "ExternalAlertSuppressionTermGroups");
             config.EnableLowValueRepeatDampening = ReadBool(values, "EnableLowValueRepeatDampening", config.EnableLowValueRepeatDampening);
             config.LowValueRepeatDampeningMaximumScore = ReadInt(values, "LowValueRepeatDampeningMaximumScore", config.LowValueRepeatDampeningMaximumScore);
@@ -1188,6 +1200,11 @@ namespace ArcaneEDR
         }
 
         private static HashSet<string> DefaultLowValueRepeatDampeningCategories()
+        {
+            return DefaultExternalAlertGroupingCategories();
+        }
+
+        private static HashSet<string> DefaultExternalAlertGroupingCategories()
         {
             HashSet<string> result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             result.Add("Network");
