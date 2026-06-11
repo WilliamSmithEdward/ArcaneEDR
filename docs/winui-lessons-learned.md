@@ -78,22 +78,27 @@ files over parsing human text or duplicating service behavior.
 WinUI scroll behavior deserves deliberate treatment. The final stable pattern
 for Arcane is:
 
-- Let WinUI handle normal scrolling natively.
 - Disable horizontal scroll/rail on page surfaces unless a view truly needs it.
 - Disable scroll chaining and inertia on page-owned scroll surfaces.
+- For top-level page hosts, disable native `VerticalScrollMode` and route
+  vertical wheel/trackpad input with a page-scoped attached behavior.
+- Move page hosts with clamped `ChangeView(..., disableAnimation: true)` calls.
+  Clamp every step to `0..ScrollableHeight`, not only edge events.
+- Add a short edge lock after reaching the top or bottom. Precision touchpads
+  and high-resolution mouse wheels can send tiny momentum-tail deltas in the
+  opposite direction after the visual edge is reached; without a brief lock,
+  the page can drift a few pixels away from the edge and snap back.
 - Avoid nested read-only `TextBox` scroll regions for large output. Prefer
   selectable wrapping `TextBlock` content inside the page scroll host.
 - Keep internal scrolling only where it is clearly expected, such as editable
   policy JSON or alert tables.
 - Do not attach a global wheel router to the app root. It can route wheel input
   between unrelated scroll regions and cause bounce or jump behavior.
-- If top-level pages bounce at vertical edges, use a page-scoped attached
-  behavior that only absorbs edge wheel events. Do not replace normal scrolling
-  with manual `ChangeView` calls.
 - Make scroll content hit-testable. A transparent background on the top-level
-  page content lets the edge absorber receive wheel input over padding and gaps.
-- At the top/bottom edge, call `CancelDirectManipulations()` before absorbing
-  the event to stop active direct-manipulation bounce.
+  page content lets the attached behavior receive wheel input over padding and
+  gaps.
+- Avoid `CancelDirectManipulations()` in the wheel path. It can interact badly
+  with WinUI unload/navigation timing and produce XAML-native crashes.
 
 Important implementation notes:
 
@@ -101,8 +106,12 @@ Important implementation notes:
 - Use an attached behavior for page-level scroll policy.
 - Register the edge handler on the `ScrollViewer.Content`, not globally on the
   window root.
-- Preserve native middle-of-page scroll behavior. Edge fixes should not become
-  a custom scroll engine.
+- The attached behavior should detach on `Unloaded`, ignore detached XAML
+  (`XamlRoot == null`), and log/swallow wheel-route exceptions so input handling
+  does not become a crash path.
+- Keep nested scroll areas deliberate. If a nested `ScrollViewer` can still
+  scroll in the current direction, let it handle the gesture. If it is at its
+  edge, let the page-scoped behavior take over.
 
 Regression coverage should include a focused scroll oracle. Arcane uses
 `scripts\test-gui-scroll.cmd` to protect the intended page-scroll structure.

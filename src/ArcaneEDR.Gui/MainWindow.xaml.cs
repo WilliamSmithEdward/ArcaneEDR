@@ -3,6 +3,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using ArcaneEDR_Gui.Pages;
+using ArcaneEDR_Gui.Services;
 using WinRT.Interop;
 
 // To learn more about WinUI, the WinUI project structure,
@@ -77,7 +78,15 @@ public sealed partial class MainWindow : Window
 
         if (NavFrame.CurrentSourcePageType != pageType)
         {
-            NavFrame.Navigate(pageType);
+            try
+            {
+                NavFrame.Navigate(pageType);
+            }
+            catch (Exception ex)
+            {
+                GuiDiagnostics.LogException("navigation:" + tag, ex);
+                throw;
+            }
         }
     }
 

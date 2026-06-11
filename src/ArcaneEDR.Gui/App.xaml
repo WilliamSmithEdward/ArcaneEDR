@@ -42,7 +42,7 @@
                 <Setter Property="IsVerticalRailEnabled" Value="True" />
                 <Setter Property="IsVerticalScrollChainingEnabled" Value="False" />
                 <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
-                <Setter Property="VerticalScrollMode" Value="Enabled" />
+                <Setter Property="VerticalScrollMode" Value="Disabled" />
                 <Setter Property="ZoomMode" Value="Disabled" />
             </Style>
             <Style x:Key="ConsoleTextBoxStyle" TargetType="TextBox">

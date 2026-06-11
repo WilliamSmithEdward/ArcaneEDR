@@ -63,12 +63,22 @@ Assert-Contains $pageScrollBehavior "PointerWheelChangedEvent" "PageScrollBehavi
 Assert-Contains $pageScrollBehavior "AttachToCurrentContent" "PageScrollBehavior"
 Assert-Contains $pageScrollBehavior "OwnerScrollViewerProperty" "PageScrollBehavior"
 Assert-Contains $pageScrollBehavior "ChangeView(" "PageScrollBehavior"
-Assert-Contains $pageScrollBehavior "AbsorbBoundaryWheel" "PageScrollBehavior"
+Assert-Contains $pageScrollBehavior "RoutePageWheel" "PageScrollBehavior"
+Assert-Contains $pageScrollBehavior "GetWheelTargetOffset" "PageScrollBehavior"
+Assert-Contains $pageScrollBehavior "CanScrollInDirection" "PageScrollBehavior"
+Assert-Contains $pageScrollBehavior "ShouldSuppressForEdgeLock" "PageScrollBehavior"
+Assert-Contains $pageScrollBehavior "UpdateEdgeLock" "PageScrollBehavior"
+Assert-Contains $pageScrollBehavior "EdgeLockDurationTicks" "PageScrollBehavior"
+Assert-Contains $pageScrollBehavior "ConditionalWeakTable" "PageScrollBehavior"
+Assert-Contains $pageScrollBehavior "Clamp(" "PageScrollBehavior"
+Assert-Contains $pageScrollBehavior "ScrollViewer_Unloaded" "PageScrollBehavior"
+Assert-Contains $pageScrollBehavior "GuiDiagnostics.LogException" "PageScrollBehavior"
+Assert-Contains $pageScrollBehavior "IsUsable" "PageScrollBehavior"
 Assert-Contains $pageScrollBehavior "IsAtDirectionalEdge" "PageScrollBehavior"
 Assert-Contains $pageScrollBehavior "EnsureHitTestableContent" "PageScrollBehavior"
-Assert-Contains $pageScrollBehavior "CancelDirectManipulations" "PageScrollBehavior"
 Assert-Contains $pageScrollBehavior "Colors.Transparent" "PageScrollBehavior"
 Assert-Contains $pageScrollBehavior "OffsetTolerance" "PageScrollBehavior"
+Assert-NotContains $pageScrollBehavior "CancelDirectManipulations" "PageScrollBehavior"
 Assert-NotContains $pageScrollBehavior "scrollViewer.AddHandler" "PageScrollBehavior"
 Assert-NotContains $pageScrollBehavior "TryScroll" "PageScrollBehavior"
 
@@ -114,7 +124,7 @@ foreach ($needle in @(
     'IsHorizontalScrollChainingEnabled" Value="False"',
     'IsScrollInertiaEnabled" Value="False"',
     'IsVerticalScrollChainingEnabled" Value="False"',
-    'VerticalScrollMode" Value="Enabled"',
+    'VerticalScrollMode" Value="Disabled"',
     'ZoomMode" Value="Disabled"'
 )) {
     Assert-Contains $appResources $needle "Page scroll style"
