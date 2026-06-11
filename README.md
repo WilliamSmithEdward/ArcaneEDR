@@ -211,10 +211,11 @@ elevated PowerShell session:
 ```
 
 The install helper installs product files under `C:\Program Files\Arcane EDR`,
-removes an existing service registration only when `-ReplaceExistingService`
-is supplied, rewrites installed `Deployment.config` to `C:\Program Files`, and
-then verifies the installed executable version, service path, config, and
-service status. After validation confirms the service points at
+uses `%ProgramData%\Arcane EDR` for first-install mutable logs/state, removes an
+existing service registration only when `-ReplaceExistingService` is supplied,
+writes installed first-run runtime/deployment config when missing, and then
+verifies the installed executable version, service path, config, and service
+status. After validation confirms the service points at
 `C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe`, any old
 `C:\Applications\ArcaneEDR` folder may be deleted.
 
@@ -254,6 +255,7 @@ Configuration page provides a guarded reset-to-defaults flow with an explicit
 warning checkbox and backup-before-reset behavior.
 
 The standard MSI-owned product folder is `C:\Program Files\Arcane EDR`.
+The standard first-install machine data folder is `%ProgramData%\Arcane EDR`.
 
 ## Install As A Windows Service
 

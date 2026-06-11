@@ -33,7 +33,7 @@ namespace ArcaneEDR
 
             ValidateRemovedConfigKeys(config, errors);
             ValidateBasicSettings(config, errors, warnings);
-            ValidateLogDirectory(config, errors);
+            ValidateLogDirectory(config, errors, warnings);
             ValidateSecrets(config, errors, warnings);
             ValidateEventLogAccess(config, warnings);
             ValidateSysmon(config, warnings);
@@ -979,7 +979,7 @@ namespace ArcaneEDR
             }
         }
 
-        private static void ValidateLogDirectory(MonitorConfig config, List<string> errors)
+        private static void ValidateLogDirectory(MonitorConfig config, List<string> errors, List<string> warnings)
         {
             try
             {
@@ -991,7 +991,53 @@ namespace ArcaneEDR
             }
             catch (Exception ex)
             {
-                Fail(errors, "Log directory is not writable: " + config.LogDirectory + " (" + ex.Message + ")");
+                if (CanDeferLogDirectoryWriteCheckToInstalledService(config))
+                {
+                    Warn(warnings, "Log directory is not writable by the current user: " + config.LogDirectory + " (" + ex.Message + "). The Windows service is installed, so validate service-account write access with elevated validation or service health.");
+                }
+                else
+                {
+                    Fail(errors, "Log directory is not writable: " + config.LogDirectory + " (" + ex.Message + ")");
+                }
+            }
+        }
+
+        private static bool CanDeferLogDirectoryWriteCheckToInstalledService(MonitorConfig config)
+        {
+            if (IsCurrentProcessAdministrator()) return false;
+            if (String.IsNullOrWhiteSpace(config.ServiceName)) return false;
+
+            try
+            {
+                using (ServiceController controller = new ServiceController(config.ServiceName))
+                {
+                    ServiceControllerStatus status = controller.Status;
+                    return status == ServiceControllerStatus.Running ||
+                        status == ServiceControllerStatus.StartPending ||
+                        status == ServiceControllerStatus.Stopped ||
+                        status == ServiceControllerStatus.Paused ||
+                        status == ServiceControllerStatus.ContinuePending ||
+                        status == ServiceControllerStatus.PausePending ||
+                        status == ServiceControllerStatus.StopPending;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool IsCurrentProcessAdministrator()
+        {
+            try
+            {
+                System.Security.Principal.WindowsIdentity identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+                System.Security.Principal.WindowsPrincipal principal = new System.Security.Principal.WindowsPrincipal(identity);
+                return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+            }
+            catch
+            {
+                return false;
             }
         }
 

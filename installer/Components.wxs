@@ -1,6 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Fragment>
+    <DirectoryRef Id="ConfigFolder">
+      <Component Id="RuntimeConfigComponent" Guid="{8335C619-0D6F-46CF-9223-C75316BCB73D}" NeverOverwrite="yes">
+        <File
+          Id="RuntimeConfigFile"
+          Source="$(var.StageRoot)\config\ArcaneEDR.config"
+          KeyPath="yes" />
+      </Component>
+
+      <Component Id="DeploymentConfigComponent" Guid="{9E73F8A0-A5B1-4323-B6D8-8029345C35B4}" NeverOverwrite="yes">
+        <File
+          Id="DeploymentConfigFile"
+          Source="$(var.StageRoot)\config\Deployment.config"
+          KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
     <DirectoryRef Id="BinFolder">
       <Component Id="ArcaneServiceComponent" Guid="{8DE498F8-677C-4C77-8B2D-A19EF0B08C5D}">
         <File

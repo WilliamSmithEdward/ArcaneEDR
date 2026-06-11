@@ -95,6 +95,8 @@ The script:
 - installs product files under `C:\Program Files\Arcane EDR` by default
 - removes an existing service registration only when
   `-ReplaceExistingService` is supplied
+- writes first-install runtime config when missing, with logs/state under
+  `%ProgramData%\Arcane EDR`
 - writes installed `Deployment.config` to point at `C:\Program Files`
 - lets MSI own the service, GUI, Start menu shortcut, repair, upgrade, and
   uninstall path
@@ -103,6 +105,10 @@ The script:
   `C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe`
 - runs `--version` and `--validate-config` after install
 - starts the service after validation
+
+MSI installs use `C:\Program Files\Arcane EDR` for product files and
+`%ProgramData%\Arcane EDR` for mutable logs, health state, watermarks, reports,
+and local JSONL evidence. Local config files are not overwritten on upgrade.
 
 After this verification passes, `C:\Applications\ArcaneEDR` is no longer part
 of the product runtime path and may be deleted by the operator if present.

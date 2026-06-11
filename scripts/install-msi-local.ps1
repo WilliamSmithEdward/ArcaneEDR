@@ -159,11 +159,75 @@ function Write-InstalledDeploymentConfig {
     ) | Set-Content -LiteralPath (Join-Path $configDirectory "Deployment.config") -Encoding ASCII
 }
 
+function Set-ConfigValue {
+    param(
+        [string]$Path,
+        [string]$Name,
+        [string]$Value
+    )
+
+    $lines = @()
+    $found = $false
+    if (Test-Path -LiteralPath $Path) {
+        foreach ($rawLine in Get-Content -LiteralPath $Path) {
+            $line = $rawLine.Trim()
+            if ($line.Length -gt 0 -and !$line.StartsWith("#")) {
+                $equals = $line.IndexOf("=")
+                if ($equals -gt 0) {
+                    $key = $line.Substring(0, $equals).Trim()
+                    if ($key.Equals($Name, [System.StringComparison]::OrdinalIgnoreCase)) {
+                        $lines += ($Name + "=" + $Value)
+                        $found = $true
+                        continue
+                    }
+                }
+            }
+
+            $lines += $rawLine
+        }
+    }
+
+    if (!$found) {
+        $lines += ($Name + "=" + $Value)
+    }
+
+    $lines | Set-Content -LiteralPath $Path -Encoding ASCII
+}
+
+function Write-InstalledRuntimeConfig {
+    param(
+        [string]$InstallFolder,
+        [string]$DataRoot
+    )
+
+    $configDirectory = Join-Path $InstallFolder "config"
+    New-Item -ItemType Directory -Force -Path $configDirectory | Out-Null
+
+    $runtimeConfig = Join-Path $configDirectory "ArcaneEDR.config"
+    if (Test-Path -LiteralPath $runtimeConfig) {
+        return
+    }
+
+    $exampleConfig = Join-Path $configDirectory "ArcaneEDR.example.config"
+    if (!(Test-Path -LiteralPath $exampleConfig)) {
+        throw "ArcaneEDR.example.config was not found under installed config directory: $configDirectory"
+    }
+
+    Copy-Item -LiteralPath $exampleConfig -Destination $runtimeConfig -Force
+    Set-ConfigValue -Path $runtimeConfig -Name "LogDirectory" -Value $DataRoot
+    Set-ConfigValue -Path $runtimeConfig -Name "PolicyFile" -Value "arcane-policy.example.json"
+}
+
 $root = Split-Path -Parent $PSScriptRoot
 $programFiles = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)
 if ([string]::IsNullOrWhiteSpace($programFiles)) {
     $programFiles = "C:\Program Files"
 }
+$programData = [Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)
+if ([string]::IsNullOrWhiteSpace($programData)) {
+    $programData = "C:\ProgramData"
+}
+$dataRoot = Join-Path $programData "Arcane EDR"
 
 if ([string]::IsNullOrWhiteSpace($InstallFolder)) {
     $InstallFolder = Join-Path $programFiles "Arcane EDR"
@@ -226,6 +290,8 @@ if (!(Test-Path -LiteralPath $exe)) {
     throw "MSI completed but service executable was not found: $exe"
 }
 
+New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
+Write-InstalledRuntimeConfig -InstallFolder $InstallFolder -DataRoot $dataRoot
 Write-InstalledDeploymentConfig -InstallFolder $InstallFolder -DestinationRoot $programFiles
 
 Write-Host ""

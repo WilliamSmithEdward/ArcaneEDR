@@ -43,6 +43,8 @@
       <ComponentGroupRef Id="DocFiles" />
       <ComponentGroupRef Id="AssetFiles" />
       <ComponentRef Id="ArcaneServiceComponent" />
+      <ComponentRef Id="RuntimeConfigComponent" />
+      <ComponentRef Id="DeploymentConfigComponent" />
       <ComponentRef Id="GuiShortcutComponent" />
     </Feature>
   </Package>

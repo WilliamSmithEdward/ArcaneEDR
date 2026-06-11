@@ -26,10 +26,10 @@ Default live application folder:
 C:\Program Files\Arcane EDR
 ```
 
-Default log folder:
+Default machine data/log folder:
 
 ```text
-C:\Security
+%ProgramData%\Arcane EDR
 ```
 
 ## Normal Development
@@ -76,7 +76,8 @@ cd C:\Development\ArcaneEDR
 .\scripts\install-msi-local.cmd -ReplaceExistingService
 ```
 
-This installs product files under `C:\Program Files\Arcane EDR`, replaces an
+This installs product files under `C:\Program Files\Arcane EDR`, uses
+`%ProgramData%\Arcane EDR` for first-install mutable logs/state, replaces an
 existing service registration when explicitly requested, and verifies the
 installed executable version, service path, config, and service status.
 

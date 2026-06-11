@@ -9,7 +9,7 @@ edit source code should use the source-clone workflow in the README.
 ## What You Will End With
 
 - Arcane EDR installed in `C:\Program Files\Arcane EDR`.
-- Logs written to `C:\Security`.
+- Logs and mutable service state written to `%ProgramData%\Arcane EDR`.
 - A Windows service named `ArcaneEDR`.
 - Local alert logs, even if email or external alerting is not configured.
 - Optional Sysmon telemetry if you install Sysmon.
@@ -40,9 +40,8 @@ Most commands in this guide assume that Administrator PowerShell window.
 
 ## 2. Create The Log Folder
 
-```powershell
-New-Item -ItemType Directory -Force -Path C:\Security
-```
+The MSI creates the standard mutable data directory under
+`%ProgramData%\Arcane EDR`.
 
 ## 3. Install Arcane EDR
 
@@ -97,7 +96,7 @@ Confirm these values are set the way you want:
 ```ini
 ServiceName=ArcaneEDR
 ServiceDisplayName=Arcane EDR
-LogDirectory=C:\Security
+LogDirectory=C:\ProgramData\Arcane EDR
 ResponseMode=AlertOnly
 EnableFirewallBlockResponse=false
 EnableProcessTerminationResponse=false
@@ -264,8 +263,8 @@ Restart-Service ArcaneEDR
 Run:
 
 ```powershell
-Get-ChildItem C:\Security
-Get-Content C:\Security\ArcaneEDR.log -Tail 40
+Get-ChildItem "$env:ProgramData\Arcane EDR"
+Get-Content "$env:ProgramData\Arcane EDR\ArcaneEDR.log" -Tail 40
 ```
 
 You should see Arcane EDR log entries.
@@ -273,9 +272,9 @@ You should see Arcane EDR log entries.
 The most important local files are:
 
 ```text
-C:\Security\ArcaneEDR.log
-C:\Security\ArcaneAlerts.jsonl
-C:\Security\ArcaneServiceHealth.state
+C:\ProgramData\Arcane EDR\ArcaneEDR.log
+C:\ProgramData\Arcane EDR\ArcaneAlerts.jsonl
+C:\ProgramData\Arcane EDR\ArcaneServiceHealth.state
 ```
 
 ## 12. Send Test Notifications
@@ -332,7 +331,7 @@ msiexec.exe /x {PRODUCT-CODE-FROM-APPS-AND-FEATURES}
 ```
 
 The MSI stops/removes the Windows service and removes product files. Local logs
-under `C:\Security` are not deleted.
+under `%ProgramData%\Arcane EDR` are not deleted.
 
 ## Troubleshooting
 
@@ -372,7 +371,7 @@ Check:
 
 ```powershell
 .\bin\ArcaneEDR.exe --validate-config
-Get-Content C:\Security\ArcaneEDR.log -Tail 80
+Get-Content "$env:ProgramData\Arcane EDR\ArcaneEDR.log" -Tail 80
 ```
 
 Common causes:
@@ -422,8 +421,8 @@ off.
 You are done when all of these are true:
 
 - `Get-Service ArcaneEDR` shows `Running`.
-- `C:\Security\ArcaneEDR.log` exists and is updating.
-- `C:\Security\ArcaneAlerts.jsonl` exists.
+- `%ProgramData%\Arcane EDR\ArcaneEDR.log` exists and is updating.
+- `%ProgramData%\Arcane EDR\ArcaneAlerts.jsonl` exists.
 - `.\bin\ArcaneEDR.exe --validate-config` has no errors.
 - `.\bin\ArcaneEDR.exe --test-alert` works locally or sends email.
 - If Sysmon is installed, `Get-Service Sysmon64` shows `Running`.

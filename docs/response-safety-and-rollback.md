@@ -101,7 +101,7 @@ EnableResponseLedger=true
 Review intended actions:
 
 ```powershell
-Get-Content C:\Security\ArcaneResponseLedger.jsonl -Tail 20
+Get-Content "$env:ProgramData\Arcane EDR\ArcaneResponseLedger.jsonl" -Tail 20
 .\bin\ArcaneEDR.exe --response-firewall list
 ```
 

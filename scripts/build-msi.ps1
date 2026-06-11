@@ -29,6 +29,41 @@ function Copy-Tree {
     Copy-Item -Path (Join-Path $Source "*") -Destination $Destination -Recurse -Force
 }
 
+function Set-ConfigValue {
+    param(
+        [string]$Path,
+        [string]$Name,
+        [string]$Value
+    )
+
+    $lines = @()
+    $found = $false
+    if (Test-Path -LiteralPath $Path) {
+        foreach ($rawLine in Get-Content -LiteralPath $Path) {
+            $line = $rawLine.Trim()
+            if ($line.Length -gt 0 -and !$line.StartsWith("#")) {
+                $equals = $line.IndexOf("=")
+                if ($equals -gt 0) {
+                    $key = $line.Substring(0, $equals).Trim()
+                    if ($key.Equals($Name, [System.StringComparison]::OrdinalIgnoreCase)) {
+                        $lines += ($Name + "=" + $Value)
+                        $found = $true
+                        continue
+                    }
+                }
+            }
+
+            $lines += $rawLine
+        }
+    }
+
+    if (!$found) {
+        $lines += ($Name + "=" + $Value)
+    }
+
+    $lines | Set-Content -LiteralPath $Path -Encoding ASCII
+}
+
 function ConvertTo-XmlAttribute {
     param([string]$Value)
 
@@ -56,7 +91,7 @@ function New-HarvestFragment {
         [string]$SourceRoot,
         [string]$ComponentGroupId,
         [string]$OutputPath,
-        [string]$SkipRelative = ""
+        [string[]]$SkipRelative = @()
     )
 
     $script:ArcaneHarvestComponentIndex = 0
@@ -72,8 +107,7 @@ function New-HarvestFragment {
 
         foreach ($file in Get-ChildItem -LiteralPath $CurrentPath -File | Sort-Object Name) {
             $relative = $file.FullName.Substring($SourceRoot.Length).TrimStart('\')
-            if (![string]::IsNullOrWhiteSpace($SkipRelative) -and
-                $relative.Equals($SkipRelative, [System.StringComparison]::OrdinalIgnoreCase)) {
+            if ($SkipRelative | Where-Object { $relative.Equals($_, [System.StringComparison]::OrdinalIgnoreCase) }) {
                 continue
             }
 
@@ -150,9 +184,22 @@ New-Item -ItemType Directory -Force -Path `
 
 Copy-Item -LiteralPath (Join-Path $root "config\ArcaneEDR.example.config") -Destination (Join-Path $stage "config") -Force
 Copy-Item -LiteralPath (Join-Path $root "config\Deployment.example.config") -Destination (Join-Path $stage "config") -Force
+Copy-Item -LiteralPath (Join-Path $root "config\ArcaneEDR.example.config") -Destination (Join-Path $stage "config\ArcaneEDR.config") -Force
+Copy-Item -LiteralPath (Join-Path $root "config\Deployment.example.config") -Destination (Join-Path $stage "config\Deployment.config") -Force
 Copy-Item -LiteralPath (Join-Path $root "config\arcaneedr-sysmon.xml") -Destination (Join-Path $stage "config") -Force
 Copy-Item -LiteralPath (Join-Path $root "config\custom-rules.json") -Destination (Join-Path $stage "config") -Force
 Copy-Item -LiteralPath (Join-Path $root "config\arcane-policy.example.json") -Destination (Join-Path $stage "config") -Force
+
+$programFiles = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)
+if ([string]::IsNullOrWhiteSpace($programFiles)) { $programFiles = "C:\Program Files" }
+$programData = [Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)
+if ([string]::IsNullOrWhiteSpace($programData)) { $programData = "C:\ProgramData" }
+$dataRoot = Join-Path $programData "Arcane EDR"
+Set-ConfigValue -Path (Join-Path $stage "config\ArcaneEDR.config") -Name "LogDirectory" -Value $dataRoot
+Set-ConfigValue -Path (Join-Path $stage "config\ArcaneEDR.config") -Name "PolicyFile" -Value "arcane-policy.example.json"
+Set-ConfigValue -Path (Join-Path $stage "config\Deployment.config") -Name "ApplicationName" -Value "Arcane EDR"
+Set-ConfigValue -Path (Join-Path $stage "config\Deployment.config") -Name "DestinationRoot" -Value $programFiles
+Set-ConfigValue -Path (Join-Path $stage "config\Deployment.config") -Name "ExecutableName" -Value "ArcaneEDR.exe"
 Copy-Item -LiteralPath (Join-Path $root "README.md") -Destination $stage -Force
 Copy-Item -LiteralPath (Join-Path $root "ROADMAP.md") -Destination $stage -Force
 Copy-Item -LiteralPath (Join-Path $root "LICENSE") -Destination $stage -Force
@@ -162,7 +209,7 @@ Copy-Item -Path (Join-Path $root "scripts\*.cmd") -Destination (Join-Path $stage
 Copy-Tree -Source (Join-Path $root "src\Assets") -Destination (Join-Path $stage "assets")
 
 New-HarvestFragment -DirectoryId "GuiFolder" -SourceRoot $guiStage -ComponentGroupId "GuiFiles" -OutputPath (Join-Path $wixObj "GuiFiles.wxs")
-New-HarvestFragment -DirectoryId "ConfigFolder" -SourceRoot (Join-Path $stage "config") -ComponentGroupId "ConfigFiles" -OutputPath (Join-Path $wixObj "ConfigFiles.wxs")
+New-HarvestFragment -DirectoryId "ConfigFolder" -SourceRoot (Join-Path $stage "config") -ComponentGroupId "ConfigFiles" -OutputPath (Join-Path $wixObj "ConfigFiles.wxs") -SkipRelative @("ArcaneEDR.config", "Deployment.config")
 New-HarvestFragment -DirectoryId "ScriptsFolder" -SourceRoot (Join-Path $stage "scripts") -ComponentGroupId "ScriptFiles" -OutputPath (Join-Path $wixObj "ScriptFiles.wxs")
 New-HarvestFragment -DirectoryId "DocsFolder" -SourceRoot (Join-Path $stage "docs") -ComponentGroupId "DocFiles" -OutputPath (Join-Path $wixObj "DocFiles.wxs")
 New-HarvestFragment -DirectoryId "AssetsFolder" -SourceRoot (Join-Path $stage "assets") -ComponentGroupId "AssetFiles" -OutputPath (Join-Path $wixObj "AssetFiles.wxs")
