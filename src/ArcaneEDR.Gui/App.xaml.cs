@@ -53,6 +53,7 @@ public partial class App : Application
     private static void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs args)
     {
         GuiDiagnostics.LogException("xaml-unhandled", args.Exception);
+        args.Handled = true;
     }
 
     private static void CurrentDomain_UnhandledException(object sender, System.UnhandledExceptionEventArgs args)

@@ -52,8 +52,10 @@ coverage unless the operator explicitly scopes them out. The GUI should stay in
 lockstep with the service feature set instead of becoming a stale wrapper around
 older config.
 
-Current active milestone: `v0.8.0` release validation. `v0.8.0` is the current
-GUI/MSI milestone release candidate.
+Current active milestone: `v0.8.x` release hardening. The GUI/MSI product track
+is implemented and usable locally; remaining validation is focused on
+disposable-VM installer tests, public artifact signing, accessibility sweeps,
+and final documentation polish.
 
 Recently completed `v0.8.0` milestone:
 
@@ -72,6 +74,22 @@ Recently completed `v0.8.0` milestone:
 - Added scoped policy engine, shared alert presentation model, modular
   enrichment-provider plan, JSONL-only storage direction, policy inspection,
   and fixture tests.
+- Added structured JSON CLI seams for GUI/test consumption: validation, health,
+  alert volume, agent activity, incidents, response-firewall ledger, policy
+  inspect, and daily report preview.
+- Added a simpler human-readable Overview with one plain-language status,
+  next action, review queue, signal picture, and configuration validation
+  summary.
+- Added GUI command-state feedback for long-running configuration, policy,
+  reports, and maintenance actions.
+- Added alert-table saved view preferences plus CSV copy/export of the current
+  filtered/sorted rows.
+- Added field-level help for dangerous or privacy-sensitive guided config
+  settings and a GUI config metadata catalog for type, risk, restart, and
+  privacy notes.
+- Added `scripts\test-msi-validation.ps1` / `.cmd` for repeatable local MSI
+  artifact, checksum, installed-state, optional repair, and admin-validation
+  checks.
 
 Recently completed `v0.7.3` patch:
 
@@ -143,7 +161,7 @@ phase sections below.
 | `v0.5.0` | Done | Complete | Released investigation MVP: `why` explanations, incident grouping, timeline command, support bundle, simulations and demo path, rule-family docs, poll-stage fail-isolation, and structured local detection-policy preview/tuning. |
 | `v0.6.0` | Done | Complete | Released guardrails and response-safety milestone: Agent Profile labeling, file-write guardrails, compact activity ledger, alert-only admin/secret/supply-chain guardrails, response dry-run ledger, active-response policy gates, rollback helpers, follow-up detections, maintenance session markers, `0.6.0` versioning, package ZIP, checksum, GitHub release, and local deployment are complete. |
 | `v0.7.0` | Done | Complete | Released collector/rule cleanup and privacy-hardening milestone: shared rule taxonomy cleanup, remote endpoint enrichment, ordered remote endpoint policy, default critical country review for RDAP country missing or non-US, no-shim validation for removed remote-list config keys, policy regex/port validation, `0.7.0` versioning, package ZIP, checksum, GitHub release, and local deployment are complete. |
-| `v0.8.0` | Release candidate | Validation | Native WinUI operator console, WiX MSI installer, scoped policy foundation, shared presentation/enrichment seams, JSONL-only storage direction, fixture tests, and GUI/MSI docs/scripts are implemented. |
+| `v0.8.0` | Hardening | Mostly complete | Native WinUI operator console, WiX MSI installer, scoped policy foundation, shared presentation/enrichment seams, structured CLI JSON seams, JSONL-only storage direction, fixture tests, and GUI/MSI docs/scripts are implemented. Remaining gates require disposable VM installer validation, public artifact signing, and formal accessibility/responsive sweeps. |
 | `v1.0.0` | Not ready | Planned | Requires completed docs, tuned alert volume, tested install/upgrade/release flow, dry-run/manual response safety, and stable privacy/operations posture. |
 
 Current milestone focus: validate and release the `v0.8.0` GUI and MSI track
@@ -177,6 +195,15 @@ Required for `v0.8.0`:
   understandable before execution.
 - Release packaging should make the MSI, service binary, GUI binary, examples,
   docs, checksums, and version metadata coherent as one product.
+
+Implemented `v0.8.x` closeout additions:
+
+- Structured JSON outputs for GUI/test read-only seams.
+- Overview rewritten for simple actionable operator guidance.
+- GUI command status/disabled-running behavior for long-running commands.
+- Alert table CSV copy/export and saved per-user view state.
+- Configuration metadata catalog plus field-level help for risky settings.
+- Repeatable MSI validation script with explicit disposable-VM gates.
 
 Exit criteria:
 

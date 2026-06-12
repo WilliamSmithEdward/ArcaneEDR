@@ -56,6 +56,30 @@
                 </Button>
             </Grid>
 
+            <Border Style="{StaticResource SectionCardStyle}">
+                <StackPanel Spacing="8">
+                    <TextBlock
+                        x:Name="StatusHeadingText"
+                        FontSize="24"
+                        FontWeight="SemiBold"
+                        Text="Checking Arcane..."
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        x:Name="StatusDetailText"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="Refreshing service health, validation, and recent alerts."
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        Margin="0,8,0,0"
+                        FontWeight="SemiBold"
+                        Text="Next action" />
+                    <TextBlock
+                        x:Name="NextActionText"
+                        Text="Wait for refresh to finish."
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
             <Grid ColumnSpacing="12" RowSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -97,33 +121,25 @@
                 </Grid.ColumnDefinitions>
                 <Border Style="{StaticResource SectionCardStyle}">
                     <StackPanel Spacing="8">
-                        <TextBlock FontWeight="SemiBold" Text="Review priorities" />
+                        <TextBlock FontWeight="SemiBold" Text="Review queue" />
                         <ItemsControl x:Name="RecommendationsList">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border
-                                        Margin="0,0,0,8"
-                                        Padding="10"
-                                        Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
-                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="6">
-                                        <StackPanel Spacing="4">
-                                            <TextBlock
-                                                FontSize="12"
-                                                FontWeight="SemiBold"
-                                                Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                                                Text="{Binding Priority}" />
-                                            <TextBlock
-                                                FontWeight="SemiBold"
-                                                Text="{Binding Title}"
-                                                TextWrapping="Wrap" />
-                                            <TextBlock
-                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                Text="{Binding Detail}"
-                                                TextWrapping="Wrap" />
-                                        </StackPanel>
-                                    </Border>
+                                    <StackPanel Margin="0,0,0,12" Spacing="3">
+                                        <TextBlock
+                                            FontSize="12"
+                                            FontWeight="SemiBold"
+                                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                            Text="{Binding Priority}" />
+                                        <TextBlock
+                                            FontWeight="SemiBold"
+                                            Text="{Binding Title}"
+                                            TextWrapping="Wrap" />
+                                        <TextBlock
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Text="{Binding Detail}"
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -131,12 +147,12 @@
                 </Border>
                 <Border Grid.Column="1" Style="{StaticResource SectionCardStyle}">
                     <StackPanel Spacing="8">
-                        <TextBlock FontWeight="SemiBold" Text="Current signal picture" />
+                        <TextBlock FontWeight="SemiBold" Text="Signal picture" />
                         <TextBlock x:Name="SignalSummaryText" TextWrapping="Wrap" />
                         <TextBlock
                             Margin="0,8,0,0"
                             FontWeight="SemiBold"
-                            Text="Health timestamps" />
+                            Text="Service rhythm" />
                         <TextBlock x:Name="HealthText" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>

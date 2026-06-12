@@ -4,11 +4,15 @@ using System.Diagnostics;
 using System.Diagnostics.Eventing.Reader;
 using System.IO;
 using System.ServiceProcess;
+using System.Web.Script.Serialization;
 
 namespace ArcaneEDR
 {
     internal static class ConfigValidator
     {
+        private static List<ValidationMessage> currentMessages = new List<ValidationMessage>();
+        private static bool currentJson;
+
         public static int Run(string baseDirectory)
         {
             return Run(baseDirectory, "");
@@ -16,9 +20,16 @@ namespace ArcaneEDR
 
         public static int Run(string baseDirectory, string explicitConfigPath)
         {
+            return Run(baseDirectory, explicitConfigPath, false);
+        }
+
+        public static int Run(string baseDirectory, string explicitConfigPath, bool json)
+        {
             List<string> errors = new List<string>();
             List<string> warnings = new List<string>();
             MonitorConfig config = null;
+            currentMessages = new List<ValidationMessage>();
+            currentJson = json;
 
             try
             {
@@ -28,7 +39,7 @@ namespace ArcaneEDR
             catch (Exception ex)
             {
                 Fail(errors, "Config load failed: " + ex.Message);
-                return Finish(errors, warnings);
+                return Finish(errors, warnings, null);
             }
 
             ValidateRemovedConfigKeys(config, errors);
@@ -40,7 +51,7 @@ namespace ArcaneEDR
             ValidateCustomRules(config, errors, warnings);
             ValidateDetectionPolicy(config, errors, warnings);
 
-            return Finish(errors, warnings);
+            return Finish(errors, warnings, config);
         }
 
         private static void ValidateBasicSettings(MonitorConfig config, List<string> errors, List<string> warnings)
@@ -1453,28 +1464,69 @@ namespace ArcaneEDR
             return MonitorConfig.CanonicalExternalAlertProvider(provider);
         }
 
-        private static int Finish(List<string> errors, List<string> warnings)
+        private static int Finish(List<string> errors, List<string> warnings, MonitorConfig config)
         {
-            Console.WriteLine();
-            Console.WriteLine("Validation summary: " + errors.Count + " error(s), " + warnings.Count + " warning(s).");
+            if (currentJson)
+            {
+                Dictionary<string, object> root = new Dictionary<string, object>();
+                root["schema"] = "arcane.validation.v1";
+                root["ok"] = errors.Count == 0;
+                root["error_count"] = errors.Count;
+                root["warning_count"] = warnings.Count;
+                root["summary"] = "Validation summary: " + errors.Count + " error(s), " + warnings.Count + " warning(s).";
+                root["version"] = VersionInfo.Version;
+                root["config_path"] = config == null ? "" : config.ConfigPath;
+                root["log_directory"] = config == null ? "" : config.LogDirectory;
+                root["messages"] = currentMessages;
+                JavaScriptSerializer serializer = new JavaScriptSerializer();
+                Console.WriteLine(serializer.Serialize(root));
+            }
+            else
+            {
+                Console.WriteLine();
+                Console.WriteLine("Validation summary: " + errors.Count + " error(s), " + warnings.Count + " warning(s).");
+            }
+
+            currentJson = false;
             return errors.Count == 0 ? 0 : 1;
         }
 
         private static void Pass(string message)
         {
-            Console.WriteLine("[PASS] " + message);
+            WriteMessage("pass", message);
         }
 
         private static void Warn(List<string> warnings, string message)
         {
             warnings.Add(message);
-            Console.WriteLine("[WARN] " + message);
+            WriteMessage("warn", message);
         }
 
         private static void Fail(List<string> errors, string message)
         {
             errors.Add(message);
-            Console.WriteLine("[FAIL] " + message);
+            WriteMessage("fail", message);
+        }
+
+        private static void WriteMessage(string level, string message)
+        {
+            currentMessages.Add(new ValidationMessage
+            {
+                level = level,
+                message = message
+            });
+
+            if (currentJson) return;
+
+            if (level.Equals("pass", StringComparison.OrdinalIgnoreCase)) Console.WriteLine("[PASS] " + message);
+            else if (level.Equals("warn", StringComparison.OrdinalIgnoreCase)) Console.WriteLine("[WARN] " + message);
+            else Console.WriteLine("[FAIL] " + message);
+        }
+
+        private sealed class ValidationMessage
+        {
+            public string level { get; set; }
+            public string message { get; set; }
         }
     }
 }

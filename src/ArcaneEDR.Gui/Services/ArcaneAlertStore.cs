@@ -118,7 +118,7 @@ internal static class ArcaneAlertStore
     public static IReadOnlyList<ArcaneOverviewRecommendation> BuildRecommendations(
         IReadOnlyList<ArcaneAlertRecord> alerts,
         ArcaneHealthSnapshot health,
-        string validationText)
+        ArcaneValidationReport validation)
     {
         List<ArcaneOverviewRecommendation> recommendations = new List<ArcaneOverviewRecommendation>();
         DateTime cutoff = DateTime.UtcNow.AddHours(-24);
@@ -140,13 +140,13 @@ internal static class ArcaneAlertStore
             });
         }
 
-        if (ArcaneValidationView.HasErrors(validationText))
+        if (validation.ErrorCount > 0)
         {
             recommendations.Add(new ArcaneOverviewRecommendation
             {
                 Priority = "High",
                 Title = "Configuration validation needs review",
-                Detail = ArcaneValidationView.FirstFailureLine(validationText) ?? "Open Configuration and resolve validation errors."
+                Detail = ArcaneValidationView.FirstFailureLine(validation) ?? "Open Configuration and resolve validation errors."
             });
         }
 

@@ -15,19 +15,19 @@ public sealed partial class MaintenancePage : Page
 
     private async void StartMaintenance_Click(object sender, RoutedEventArgs e)
     {
-        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--maintenance", "start", "--duration", "30m", "--reason", "gui-maintenance");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await RunMaintenanceAsync(sender, "Starting maintenance marker...", async () =>
+            await ArcaneCommandRunner.RunAsync("--maintenance", "start", "--duration", "30m", "--reason", "gui-maintenance"));
     }
 
     private async void ClearMaintenance_Click(object sender, RoutedEventArgs e)
     {
-        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--maintenance", "clear", "--reason", "gui-clear");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await RunMaintenanceAsync(sender, "Clearing maintenance marker...", async () =>
+            await ArcaneCommandRunner.RunAsync("--maintenance", "clear", "--reason", "gui-clear"));
     }
 
     private async void ListMaintenance_Click(object sender, RoutedEventArgs e)
     {
-        await ListMaintenanceAsync();
+        await ListMaintenanceAsync(sender as Button);
     }
 
     private async void Help_Click(object sender, RoutedEventArgs e)
@@ -42,8 +42,8 @@ public sealed partial class MaintenancePage : Page
 
     private async void ValidateAdmin_Click(object sender, RoutedEventArgs e)
     {
-        ArcaneCommandResult result = await ArcaneScriptRunner.RunScriptAsync("run-admin-task.cmd", "ValidateAdmin");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await RunMaintenanceAsync(sender, "Running elevated validation task...", async () =>
+            await ArcaneScriptRunner.RunScriptAsync("run-admin-task.cmd", "ValidateAdmin"));
     }
 
     private async void InstallService_Click(object sender, RoutedEventArgs e)
@@ -60,8 +60,8 @@ public sealed partial class MaintenancePage : Page
             return;
         }
 
-        ArcaneCommandResult result = await ArcaneScriptRunner.RunScriptAsync(TimeSpan.FromMinutes(5), "run-admin-task.cmd", "InstallService");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await RunMaintenanceAsync(sender, "Installing or repairing service...", async () =>
+            await ArcaneScriptRunner.RunScriptAsync(TimeSpan.FromMinutes(5), "run-admin-task.cmd", "InstallService"));
     }
 
     private async void InstallSysmon_Click(object sender, RoutedEventArgs e)
@@ -78,8 +78,8 @@ public sealed partial class MaintenancePage : Page
             return;
         }
 
-        ArcaneCommandResult result = await ArcaneScriptRunner.RunScriptAsync(TimeSpan.FromMinutes(5), "run-admin-task.cmd", "InstallSysmon");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await RunMaintenanceAsync(sender, "Installing or configuring Sysmon...", async () =>
+            await ArcaneScriptRunner.RunScriptAsync(TimeSpan.FromMinutes(5), "run-admin-task.cmd", "InstallSysmon"));
     }
 
     private async void PublishRestart_Click(object sender, RoutedEventArgs e)
@@ -96,8 +96,8 @@ public sealed partial class MaintenancePage : Page
             return;
         }
 
-        ArcaneCommandResult result = await ArcaneScriptRunner.RunScriptAsync(TimeSpan.FromMinutes(5), "run-admin-task.cmd", "PublishRestart");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await RunMaintenanceAsync(sender, "Publishing binaries and restarting service...", async () =>
+            await ArcaneScriptRunner.RunScriptAsync(TimeSpan.FromMinutes(5), "run-admin-task.cmd", "PublishRestart"));
     }
 
     private async void UninstallService_Click(object sender, RoutedEventArgs e)
@@ -113,20 +113,20 @@ public sealed partial class MaintenancePage : Page
             return;
         }
 
-        ArcaneCommandResult result = await ArcaneScriptRunner.RunScriptAsync(TimeSpan.FromMinutes(5), "run-admin-task.cmd", "UninstallService");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await RunMaintenanceAsync(sender, "Uninstalling service...", async () =>
+            await ArcaneScriptRunner.RunScriptAsync(TimeSpan.FromMinutes(5), "run-admin-task.cmd", "UninstallService"));
     }
 
     private async void PollOnce_Click(object sender, RoutedEventArgs e)
     {
-        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync(TimeSpan.FromMinutes(2), "--poll-once");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await RunMaintenanceAsync(sender, "Running one detection poll...", async () =>
+            await ArcaneCommandRunner.RunAsync(TimeSpan.FromMinutes(2), "--poll-once"));
     }
 
     private async void TestHealth_Click(object sender, RoutedEventArgs e)
     {
-        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--test-health");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await RunMaintenanceAsync(sender, "Sending health test...", async () =>
+            await ArcaneCommandRunner.RunAsync("--test-health"));
     }
 
     private async void TestAlert_Click(object sender, RoutedEventArgs e)
@@ -141,14 +141,14 @@ public sealed partial class MaintenancePage : Page
             return;
         }
 
-        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--test-alert");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await RunMaintenanceAsync(sender, "Sending test alert...", async () =>
+            await ArcaneCommandRunner.RunAsync("--test-alert"));
     }
 
     private async void PreviewAi_Click(object sender, RoutedEventArgs e)
     {
-        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--preview-ai-payload");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await RunMaintenanceAsync(sender, "Building AI payload preview...", async () =>
+            await ArcaneCommandRunner.RunAsync("--preview-ai-payload"));
     }
 
     private async void TestAi_Click(object sender, RoutedEventArgs e)
@@ -164,14 +164,14 @@ public sealed partial class MaintenancePage : Page
             return;
         }
 
-        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync(TimeSpan.FromMinutes(2), "--test-ai-analysis");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await RunMaintenanceAsync(sender, "Calling AI analysis provider...", async () =>
+            await ArcaneCommandRunner.RunAsync(TimeSpan.FromMinutes(2), "--test-ai-analysis"));
     }
 
     private async void ResponseFirewall_Click(object sender, RoutedEventArgs e)
     {
-        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--response-firewall", "list");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await RunMaintenanceAsync(sender, "Reading response firewall ledger...", async () =>
+            await ArcaneCommandRunner.RunAsync("--response-firewall", "list"));
     }
 
     private async void ClearFirewall_Click(object sender, RoutedEventArgs e)
@@ -187,32 +187,44 @@ public sealed partial class MaintenancePage : Page
             return;
         }
 
-        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--response-firewall", "remove-all");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await RunMaintenanceAsync(sender, "Clearing Arcane firewall rules...", async () =>
+            await ArcaneCommandRunner.RunAsync("--response-firewall", "remove-all"));
     }
 
     private async void AgentActivity_Click(object sender, RoutedEventArgs e)
     {
-        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--agent-activity", "--last", "24h");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await RunMaintenanceAsync(sender, "Loading agent activity...", async () =>
+            await ArcaneCommandRunner.RunAsync("--agent-activity", "--last", "24h"));
     }
 
     private async void Incidents_Click(object sender, RoutedEventArgs e)
     {
-        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--incidents", "--last", "24h");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await RunMaintenanceAsync(sender, "Loading recent incidents...", async () =>
+            await ArcaneCommandRunner.RunAsync("--incidents", "--last", "24h"));
     }
 
     private async void SupportBundle_Click(object sender, RoutedEventArgs e)
     {
-        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync(TimeSpan.FromMinutes(2), "--support-bundle");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await RunMaintenanceAsync(sender, "Creating support bundle...", async () =>
+            await ArcaneCommandRunner.RunAsync(TimeSpan.FromMinutes(2), "--support-bundle"));
     }
 
-    private async System.Threading.Tasks.Task ListMaintenanceAsync()
+    private async System.Threading.Tasks.Task ListMaintenanceAsync(Button? button = null)
     {
-        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--maintenance", "list", "--last", "24h");
-        MaintenanceOutputText.Text = result.CombinedText();
+        await GuiCommandStatus.RunAsync(button, MaintenanceOutputText, "Loading maintenance markers...", async () =>
+        {
+            ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--maintenance", "list", "--last", "24h");
+            return result.CombinedText();
+        });
+    }
+
+    private async System.Threading.Tasks.Task RunMaintenanceAsync(object sender, string status, Func<System.Threading.Tasks.Task<ArcaneCommandResult>> action)
+    {
+        await GuiCommandStatus.RunAsync(sender as Button, MaintenanceOutputText, status, async () =>
+        {
+            ArcaneCommandResult result = await action();
+            return result.CombinedText();
+        });
     }
 
 }

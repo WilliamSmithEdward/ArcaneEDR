@@ -1,8 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Windows.ApplicationModel.DataTransfer;
 using ArcaneEDR_Gui.Controls;
 using ArcaneEDR_Gui.Services;
 
@@ -13,24 +19,39 @@ public sealed partial class AlertsPage : Page
     private List<ArcaneAlertRecord> allAlerts = new List<ArcaneAlertRecord>();
     private double externalThreshold = 60;
     private bool loaded;
+    private bool restoringView;
+    private string restoredCategory = "Any";
     private string sortColumn = "Time";
     private bool sortAscending;
+    private List<ArcaneAlertRecord> visibleAlerts = new List<ArcaneAlertRecord>();
+    private CancellationTokenSource? refreshCancellation;
+    private int refreshGeneration;
 
     public AlertsPage()
     {
         InitializeComponent();
+        RestoreViewSettings();
         ConfigureResizeHandles();
         UpdateSortIndicators();
-        Loaded += async (_, _) =>
-        {
-            loaded = true;
-            await RefreshAsync();
-        };
+        Loaded += AlertsPage_Loaded;
+        Unloaded += AlertsPage_Unloaded;
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e)
     {
-        await RefreshAsync();
+        await RefreshSafeAsync();
+    }
+
+    private async void AlertsPage_Loaded(object sender, RoutedEventArgs e)
+    {
+        loaded = true;
+        await RefreshSafeAsync();
+    }
+
+    private void AlertsPage_Unloaded(object sender, RoutedEventArgs e)
+    {
+        loaded = false;
+        refreshCancellation?.Cancel();
     }
 
     private void OpenLogs_Click(object sender, RoutedEventArgs e)
@@ -46,7 +67,28 @@ public sealed partial class AlertsPage : Page
             "The Alerts table is local evidence first: filtering or grouping changes what you see in the GUI, not what Arcane preserves in JSONL.\n\n" +
             "Use External threshold to focus on entries that would normally qualify for external notification under the current MinimumEmailScore.\n\n" +
             "Country and company values come from enrichment. Missing company data is not proof of compromise; pair it with process, rule, score, country, and policy context.\n\n" +
-            "Raw JSONL is available for exact evidence when you need to copy or inspect the underlying record.");
+            "Copy CSV and Export use the current filtered/sorted table view only. Raw JSONL remains available for exact evidence when you need the underlying record.");
+    }
+
+    private void CopyCsv_Click(object sender, RoutedEventArgs e)
+    {
+        DataPackage package = new DataPackage();
+        package.SetText(BuildCsv(visibleAlerts));
+        Clipboard.SetContent(package);
+        TableSummaryText.Text = "Copied " + visibleAlerts.Count.ToString(CultureInfo.InvariantCulture) + " visible alert row(s) as CSV.";
+    }
+
+    private void ExportCsv_Click(object sender, RoutedEventArgs e)
+    {
+        string directory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Arcane EDR",
+            "exports");
+        Directory.CreateDirectory(directory);
+        string path = Path.Combine(directory, "ArcaneAlerts-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".csv");
+        File.WriteAllText(path, BuildCsv(visibleAlerts), Encoding.UTF8);
+        TableSummaryText.Text = "Exported " + visibleAlerts.Count.ToString(CultureInfo.InvariantCulture) + " visible alert row(s) to " + path;
+        ArcaneScriptRunner.OpenPath(directory);
     }
 
     private void Filter_Changed(object sender, RoutedEventArgs e)
@@ -114,12 +156,41 @@ public sealed partial class AlertsPage : Page
         double nextHeight = AlertDetailsRow.Height.Value - e.VerticalChange;
         nextHeight = Math.Max(140, Math.Min(520, nextHeight));
         AlertDetailsRow.Height = new GridLength(nextHeight);
+        SaveViewSettings();
     }
 
-    private async System.Threading.Tasks.Task RefreshAsync()
+    private async Task RefreshSafeAsync()
+    {
+        int generation = Interlocked.Increment(ref refreshGeneration);
+        refreshCancellation?.Cancel();
+        refreshCancellation?.Dispose();
+        refreshCancellation = new CancellationTokenSource();
+        CancellationToken token = refreshCancellation.Token;
+
+        try
+        {
+            await RefreshAsync(generation, token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Navigation away from Alerts cancels in-flight refresh work.
+        }
+        catch (Exception ex)
+        {
+            GuiDiagnostics.LogException("alerts-refresh", ex);
+            if (IsCurrentRefresh(generation, token))
+            {
+                TableSummaryText.Text = "Alerts could not refresh: " + ex.Message;
+            }
+        }
+    }
+
+    private async Task RefreshAsync(int generation, CancellationToken token)
     {
         ArcaneConfigBundle config = ArcaneConfigBundle.Load();
         externalThreshold = config.Runtime.GetNumber("MinimumEmailScore", 60);
+        if (!IsCurrentRefresh(generation, token)) return;
+
         AlertConfigContextText.Text =
             "ExternalAlertProvider=" + config.Runtime.Get("ExternalAlertProvider", "Disabled") + Environment.NewLine +
             "MinimumEmailScore=" + externalThreshold + Environment.NewLine +
@@ -129,17 +200,35 @@ public sealed partial class AlertsPage : Page
 
         string lookback = SelectedLookback();
         ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--alert-volume", "--last", lookback.Equals("All", StringComparison.OrdinalIgnoreCase) ? "7d" : lookback);
+        token.ThrowIfCancellationRequested();
+        if (!IsCurrentRefresh(generation, token)) return;
+
         VolumeText.Text = result.CombinedText();
         RecentAlertsText.Text = ArcaneStateReader.ReadRecentAlerts(80);
 
         allAlerts = ArcaneAlertStore.ReadAlerts(5000);
+        if (!IsCurrentRefresh(generation, token)) return;
+
         PopulateCategories();
         ApplyFilters();
+    }
+
+    private bool IsCurrentRefresh(int generation, CancellationToken token)
+    {
+        return loaded &&
+            XamlRoot != null &&
+            !token.IsCancellationRequested &&
+            generation == Volatile.Read(ref refreshGeneration);
     }
 
     private void PopulateCategories()
     {
         string selected = ComboText(CategoryBox, "Any");
+        if (!String.IsNullOrWhiteSpace(restoredCategory))
+        {
+            selected = restoredCategory;
+        }
+
         CategoryBox.Items.Clear();
         CategoryBox.Items.Add(new ComboBoxItem { Content = "Any" });
 
@@ -159,6 +248,7 @@ public sealed partial class AlertsPage : Page
                 selected.Equals(item.Content?.ToString(), StringComparison.OrdinalIgnoreCase))
             {
                 CategoryBox.SelectedIndex = index;
+                restoredCategory = "";
                 break;
             }
         }
@@ -197,12 +287,14 @@ public sealed partial class AlertsPage : Page
         }
 
         List<ArcaneAlertRecord> rows = Sort(filtered).Take(1000).ToList();
+        visibleAlerts = rows;
         AlertsList.ItemsSource = rows;
         TableSummaryText.Text = rows.Count + " visible of " + allAlerts.Count +
             " loaded rows. Sorted by " + SortLabel(sortColumn) + " " + (sortAscending ? "ascending" : "descending") +
             ". External threshold filter uses MinimumEmailScore=" + externalThreshold + ".";
         AlertsList.SelectedIndex = rows.Count == 0 ? -1 : 0;
         ShowSelectedAlert(rows.Count == 0 ? null : rows[0]);
+        SaveViewSettings();
     }
 
     private IEnumerable<ArcaneAlertRecord> Sort(IEnumerable<ArcaneAlertRecord> source)
@@ -382,5 +474,92 @@ public sealed partial class AlertsPage : Page
         return "Entity=" + alert.Entity + Environment.NewLine + Environment.NewLine +
             "Body=" + alert.Body + Environment.NewLine + Environment.NewLine +
             "RawJson=" + alert.RawJson;
+    }
+
+    private void RestoreViewSettings()
+    {
+        restoringView = true;
+        GuiUserSettings settings = GuiStartupSettings.Load();
+        SetCombo(LookbackBox, settings.AlertLookback, "24h");
+        SetCombo(SeverityBox, settings.AlertSeverity, "Any");
+        restoredCategory = String.IsNullOrWhiteSpace(settings.AlertCategory) ? "Any" : settings.AlertCategory;
+        SearchBox.Text = settings.AlertSearch ?? "";
+        ExternalCandidatesBox.IsChecked = settings.AlertExternalThresholdOnly;
+        sortColumn = String.IsNullOrWhiteSpace(settings.AlertSortColumn) ? "Time" : settings.AlertSortColumn;
+        sortAscending = settings.AlertSortAscending;
+        double height = settings.AlertDetailsHeight;
+        if (height >= 140 && height <= 520)
+        {
+            AlertDetailsRow.Height = new GridLength(height);
+        }
+
+        restoringView = false;
+    }
+
+    private void SaveViewSettings()
+    {
+        if (!loaded || restoringView) return;
+
+        GuiUserSettings settings = GuiStartupSettings.Load();
+        settings.AlertLookback = SelectedLookback();
+        settings.AlertSeverity = ComboText(SeverityBox, "Any");
+        settings.AlertCategory = ComboText(CategoryBox, "Any");
+        settings.AlertSearch = SearchBox.Text.Trim();
+        settings.AlertExternalThresholdOnly = ExternalCandidatesBox.IsChecked == true;
+        settings.AlertSortColumn = sortColumn;
+        settings.AlertSortAscending = sortAscending;
+        settings.AlertDetailsHeight = AlertDetailsRow.Height.Value;
+        GuiStartupSettings.SaveAndApply(settings);
+    }
+
+    private static void SetCombo(ComboBox comboBox, string value, string fallback)
+    {
+        string desired = String.IsNullOrWhiteSpace(value) ? fallback : value;
+        for (int index = 0; index < comboBox.Items.Count; index++)
+        {
+            if (comboBox.Items[index] is ComboBoxItem item &&
+                desired.Equals(item.Content?.ToString(), StringComparison.OrdinalIgnoreCase))
+            {
+                comboBox.SelectedIndex = index;
+                return;
+            }
+        }
+
+        comboBox.SelectedIndex = 0;
+    }
+
+    private static string BuildCsv(IReadOnlyList<ArcaneAlertRecord> rows)
+    {
+        StringBuilder builder = new StringBuilder();
+        builder.AppendLine("SystemTime,UTC,Rule,Category,Severity,Score,Process,RemoteIp,Country,Company,Title,MaintenanceContext,ExternalSuppressed,ExternalForced,PolicyContext");
+        foreach (ArcaneAlertRecord row in rows)
+        {
+            builder.AppendLine(String.Join(",", new[]
+            {
+                Csv(row.SystemTimeDisplay),
+                Csv(row.TimestampUtc.ToString("u", CultureInfo.InvariantCulture)),
+                Csv(row.RuleId),
+                Csv(row.Category),
+                Csv(row.Severity),
+                Csv(row.Score.ToString(CultureInfo.InvariantCulture)),
+                Csv(row.Process),
+                Csv(row.RemoteIp),
+                Csv(row.Country),
+                Csv(row.Company),
+                Csv(row.Title),
+                Csv(row.MaintenanceContext.ToString()),
+                Csv(row.ExternalSuppressedByPolicy.ToString()),
+                Csv(row.ExternalForcedByPolicy.ToString()),
+                Csv(row.PolicyContext)
+            }));
+        }
+
+        return builder.ToString();
+    }
+
+    private static string Csv(string value)
+    {
+        string safe = value ?? "";
+        return "\"" + safe.Replace("\"", "\"\"") + "\"";
     }
 }

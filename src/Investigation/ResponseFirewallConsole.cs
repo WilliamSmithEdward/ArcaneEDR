@@ -13,10 +13,11 @@ namespace ArcaneEDR
         {
             MonitorConfig config = MonitorConfig.Load(baseDirectory);
             string action = args != null && args.Length > 1 ? args[1] : "list";
+            bool json = HasFlag(args, "--json");
 
             if (action.Equals("list", StringComparison.OrdinalIgnoreCase))
             {
-                return List(config);
+                return List(config, json);
             }
 
             if (action.Equals("remove", StringComparison.OrdinalIgnoreCase))
@@ -34,23 +35,40 @@ namespace ArcaneEDR
             return 1;
         }
 
-        private static int List(MonitorConfig config)
+        private static int List(MonitorConfig config, bool json)
         {
-            Console.WriteLine("Arcane firewall block prefix: " + ResponseManager.FirewallRulePrefix);
-            Console.WriteLine("Response ledger: " + config.ResponseLedgerFile);
             if (String.IsNullOrWhiteSpace(config.ResponseLedgerFile) || !File.Exists(config.ResponseLedgerFile))
             {
+                if (json)
+                {
+                    PrintListJson(config, false, new List<ResponseFirewallRecord>());
+                    return 0;
+                }
+
+                Console.WriteLine("Arcane firewall block prefix: " + ResponseManager.FirewallRulePrefix);
+                Console.WriteLine("Response ledger: " + config.ResponseLedgerFile);
                 Console.WriteLine("No response ledger found.");
                 return 0;
             }
 
-            int count = 0;
+            List<ResponseFirewallRecord> arcaneRecords = new List<ResponseFirewallRecord>();
             foreach (ResponseFirewallRecord record in LoadRecords(config.ResponseLedgerFile))
             {
                 if (String.IsNullOrWhiteSpace(record.FirewallRuleName)) continue;
                 if (!record.FirewallRuleName.StartsWith(ResponseManager.FirewallRulePrefix, StringComparison.OrdinalIgnoreCase)) continue;
+                arcaneRecords.Add(record);
+            }
 
-                count++;
+            if (json)
+            {
+                PrintListJson(config, true, arcaneRecords);
+                return 0;
+            }
+
+            Console.WriteLine("Arcane firewall block prefix: " + ResponseManager.FirewallRulePrefix);
+            Console.WriteLine("Response ledger: " + config.ResponseLedgerFile);
+            foreach (ResponseFirewallRecord record in arcaneRecords)
+            {
                 Console.WriteLine(record.TimestampUtc +
                     " rule_name=" + record.FirewallRuleName +
                     " response_id=" + record.ResponseId +
@@ -61,12 +79,25 @@ namespace ArcaneEDR
                     " skipped_reason=" + record.SkippedReason);
             }
 
-            if (count == 0)
+            if (arcaneRecords.Count == 0)
             {
                 Console.WriteLine("No Arcane firewall block records found.");
             }
 
             return 0;
+        }
+
+        private static void PrintListJson(MonitorConfig config, bool ledgerFound, List<ResponseFirewallRecord> records)
+        {
+            Dictionary<string, object> root = new Dictionary<string, object>();
+            root["schema"] = "arcane.response_firewall.v1";
+            root["ok"] = true;
+            root["ledger_found"] = ledgerFound;
+            root["firewall_rule_prefix"] = ResponseManager.FirewallRulePrefix;
+            root["response_ledger_file"] = config.ResponseLedgerFile;
+            root["total_records"] = records.Count;
+            root["records"] = records;
+            Console.WriteLine(new JavaScriptSerializer().Serialize(root));
         }
 
         private static int RemoveOne(string target)
@@ -243,6 +274,17 @@ namespace ArcaneEDR
             Console.WriteLine("  ArcaneEDR.exe --response-firewall list");
             Console.WriteLine("  ArcaneEDR.exe --response-firewall remove <response-id-or-ArcaneEDR_BLOCK_guid>");
             Console.WriteLine("  ArcaneEDR.exe --response-firewall remove-all");
+        }
+
+        private static bool HasFlag(string[] args, string name)
+        {
+            if (args == null) return false;
+            foreach (string arg in args)
+            {
+                if (arg.Equals(name, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+
+            return false;
         }
     }
 

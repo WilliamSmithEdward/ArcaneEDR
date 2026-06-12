@@ -24,21 +24,24 @@ public sealed partial class PolicyPage : Page
 
     private async void Inspect_Click(object sender, RoutedEventArgs e)
     {
-        await RefreshPolicyAsync();
+        await RefreshPolicyAsync(sender as Button);
         PolicyTabs.SelectedIndex = 1;
     }
 
     private async void Preview_Click(object sender, RoutedEventArgs e)
     {
-        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync(
-            "--policy-preview",
-            "--sample-rule",
-            "NET-BEACON-TIMING-LOW-RISK",
-            "--sample-process",
-            "codex.exe",
-            "--sample-score",
-            "55");
-        PolicyOutputText.Text = result.CombinedText();
+        await GuiCommandStatus.RunAsync(sender as Button, PolicyOutputText, "Running policy preview...", async () =>
+        {
+            ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync(
+                "--policy-preview",
+                "--sample-rule",
+                "NET-BEACON-TIMING-LOW-RISK",
+                "--sample-process",
+                "codex.exe",
+                "--sample-score",
+                "55");
+            return result.CombinedText();
+        });
         PolicyTabs.SelectedIndex = 1;
     }
 
@@ -74,7 +77,7 @@ public sealed partial class PolicyPage : Page
         ShowSelectedPolicyEntry(PolicyEntriesList.SelectedItem as ArcanePolicyEntry);
     }
 
-    private async System.Threading.Tasks.Task RefreshPolicyAsync()
+    private async System.Threading.Tasks.Task RefreshPolicyAsync(Button? button = null)
     {
         policy = ArcanePolicyStore.Load();
         PolicyPathText.Text = policy.Path;
@@ -85,13 +88,16 @@ public sealed partial class PolicyPage : Page
 
         PopulatePolicyScopes();
         ApplyPolicyFilters();
-        await InspectAsync();
+        await InspectAsync(button);
     }
 
-    private async System.Threading.Tasks.Task InspectAsync()
+    private async System.Threading.Tasks.Task InspectAsync(Button? button = null)
     {
-        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--policy-inspect");
-        PolicyOutputText.Text = result.CombinedText();
+        await GuiCommandStatus.RunAsync(button, PolicyOutputText, "Inspecting policy...", async () =>
+        {
+            ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--policy-inspect");
+            return result.CombinedText();
+        });
     }
 
     private void PopulatePolicyScopes()

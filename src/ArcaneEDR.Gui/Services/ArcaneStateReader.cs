@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading.Tasks;
 
 namespace ArcaneEDR_Gui.Services;
 
@@ -21,6 +24,13 @@ internal sealed class ArcaneHealthSnapshot
 
 internal static class ArcaneStateReader
 {
+    public static async Task<ArcaneHealthSnapshot> ReadHealthAsync()
+    {
+        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--health", "--json");
+        ArcaneHealthSnapshot? snapshot = TryParseHealthJson(result.CombinedText());
+        return snapshot ?? ReadHealth();
+    }
+
     public static ArcaneHealthSnapshot ReadHealth()
     {
         ArcanePaths paths = ArcanePaths.Discover();
@@ -111,5 +121,71 @@ internal static class ArcaneStateReader
     {
         string? value;
         return values.TryGetValue(key, out value) && !String.IsNullOrWhiteSpace(value) ? value : fallback;
+    }
+
+    private static ArcaneHealthSnapshot? TryParseHealthJson(string text)
+    {
+        string trimmed = text.Trim();
+        if (!trimmed.StartsWith("{", StringComparison.Ordinal)) return null;
+
+        try
+        {
+            HealthJson? json = JsonSerializer.Deserialize<HealthJson>(trimmed, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+            if (json == null) return null;
+
+            return new ArcaneHealthSnapshot
+            {
+                ServiceState = String.IsNullOrWhiteSpace(json.ServiceState) ? "Unknown" : json.ServiceState,
+                LastStartUtc = json.LastStartUtc ?? "",
+                LastHeartbeatUtc = json.LastHeartbeatUtc ?? "",
+                LastDailySummaryUtc = json.LastDailySummaryUtc ?? "",
+                LastAIAnalysisUtc = json.LastAIAnalysisUtc ?? "",
+                PollCount = json.PollCount.ToString(),
+                AlertCount = json.AlertCount.ToString(),
+                PollFailures = json.PollFailures.ToString(),
+                ExternalSendFailures = json.ExternalSendFailures.ToString(),
+                HealthFile = json.HealthFile ?? ""
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private sealed class HealthJson
+    {
+        [JsonPropertyName("service_state")]
+        public string? ServiceState { get; set; }
+
+        [JsonPropertyName("last_start_utc")]
+        public string? LastStartUtc { get; set; }
+
+        [JsonPropertyName("last_heartbeat_utc")]
+        public string? LastHeartbeatUtc { get; set; }
+
+        [JsonPropertyName("last_daily_summary_utc")]
+        public string? LastDailySummaryUtc { get; set; }
+
+        [JsonPropertyName("last_ai_analysis_utc")]
+        public string? LastAIAnalysisUtc { get; set; }
+
+        [JsonPropertyName("poll_count")]
+        public long PollCount { get; set; }
+
+        [JsonPropertyName("alert_count")]
+        public long AlertCount { get; set; }
+
+        [JsonPropertyName("poll_failures")]
+        public long PollFailures { get; set; }
+
+        [JsonPropertyName("external_send_failures")]
+        public long ExternalSendFailures { get; set; }
+
+        [JsonPropertyName("health_file")]
+        public string? HealthFile { get; set; }
     }
 }

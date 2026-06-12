@@ -14,12 +14,12 @@ public sealed partial class ReportsPage : Page
 
     private async void Preview_Click(object sender, RoutedEventArgs e)
     {
-        await PreviewAsync(false);
+        await PreviewAsync(false, sender as Button);
     }
 
     private async void Json_Click(object sender, RoutedEventArgs e)
     {
-        await PreviewAsync(true);
+        await PreviewAsync(true, sender as Button);
     }
 
     private async void Send_Click(object sender, RoutedEventArgs e)
@@ -35,8 +35,11 @@ public sealed partial class ReportsPage : Page
             return;
         }
 
-        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync(TimeSpan.FromMinutes(2), "--test-daily-report");
-        ReportOutputText.Text = result.CombinedText();
+        await GuiCommandStatus.RunAsync(sender as Button, ReportOutputText, "Sending daily report...", async () =>
+        {
+            ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync(TimeSpan.FromMinutes(2), "--test-daily-report");
+            return result.CombinedText();
+        });
     }
 
     private async void Help_Click(object sender, RoutedEventArgs e)
@@ -49,11 +52,14 @@ public sealed partial class ReportsPage : Page
             "Daily reports should not be blocked by ordinary alert burst limits; validation output can help confirm provider and rate-limit state.");
     }
 
-    private async System.Threading.Tasks.Task PreviewAsync(bool json)
+    private async System.Threading.Tasks.Task PreviewAsync(bool json, Button? button = null)
     {
-        ArcaneCommandResult result = json
-            ? await ArcaneCommandRunner.RunAsync("--preview-daily-report", "--json")
-            : await ArcaneCommandRunner.RunAsync("--preview-daily-report");
-        ReportOutputText.Text = result.CombinedText();
+        await GuiCommandStatus.RunAsync(button, ReportOutputText, json ? "Loading report JSON..." : "Loading report preview...", async () =>
+        {
+            ArcaneCommandResult result = json
+                ? await ArcaneCommandRunner.RunAsync("--preview-daily-report", "--json")
+                : await ArcaneCommandRunner.RunAsync("--preview-daily-report");
+            return result.CombinedText();
+        });
     }
 }

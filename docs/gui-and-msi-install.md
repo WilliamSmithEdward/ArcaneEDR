@@ -14,6 +14,7 @@ Build the service, GUI, release ZIP, and MSI from the source checkout:
 .\scripts\build-gui.cmd
 .\scripts\package-release.cmd
 .\scripts\build-msi.cmd
+.\scripts\test-msi-validation.cmd -RunAdminValidation
 ```
 
 Artifacts are written to `artifacts`:
@@ -22,6 +23,16 @@ Artifacts are written to `artifacts`:
 - `ArcaneEDR-<version>.zip.sha256.txt`
 - `ArcaneEDR-<version>.msi`
 - `ArcaneEDR-<version>.msi.sha256.txt`
+
+For elevated repair validation, run from an elevated shell:
+
+```powershell
+.\scripts\test-msi-validation.cmd -RunSilentRepair -RunAdminValidation
+```
+
+Clean install, failed rollback, silent install/uninstall, and purge behavior
+must be tested in a disposable VM or snapshot. A daily-driver repair test is
+not proof of those installer paths.
 
 ## Admin Task Refresh
 

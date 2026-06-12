@@ -17,6 +17,23 @@ internal sealed class ArcaneConfigEntry : INotifyPropertyChanged
     public string Key { get; set; } = "";
     public string Category { get; set; } = "";
     public string Description { get; set; } = "";
+    public string ValueKind { get; set; } = "";
+    public string DangerLevel { get; set; } = "";
+    public string RestartRequirement { get; set; } = "";
+    public string PrivacyNote { get; set; } = "";
+    public string HelpText
+    {
+        get
+        {
+            List<string> parts = new List<string>();
+            if (!String.IsNullOrWhiteSpace(Description)) parts.Add(Description);
+            if (!String.IsNullOrWhiteSpace(ValueKind)) parts.Add("Type: " + ValueKind + ".");
+            if (!String.IsNullOrWhiteSpace(DangerLevel) && !DangerLevel.Equals("normal", StringComparison.OrdinalIgnoreCase)) parts.Add("Risk: " + DangerLevel + ".");
+            if (!String.IsNullOrWhiteSpace(RestartRequirement)) parts.Add("Applies after: " + RestartRequirement + ".");
+            if (!String.IsNullOrWhiteSpace(PrivacyNote)) parts.Add("Privacy: " + PrivacyNote);
+            return String.Join(" ", parts);
+        }
+    }
 
     public string Value
     {
@@ -121,13 +138,18 @@ internal sealed class ArcaneConfigFile
         {
             if (String.IsNullOrWhiteSpace(line.Key)) continue;
 
+            ArcaneConfigMetadata metadata = ArcaneConfigCatalog.MetadataFor(line.Key);
             entries.Add(new ArcaneConfigEntry
             {
                 Source = SourceName,
                 Key = line.Key,
                 Value = line.Value,
-                Category = ArcaneConfigCatalog.CategoryFor(line.Key),
-                Description = ArcaneConfigCatalog.DescriptionFor(line.Key)
+                Category = metadata.Category,
+                Description = metadata.Description,
+                ValueKind = metadata.ValueKind,
+                DangerLevel = metadata.DangerLevel,
+                RestartRequirement = metadata.RestartRequirement,
+                PrivacyNote = metadata.PrivacyNote
             });
         }
 
@@ -260,13 +282,18 @@ internal sealed class ArcaneConfigBundle
             return;
         }
 
+        ArcaneConfigMetadata metadata = ArcaneConfigCatalog.MetadataFor(key);
         Entries.Add(new ArcaneConfigEntry
         {
             Source = source,
             Key = key,
             Value = value,
-            Category = ArcaneConfigCatalog.CategoryFor(key),
-            Description = ArcaneConfigCatalog.DescriptionFor(key)
+            Category = metadata.Category,
+            Description = metadata.Description,
+            ValueKind = metadata.ValueKind,
+            DangerLevel = metadata.DangerLevel,
+            RestartRequirement = metadata.RestartRequirement,
+            PrivacyNote = metadata.PrivacyNote
         });
     }
 }
@@ -311,24 +338,54 @@ internal static class ArcanePolicyDocument
     }
 }
 
+internal sealed class ArcaneConfigMetadata
+{
+    public string Category { get; set; } = "General";
+    public string Description { get; set; } = "";
+    public string ValueKind { get; set; } = "text";
+    public string DangerLevel { get; set; } = "normal";
+    public string RestartRequirement { get; set; } = "service restart after save";
+    public string PrivacyNote { get; set; } = "";
+}
+
 internal static class ArcaneConfigCatalog
 {
-    private static readonly Dictionary<string, string> Descriptions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, ArcaneConfigMetadata> Metadata = new Dictionary<string, ArcaneConfigMetadata>(StringComparer.OrdinalIgnoreCase)
     {
-        ["ResponseMode"] = "AlertOnly is safest. Active modes require explicit operator intent.",
-        ["MinimumEmailScore"] = "Default external alert threshold.",
-        ["ExternalAlertProvider"] = "Disabled, Brevo, Smtp, Webhook, GenericHttpApi, LocalJsonl, WindowsEventLog, or comma-separated providers.",
-        ["EnableAIAnalysis"] = "Secondary compact AI review of redacted summaries.",
-        ["AIAnalysisApiKeyEnvironmentVariable"] = "Environment variable name only. Do not paste secrets into config.",
-        ["EnableRemoteEndpointCountryBlockEnrichment"] = "Local country block lookup before external provider hooks.",
-        ["EnableRemoteEndpointIpApiGeolocation"] = "ip-api hook. Off by default; free endpoint is non-commercial only.",
-        ["EnableRemoteEndpointIpWhoisGeolocation"] = "ipwhois/ipwho.is hook. Off by default; free endpoint is non-commercial only.",
-        ["EnableRemoteEndpointRdapEnrichment"] = "RDAP owner/ASN enrichment for remote endpoints.",
-        ["BaselineLearningMode"] = "Initial tuning mode that raises external thresholds for first-seen baseline signals.",
-        ["ResponseMinimumScore"] = "Minimum score before response evaluation.",
-        ["EnableFirewallBlockResponse"] = "Required before firewall block response modes can act.",
-        ["EnableProcessTerminationResponse"] = "Required before process termination response modes can act."
+        ["ResponseMode"] = Meta("Response", "AlertOnly is safest. Active modes require explicit operator intent.", "choice", "dangerous", "service restart after save", ""),
+        ["MinimumEmailScore"] = Meta("Alerting", "Default external alert threshold.", "number", "normal", "service restart after save", ""),
+        ["ExternalAlertProvider"] = Meta("Alerting", "Disabled, Brevo, Smtp, Webhook, GenericHttpApi, LocalJsonl, WindowsEventLog, or comma-separated providers.", "choice", "privacy", "service restart after save", "May send notifications outside the machine when external providers are enabled."),
+        ["EnableAIAnalysis"] = Meta("AI", "Secondary compact AI review of redacted summaries.", "boolean", "privacy", "service restart after save", "May send compact redacted summaries to configured AI providers."),
+        ["AIAnalysisApiKeyEnvironmentVariable"] = Meta("AI", "Environment variable name only. Do not paste secrets into config.", "environment variable name", "privacy", "service restart after save", "Stores only the environment variable name."),
+        ["AIAnalysisProviderApiKeyEnvironmentVariables"] = Meta("AI", "Provider-to-environment-variable map. Do not paste secrets into config.", "map", "privacy", "service restart after save", "Stores only environment variable names."),
+        ["EnableRemoteEndpointCountryBlockEnrichment"] = Meta("Enrichment", "Local country block lookup before external provider hooks.", "boolean", "normal", "service restart after save", "Local lookup only."),
+        ["EnableRemoteEndpointIpApiGeolocation"] = Meta("Enrichment", "ip-api hook. Off by default; free endpoint is non-commercial only.", "boolean", "privacy", "service restart after save", "Sends remote IPs to ip-api when enabled."),
+        ["EnableRemoteEndpointIpWhoisGeolocation"] = Meta("Enrichment", "ipwhois/ipwho.is hook. Off by default; free endpoint is non-commercial only.", "boolean", "privacy", "service restart after save", "Sends remote IPs to ipwhois/ipwho.is when enabled."),
+        ["EnableRemoteEndpointRdapEnrichment"] = Meta("Enrichment", "RDAP owner/ASN enrichment for remote endpoints.", "boolean", "privacy", "service restart after save", "Sends remote IPs to RDAP services when enabled."),
+        ["BaselineLearningMode"] = Meta("Baseline", "Initial tuning mode that raises external thresholds for first-seen baseline signals.", "boolean", "normal", "service restart after save", ""),
+        ["ResponseMinimumScore"] = Meta("Response", "Minimum score before response evaluation.", "number", "dangerous", "service restart after save", ""),
+        ["EnableFirewallBlockResponse"] = Meta("Response", "Required before firewall block response modes can act.", "boolean", "dangerous", "service restart after save", "Can change local firewall state when active response is enabled."),
+        ["EnableProcessTerminationResponse"] = Meta("Response", "Required before process termination response modes can act.", "boolean", "dangerous", "service restart after save", "Can terminate processes when active response is enabled."),
+        ["PolicyFile"] = Meta("Policy", "Unified JSON policy file.", "path", "normal", "service restart after save", ""),
+        ["LogDirectory"] = Meta("Storage", "Mutable local evidence directory.", "path", "normal", "service restart after save", "Contains local security evidence."),
+        ["DestinationRoot"] = Meta("Deployment", "Deployment destination root.", "path", "installer", "publish or reinstall", "")
     };
+
+    public static ArcaneConfigMetadata MetadataFor(string key)
+    {
+        ArcaneConfigMetadata? metadata;
+        if (Metadata.TryGetValue(key, out metadata)) return metadata;
+
+        return new ArcaneConfigMetadata
+        {
+            Category = CategoryFor(key),
+            Description = "",
+            ValueKind = GuessValueKind(key),
+            DangerLevel = GuessDangerLevel(key),
+            RestartRequirement = "service restart after save",
+            PrivacyNote = GuessPrivacyNote(key)
+        };
+    }
 
     public static string CategoryFor(string key)
     {
@@ -394,7 +451,82 @@ internal static class ArcaneConfigCatalog
 
     public static string DescriptionFor(string key)
     {
-        string? description;
-        return Descriptions.TryGetValue(key, out description) ? description : "";
+        return MetadataFor(key).Description;
+    }
+
+    private static ArcaneConfigMetadata Meta(string category, string description, string valueKind, string dangerLevel, string restartRequirement, string privacyNote)
+    {
+        return new ArcaneConfigMetadata
+        {
+            Category = category,
+            Description = description,
+            ValueKind = valueKind,
+            DangerLevel = dangerLevel,
+            RestartRequirement = restartRequirement,
+            PrivacyNote = privacyNote
+        };
+    }
+
+    private static string GuessValueKind(string key)
+    {
+        if (key.StartsWith("Enable", StringComparison.OrdinalIgnoreCase) ||
+            key.StartsWith("Notify", StringComparison.OrdinalIgnoreCase) ||
+            key.EndsWith("Mode", StringComparison.OrdinalIgnoreCase))
+        {
+            return "boolean or choice";
+        }
+
+        if (key.Contains("Score", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("Seconds", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("Minutes", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("Hours", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("Max", StringComparison.OrdinalIgnoreCase))
+        {
+            return "number";
+        }
+
+        if (key.Contains("Path", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("Directory", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("File", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("Root", StringComparison.OrdinalIgnoreCase))
+        {
+            return "path";
+        }
+
+        return "text";
+    }
+
+    private static string GuessDangerLevel(string key)
+    {
+        if (key.Contains("Response", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("Firewall", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("Terminate", StringComparison.OrdinalIgnoreCase))
+        {
+            return "dangerous";
+        }
+
+        if (key.Contains("AI", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("Webhook", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("Smtp", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("Brevo", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("IpApi", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("IpWhois", StringComparison.OrdinalIgnoreCase) ||
+            key.Contains("Rdap", StringComparison.OrdinalIgnoreCase))
+        {
+            return "privacy";
+        }
+
+        return "normal";
+    }
+
+    private static string GuessPrivacyNote(string key)
+    {
+        string danger = GuessDangerLevel(key);
+        if (danger.Equals("privacy", StringComparison.OrdinalIgnoreCase))
+        {
+            return "May use external providers depending on the configured value.";
+        }
+
+        return "";
     }
 }

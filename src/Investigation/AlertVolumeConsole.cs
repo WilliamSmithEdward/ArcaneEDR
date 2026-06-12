@@ -13,21 +13,22 @@ namespace ArcaneEDR
             MonitorConfig config = MonitorConfig.Load(baseDirectory);
             TimeSpan lookback = InvestigationConsoleOptions.ParseLookback(args, TimeSpan.FromHours(24));
             string alertsPath = Path.Combine(config.LogDirectory, "ArcaneAlerts.jsonl");
+            bool json = HasFlag(args, "--json");
 
-            Console.WriteLine("Alert volume from the last " + InvestigationConsoleOptions.Describe(lookback) + " using " + alertsPath);
             if (!File.Exists(alertsPath))
             {
+                if (json)
+                {
+                    PrintJson(config, alertsPath, lookback, new List<AlertVolumeRecord>(), new List<AlertVolumeBucket>(), new List<AlertVolumeBucket>(), new List<AlertVolumeBucket>(), new List<AlertVolumeBucket>(), false);
+                    return 0;
+                }
+
+                Console.WriteLine("Alert volume from the last " + InvestigationConsoleOptions.Describe(lookback) + " using " + alertsPath);
                 Console.WriteLine("No alert log found.");
                 return 0;
             }
 
             List<AlertVolumeRecord> records = LoadRecords(alertsPath, lookback, config);
-            if (records.Count == 0)
-            {
-                Console.WriteLine("No alerts found.");
-                return 0;
-            }
-
             int externalQualified = 0;
             int baselineOffExternalQualified = 0;
             int maintenanceContext = 0;
@@ -38,6 +39,24 @@ namespace ArcaneEDR
                 if (record.BaselineOffExternalQualified) baselineOffExternalQualified++;
                 if (record.MaintenanceContext) maintenanceContext++;
                 if (record.Score > maxScore) maxScore = record.Score;
+            }
+
+            List<AlertVolumeBucket> severityBuckets = BuildBuckets(records, "severity");
+            List<AlertVolumeBucket> categoryBuckets = BuildBuckets(records, "category");
+            List<AlertVolumeBucket> ruleBuckets = BuildBuckets(records, "rule");
+            List<AlertVolumeBucket> processBuckets = BuildBuckets(records, "process");
+
+            if (json)
+            {
+                PrintJson(config, alertsPath, lookback, records, severityBuckets, categoryBuckets, ruleBuckets, processBuckets, true);
+                return 0;
+            }
+
+            Console.WriteLine("Alert volume from the last " + InvestigationConsoleOptions.Describe(lookback) + " using " + alertsPath);
+            if (records.Count == 0)
+            {
+                Console.WriteLine("No alerts found.");
+                return 0;
             }
 
             Console.WriteLine("TotalAlerts=" + records.Count.ToString(CultureInfo.InvariantCulture) +
@@ -51,11 +70,6 @@ namespace ArcaneEDR
             }
 
             Console.WriteLine("");
-
-            List<AlertVolumeBucket> severityBuckets = BuildBuckets(records, "severity");
-            List<AlertVolumeBucket> categoryBuckets = BuildBuckets(records, "category");
-            List<AlertVolumeBucket> ruleBuckets = BuildBuckets(records, "rule");
-            List<AlertVolumeBucket> processBuckets = BuildBuckets(records, "process");
 
             if (baselineOffExternalQualified > externalQualified)
             {
@@ -72,6 +86,50 @@ namespace ArcaneEDR
             PrintBuckets("By Process", processBuckets);
 
             return 0;
+        }
+
+        private static void PrintJson(
+            MonitorConfig config,
+            string alertsPath,
+            TimeSpan lookback,
+            List<AlertVolumeRecord> records,
+            List<AlertVolumeBucket> severityBuckets,
+            List<AlertVolumeBucket> categoryBuckets,
+            List<AlertVolumeBucket> ruleBuckets,
+            List<AlertVolumeBucket> processBuckets,
+            bool alertLogFound)
+        {
+            int externalQualified = 0;
+            int baselineOffExternalQualified = 0;
+            int maintenanceContext = 0;
+            int maxScore = 0;
+            foreach (AlertVolumeRecord record in records)
+            {
+                if (record.ExternalQualified) externalQualified++;
+                if (record.BaselineOffExternalQualified) baselineOffExternalQualified++;
+                if (record.MaintenanceContext) maintenanceContext++;
+                if (record.Score > maxScore) maxScore = record.Score;
+            }
+
+            Dictionary<string, object> root = new Dictionary<string, object>();
+            root["schema"] = "arcane.alert_volume.v1";
+            root["ok"] = true;
+            root["alert_log_found"] = alertLogFound;
+            root["alerts_path"] = alertsPath;
+            root["lookback"] = InvestigationConsoleOptions.Describe(lookback);
+            root["total_alerts"] = records.Count;
+            root["external_qualified_before_rate_limits"] = externalQualified;
+            root["baseline_off_external_qualified_before_rate_limits"] = baselineOffExternalQualified;
+            root["maintenance_context"] = maintenanceContext;
+            root["highest_score"] = maxScore;
+            root["baseline_learning_mode"] = config.BaselineLearningMode;
+            root["by_severity"] = Limit(severityBuckets, 20);
+            root["by_category"] = Limit(categoryBuckets, 20);
+            root["by_rule"] = Limit(ruleBuckets, 30);
+            root["by_process"] = Limit(processBuckets, 30);
+            root["current_external_examples"] = Limit(Examples(records, false), 12);
+            root["baseline_off_new_examples"] = Limit(Examples(records, true), 12);
+            Console.WriteLine(new JavaScriptSerializer().Serialize(root));
         }
 
         private static List<AlertVolumeRecord> LoadRecords(string path, TimeSpan lookback, MonitorConfig config)
@@ -321,6 +379,45 @@ namespace ArcaneEDR
 
             if (record == null) return "unknown-time";
             return UtcTimestamp.Format(record.TimestampUtc);
+        }
+
+        private static List<AlertVolumeRecord> Examples(List<AlertVolumeRecord> records, bool newlyQualifiedOnly)
+        {
+            List<AlertVolumeRecord> candidates = new List<AlertVolumeRecord>();
+            foreach (AlertVolumeRecord record in records)
+            {
+                bool include = newlyQualifiedOnly
+                    ? record.BaselineOffExternalQualified && !record.ExternalQualified
+                    : record.ExternalQualified;
+                if (include) candidates.Add(record);
+            }
+
+            candidates.Sort(delegate(AlertVolumeRecord left, AlertVolumeRecord right)
+            {
+                int timeComparison = right.TimestampUtc.CompareTo(left.TimestampUtc);
+                if (timeComparison != 0) return timeComparison;
+                int scoreComparison = right.Score.CompareTo(left.Score);
+                if (scoreComparison != 0) return scoreComparison;
+                return String.Compare(left.RuleId, right.RuleId, StringComparison.OrdinalIgnoreCase);
+            });
+            return candidates;
+        }
+
+        private static List<T> Limit<T>(List<T> values, int limit)
+        {
+            if (values.Count <= limit) return values;
+            return values.GetRange(0, limit);
+        }
+
+        private static bool HasFlag(string[] args, string name)
+        {
+            if (args == null) return false;
+            foreach (string arg in args)
+            {
+                if (arg.Equals(name, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+
+            return false;
         }
 
     }

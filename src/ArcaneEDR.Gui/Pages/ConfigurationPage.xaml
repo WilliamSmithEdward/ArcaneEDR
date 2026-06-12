@@ -90,7 +90,10 @@
                                         Severity="Warning"
                                         Title="Active response can disrupt the workstation"
                                         Message="Keep AlertOnly unless you intentionally want Arcane to block remote IPs or terminate processes. Saves that enable response require confirmation." />
-                                    <ComboBox x:Name="ResponseModeBox" Header="Response mode">
+                                    <ComboBox
+                                        x:Name="ResponseModeBox"
+                                        Header="Response mode"
+                                        ToolTipService.ToolTip="AlertOnly is the safe default. Active modes can block network traffic or terminate processes only when response gates also allow it.">
                                         <ComboBoxItem Content="AlertOnly" />
                                         <ComboBoxItem Content="DryRunBlockRemoteIp" />
                                         <ComboBoxItem Content="DryRunTerminateProcess" />
@@ -99,16 +102,16 @@
                                         <ComboBoxItem Content="TerminateProcess" />
                                         <ComboBoxItem Content="BlockAndTerminate" />
                                     </ComboBox>
-                                    <TextBox x:Name="ResponseMinimumScoreBox" Header="Response minimum score" />
-                                    <ToggleSwitch x:Name="FirewallResponseSwitch" Header="Enable firewall block response" />
-                                    <ToggleSwitch x:Name="ProcessTerminationSwitch" Header="Enable process termination response" />
+                                    <TextBox x:Name="ResponseMinimumScoreBox" Header="Response minimum score" ToolTipService.ToolTip="Minimum score before response evaluation. Higher is safer." />
+                                    <ToggleSwitch x:Name="FirewallResponseSwitch" Header="Enable firewall block response" ToolTipService.ToolTip="Allows Arcane-managed firewall blocks only when response mode and policy also allow them." />
+                                    <ToggleSwitch x:Name="ProcessTerminationSwitch" Header="Enable process termination response" ToolTipService.ToolTip="Allows process termination only when response mode and policy also allow it. Keep off unless testing rollback." />
                                 </StackPanel>
                             </Border>
 
                             <Border Grid.Column="1" Style="{StaticResource SectionCardStyle}">
                                 <StackPanel Spacing="10">
                                     <TextBlock FontWeight="SemiBold" Text="External alerting" />
-                                    <ComboBox x:Name="ExternalAlertProviderBox" Header="Provider">
+                                    <ComboBox x:Name="ExternalAlertProviderBox" Header="Provider" ToolTipService.ToolTip="External alert sink. Local JSONL evidence is preserved regardless of provider choice.">
                                         <ComboBoxItem Content="Disabled" />
                                         <ComboBoxItem Content="Brevo" />
                                         <ComboBoxItem Content="Smtp" />
@@ -117,50 +120,50 @@
                                         <ComboBoxItem Content="LocalJsonl" />
                                         <ComboBoxItem Content="WindowsEventLog" />
                                     </ComboBox>
-                                    <TextBox x:Name="MinimumEmailScoreBox" Header="Minimum external alert score" />
-                                    <ToggleSwitch x:Name="DailySummarySwitch" Header="Enable daily summary" />
-                                    <ToggleSwitch x:Name="ServiceStartSwitch" Header="Notify on service start" />
+                                    <TextBox x:Name="MinimumEmailScoreBox" Header="Minimum external alert score" ToolTipService.ToolTip="Minimum score for ordinary external alert delivery before per-rule and provider limits." />
+                                    <ToggleSwitch x:Name="DailySummarySwitch" Header="Enable daily summary" ToolTipService.ToolTip="Sends or archives the daily operator report at the configured local time." />
+                                    <ToggleSwitch x:Name="ServiceStartSwitch" Header="Notify on service start" ToolTipService.ToolTip="Service lifecycle notifications bypass ordinary alert rate limits." />
                                 </StackPanel>
                             </Border>
 
                             <Border Grid.Row="1" Style="{StaticResource SectionCardStyle}">
                                 <StackPanel Spacing="10">
                                     <TextBlock FontWeight="SemiBold" Text="AI review" />
-                                    <ToggleSwitch x:Name="AIAnalysisSwitch" Header="Enable AI analysis" />
-                                    <TextBox x:Name="AIProviderBox" Header="Providers" />
-                                    <TextBox x:Name="AIModelBox" Header="Model" />
-                                    <TextBox x:Name="AIEnvVarBox" Header="API key environment variable" />
+                                    <ToggleSwitch x:Name="AIAnalysisSwitch" Header="Enable AI analysis" ToolTipService.ToolTip="Optional compact AI review of redacted summaries. Disabled in repo defaults." />
+                                    <TextBox x:Name="AIProviderBox" Header="Providers" ToolTipService.ToolTip="Comma-separated AI providers configured in Arcane. Provider adapters must be complete before being marked supported." />
+                                    <TextBox x:Name="AIModelBox" Header="Model" ToolTipService.ToolTip="Provider model name. Keep payload caps and redaction enabled." />
+                                    <TextBox x:Name="AIEnvVarBox" Header="API key environment variable" ToolTipService.ToolTip="Environment variable name only. Do not paste API keys into config." />
                                 </StackPanel>
                             </Border>
 
                             <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource SectionCardStyle}">
                                 <StackPanel Spacing="10">
                                     <TextBlock FontWeight="SemiBold" Text="Remote enrichment" />
-                                    <ToggleSwitch x:Name="CountryBlocksSwitch" Header="Country blocks" />
-                                    <ToggleSwitch x:Name="RdapSwitch" Header="RDAP owner / ASN" />
-                                    <ToggleSwitch x:Name="IpApiSwitch" Header="ip-api.com hook" />
-                                    <ToggleSwitch x:Name="IpWhoisSwitch" Header="ipwhois.io / ipwho.is hook" />
-                                    <TextBox x:Name="GeoMaxLookupsBox" Header="External geo lookups per poll" />
+                                    <ToggleSwitch x:Name="CountryBlocksSwitch" Header="Country blocks" ToolTipService.ToolTip="Use local country block data before optional external lookups." />
+                                    <ToggleSwitch x:Name="RdapSwitch" Header="RDAP owner / ASN" ToolTipService.ToolTip="Uses RDAP to resolve owner, ASN, and country context when available." />
+                                    <ToggleSwitch x:Name="IpApiSwitch" Header="ip-api.com hook" ToolTipService.ToolTip="Optional fallback. Free use is non-commercial only; commercial use requires a subscription." />
+                                    <ToggleSwitch x:Name="IpWhoisSwitch" Header="ipwhois.io / ipwho.is hook" ToolTipService.ToolTip="Optional fallback. Free use is non-commercial only; commercial use requires a subscription." />
+                                    <TextBox x:Name="GeoMaxLookupsBox" Header="External geo lookups per poll" ToolTipService.ToolTip="Bounds external enrichment calls per poll so one provider cannot stall monitoring." />
                                 </StackPanel>
                             </Border>
 
                             <Border Grid.Row="2" Style="{StaticResource SectionCardStyle}">
                                 <StackPanel Spacing="10">
                                     <TextBlock FontWeight="SemiBold" Text="Baseline and agent context" />
-                                    <ToggleSwitch x:Name="BaselineLearningSwitch" Header="Baseline learning mode" />
-                                    <TextBox x:Name="AgentProcessNamesBox" Header="Agent process names" />
-                                    <TextBox x:Name="AgentWorkspaceRootsBox" Header="Agent workspace roots" />
-                                    <TextBox x:Name="AgentPublishRootsBox" Header="Agent publish roots" />
+                                    <ToggleSwitch x:Name="BaselineLearningSwitch" Header="Baseline learning mode" ToolTipService.ToolTip="Keeps first-seen baseline activity quieter externally while preserving local evidence." />
+                                    <TextBox x:Name="AgentProcessNamesBox" Header="Agent process names" ToolTipService.ToolTip="Known local agent processes used for labeling and guardrail context." />
+                                    <TextBox x:Name="AgentWorkspaceRootsBox" Header="Agent workspace roots" ToolTipService.ToolTip="Expected agent workspace roots. Use narrow durable paths." />
+                                    <TextBox x:Name="AgentPublishRootsBox" Header="Agent publish roots" ToolTipService.ToolTip="Expected publish/install roots used to identify maintenance context." />
                                 </StackPanel>
                             </Border>
 
                             <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource SectionCardStyle}">
                                 <StackPanel Spacing="10">
                                     <TextBlock FontWeight="SemiBold" Text="Paths" />
-                                    <TextBox x:Name="LogDirectoryBox" Header="Log directory" />
-                                    <TextBox x:Name="PolicyFileBox" Header="Policy file" />
-                                    <TextBox x:Name="DestinationRootBox" Header="Deployment destination root" />
-                                    <TextBox x:Name="ExecutableNameBox" Header="Executable name" />
+                                    <TextBox x:Name="LogDirectoryBox" Header="Log directory" ToolTipService.ToolTip="Mutable local evidence directory. MSI defaults to ProgramData." />
+                                    <TextBox x:Name="PolicyFileBox" Header="Policy file" ToolTipService.ToolTip="Unified policy JSON for allow, block, response, remote endpoint, and detection tuning." />
+                                    <TextBox x:Name="DestinationRootBox" Header="Deployment destination root" ToolTipService.ToolTip="MSI-owned installs should use Program Files. Script publish is for development/admin bridge workflows." />
+                                    <TextBox x:Name="ExecutableNameBox" Header="Executable name" ToolTipService.ToolTip="Service executable name used by deployment scripts." />
                                 </StackPanel>
                             </Border>
                         </Grid>
@@ -232,7 +235,7 @@
                                     <TextBlock Grid.Column="1" Text="{Binding Category}" TextTrimming="CharacterEllipsis" />
                                     <TextBlock Grid.Column="2" Text="{Binding Key}" TextTrimming="CharacterEllipsis" />
                                     <TextBox Grid.Column="3" Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Grid.Column="4" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Description}" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Column="4" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding HelpText}" TextWrapping="Wrap" />
                                 </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>

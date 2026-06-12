@@ -122,7 +122,14 @@ namespace ArcaneEDR
             {
                 Environment.ExitCode = ConfigValidator.Run(
                     AppDomain.CurrentDomain.BaseDirectory,
-                    args.Length > 1 ? args[1] : "");
+                    FirstNonFlagArgument(args, 1),
+                    HasFlag(args, "--json"));
+                return;
+            }
+
+            if (args.Length > 0 && args[0].Equals("--health", StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.ExitCode = HealthConsole.Run(AppDomain.CurrentDomain.BaseDirectory, args);
                 return;
             }
 
@@ -171,6 +178,8 @@ namespace ArcaneEDR
             Console.WriteLine("Usage:");
             Console.WriteLine("  ArcaneEDR.exe --version");
             Console.WriteLine("  ArcaneEDR.exe --validate-config [config-path]");
+            Console.WriteLine("  ArcaneEDR.exe --validate-config [config-path] [--json]");
+            Console.WriteLine("  ArcaneEDR.exe --health [--json]");
             Console.WriteLine("  ArcaneEDR.exe --console");
             Console.WriteLine("  ArcaneEDR.exe --poll-once");
             Console.WriteLine("  ArcaneEDR.exe --test-alert [--count <n>]");
@@ -180,16 +189,38 @@ namespace ArcaneEDR
             Console.WriteLine("  ArcaneEDR.exe --test-ai-analysis");
             Console.WriteLine("  ArcaneEDR.exe --preview-ai-payload");
             Console.WriteLine("  ArcaneEDR.exe --alert-volume --last <duration>");
-            Console.WriteLine("  ArcaneEDR.exe --agent-activity --last <duration>");
+            Console.WriteLine("  ArcaneEDR.exe --alert-volume --last <duration> [--json]");
+            Console.WriteLine("  ArcaneEDR.exe --agent-activity --last <duration> [--json]");
             Console.WriteLine("  ArcaneEDR.exe --maintenance start|clear|list [options]");
-            Console.WriteLine("  ArcaneEDR.exe --response-firewall list|remove|remove-all");
+            Console.WriteLine("  ArcaneEDR.exe --response-firewall list [--json]");
+            Console.WriteLine("  ArcaneEDR.exe --response-firewall remove|remove-all");
             Console.WriteLine("  ArcaneEDR.exe --policy-preview --last <duration> [--limit <n>]");
             Console.WriteLine("  ArcaneEDR.exe --policy-preview --sample-rule <rule-id> [sample context options]");
             Console.WriteLine("  ArcaneEDR.exe --policy-preview --sample-alert <json-path>");
             Console.WriteLine("  ArcaneEDR.exe --policy-inspect [--json]");
-            Console.WriteLine("  ArcaneEDR.exe --incidents --last <duration>");
+            Console.WriteLine("  ArcaneEDR.exe --incidents --last <duration> [--json]");
             Console.WriteLine("  ArcaneEDR.exe --timeline <incident-id>");
             Console.WriteLine("  ArcaneEDR.exe --support-bundle");
+        }
+
+        private static bool HasFlag(string[] args, string name)
+        {
+            foreach (string arg in args)
+            {
+                if (arg.Equals(name, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+
+            return false;
+        }
+
+        private static string FirstNonFlagArgument(string[] args, int startIndex)
+        {
+            for (int index = startIndex; index < args.Length; index++)
+            {
+                if (!args[index].StartsWith("-", StringComparison.Ordinal)) return args[index];
+            }
+
+            return "";
         }
     }
 }

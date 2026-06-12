@@ -9,6 +9,14 @@ internal sealed class GuiUserSettings
 {
     public bool StartOnWindowsLogin { get; set; } = true;
     public bool StartMinimizedOnWindowsLogin { get; set; } = true;
+    public string AlertLookback { get; set; } = "24h";
+    public string AlertSeverity { get; set; } = "Any";
+    public string AlertCategory { get; set; } = "Any";
+    public string AlertSearch { get; set; } = "";
+    public bool AlertExternalThresholdOnly { get; set; }
+    public string AlertSortColumn { get; set; } = "Time";
+    public bool AlertSortAscending { get; set; }
+    public double AlertDetailsHeight { get; set; } = 260;
 }
 
 internal static class GuiStartupSettings

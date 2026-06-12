@@ -73,6 +73,13 @@ The GUI should be a client of the product, not a second implementation of the
 product. Prefer shared config logic, structured CLI output, and local state
 files over parsing human text or duplicating service behavior.
 
+Page navigation must cancel stale async work. WinUI pages can unload while a
+refresh command is still awaiting process output or local file reads. Every
+page-level refresh that updates XAML after an `await` should have an unload
+cancellation path and a generation/current-page guard before touching controls.
+Log and handle XAML/navigation exceptions so recoverable refresh failures do not
+become process exits.
+
 ## Scroll Handling
 
 WinUI scroll behavior deserves deliberate treatment. The final stable pattern
@@ -183,6 +190,7 @@ Before calling GUI work complete, run:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-gui.ps1 -OutputPath artifacts\gui-check
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-fixtures.ps1
 .\scripts\build-msi.cmd
+.\scripts\test-msi-validation.cmd -RunAdminValidation
 ```
 
 For local deployment validation:
@@ -197,6 +205,17 @@ Get-CimInstance Win32_Service -Filter "Name='ArcaneEDR'"
 Manual GUI checks still matter. Automated UI inspection may not expose every
 WinUI visual tree or scroll state from a non-interactive shell, so confirm
 real pointer/trackpad behavior in the running installed GUI.
+
+Prefer structured CLI output for GUI bindings. Human console text is useful for
+operators, but GUI code should consume `--json` outputs for validation, health,
+alert volume, agent activity, incidents, response firewall state, policy
+inspection, and report preview when those outputs are available. Keep human
+text fallback during upgrade windows so the GUI can survive a partially updated
+install.
+
+Overview should be an operator note, not a diagnostic dump. Put the plain
+status, validation blockers/warnings, and next action first; keep raw evidence
+and timestamps one level lower.
 
 ## Upgrade Discipline
 

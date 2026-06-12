@@ -25,7 +25,7 @@ public sealed partial class ConfigurationPage : Page
 
     private async void Validate_Click(object sender, RoutedEventArgs e)
     {
-        await ValidateAsync();
+        await ValidateAsync(sender as Button);
     }
 
     private void OpenConfig_Click(object sender, RoutedEventArgs e)
@@ -146,11 +146,14 @@ public sealed partial class ConfigurationPage : Page
         await ValidateAsync();
     }
 
-    private async System.Threading.Tasks.Task ValidateAsync()
+    private async System.Threading.Tasks.Task ValidateAsync(Button? button = null)
     {
         PathText.Text = ArcaneStateReader.BuildPathSummary();
-        ArcaneCommandResult result = await ArcaneCommandRunner.RunAsync("--validate-config");
-        ValidationText.Text = result.CombinedText();
+        await GuiCommandStatus.RunAsync(button, ValidationText, "Validating configuration...", async () =>
+        {
+            ArcaneValidationReport validation = await ArcaneValidationView.RunAsync();
+            return ArcaneValidationView.BuildOverviewText(validation);
+        });
     }
 
     private void LoadGuided(ArcaneConfigBundle bundle)

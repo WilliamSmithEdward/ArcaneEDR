@@ -12,15 +12,29 @@ namespace ArcaneEDR
         {
             MonitorConfig config = MonitorConfig.Load(baseDirectory);
             TimeSpan lookback = InvestigationConsoleOptions.ParseLookback(args, TimeSpan.FromHours(24));
+            bool json = HasFlag(args, "--json");
 
-            Console.WriteLine("Agent activity from the last " + InvestigationConsoleOptions.Describe(lookback) + " using " + config.AgentActivityLedgerFile);
             if (!File.Exists(config.AgentActivityLedgerFile))
             {
+                if (json)
+                {
+                    PrintJson(config, lookback, new List<AgentActivityRecord>(), false);
+                    return 0;
+                }
+
+                Console.WriteLine("Agent activity from the last " + InvestigationConsoleOptions.Describe(lookback) + " using " + config.AgentActivityLedgerFile);
                 Console.WriteLine("No agent activity ledger found.");
                 return 0;
             }
 
             List<AgentActivityRecord> records = LoadRecords(config.AgentActivityLedgerFile, lookback);
+            if (json)
+            {
+                PrintJson(config, lookback, records, true);
+                return 0;
+            }
+
+            Console.WriteLine("Agent activity from the last " + InvestigationConsoleOptions.Describe(lookback) + " using " + config.AgentActivityLedgerFile);
             if (records.Count == 0)
             {
                 Console.WriteLine("No agent activity records found.");
@@ -48,6 +62,34 @@ namespace ArcaneEDR
             PrintRecent(records);
 
             return 0;
+        }
+
+        private static void PrintJson(MonitorConfig config, TimeSpan lookback, List<AgentActivityRecord> records, bool ledgerFound)
+        {
+            int maxScore = 0;
+            int maintenance = 0;
+            foreach (AgentActivityRecord record in records)
+            {
+                if (record.Score > maxScore) maxScore = record.Score;
+                if (record.MaintenanceContext) maintenance++;
+            }
+
+            Dictionary<string, object> root = new Dictionary<string, object>();
+            root["schema"] = "arcane.agent_activity.v1";
+            root["ok"] = true;
+            root["ledger_found"] = ledgerFound;
+            root["ledger_file"] = config.AgentActivityLedgerFile;
+            root["lookback"] = InvestigationConsoleOptions.Describe(lookback);
+            root["total_records"] = records.Count;
+            root["highest_score"] = maxScore;
+            root["maintenance_context"] = maintenance;
+            root["by_rule"] = Limit(BuildBuckets(records, "rule"), 30);
+            root["by_command_category"] = Limit(BuildBuckets(records, "command"), 30);
+            root["by_endpoint_category"] = Limit(BuildBuckets(records, "endpoint"), 30);
+            root["by_file_category"] = Limit(BuildBuckets(records, "file"), 30);
+            root["by_process_family"] = Limit(BuildBuckets(records, "process"), 30);
+            root["recent"] = Limit(Recent(records), 20);
+            Console.WriteLine(new JavaScriptSerializer().Serialize(root));
         }
 
         private static List<AgentActivityRecord> LoadRecords(string path, TimeSpan lookback)
@@ -177,6 +219,33 @@ namespace ArcaneEDR
             if (field.Equals("file", StringComparison.OrdinalIgnoreCase)) return record.FileCategory;
             if (field.Equals("process", StringComparison.OrdinalIgnoreCase)) return record.ProcessFamily;
             return "unknown";
+        }
+
+        private static List<AgentActivityRecord> Recent(List<AgentActivityRecord> records)
+        {
+            List<AgentActivityRecord> recent = new List<AgentActivityRecord>(records);
+            recent.Sort(delegate(AgentActivityRecord left, AgentActivityRecord right)
+            {
+                return right.TimestampUtc.CompareTo(left.TimestampUtc);
+            });
+            return recent;
+        }
+
+        private static List<T> Limit<T>(List<T> values, int limit)
+        {
+            if (values.Count <= limit) return values;
+            return values.GetRange(0, limit);
+        }
+
+        private static bool HasFlag(string[] args, string name)
+        {
+            if (args == null) return false;
+            foreach (string arg in args)
+            {
+                if (arg.Equals(name, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+
+            return false;
         }
 
     }

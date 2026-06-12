@@ -46,11 +46,12 @@ Windows-specific and therefore lean primarily on Microsoft Shell guidance.
 
 ## Current Assessment
 
-Overall status: partially conformant. The GUI is now a credible operator console
-with native WinUI controls, persistent tray access, help entry points, and
-stronger confirmation around risky actions. It is not yet a fully polished
-end-user application because responsive layout, command state feedback, table
-ergonomics, and formal accessibility verification still need focused work.
+Overall status: mostly conformant for the local operator-console goal. The GUI
+uses native WinUI controls, persistent tray access, help entry points, stronger
+confirmation around risky actions, structured service data where available, and
+simple actionable Overview guidance. Remaining gaps are primarily formal
+verification gates: clean-VM installer matrix, public signing, and a complete
+accessibility/responsive sweep.
 
 ### Conforms
 
@@ -79,6 +80,17 @@ ergonomics, and formal accessibility verification still need focused work.
   replacing local config.
 - Icon-only buttons in the reviewed high-use surfaces now have tooltips and
   accessible names where recently touched.
+- Overview gives a plain-language status, validation summary, next action,
+  review queue, signal picture, and service rhythm instead of raw diagnostic
+  dumps as the first read.
+- Long-running configuration, policy, report, and maintenance actions show a
+  running message and disable the initiating button while work is in progress.
+- Alerts table supports clickable sort headers, sort indicators, resizable
+  columns, vertical details resizing, saved per-user view preferences, and CSV
+  copy/export of the visible filtered rows.
+- Configuration guided controls include field-level tooltips for dangerous or
+  privacy-sensitive settings, and Advanced Keys uses metadata for type, risk,
+  restart requirement, and privacy notes.
 
 ### Partially Conforms
 
@@ -87,13 +99,12 @@ ergonomics, and formal accessibility verification still need focused work.
   Configuration guided cards, About two-column cards, and Overview stat cards.
   These layouts may crowd or clip at narrow window widths, high DPI, or larger
   text settings.
-- Alert table ergonomics: the current table is a `ListView` with aligned grid
-  columns. It supports filtering and sorting through external controls, but it
-  does not offer resizable columns, keyboard-sortable headers, column chooser,
-  persistent saved views, or an adaptive card/list view at narrow widths.
-- Command feedback: many commands await background CLI work, but there is no
-  consistent progress ring, disabled-running state, cancellation path, or
-  success/failure status bar pattern.
+- Alert table ergonomics: the table now supports header sorting, visible
+  indicators, resize handles, saved view state, and CSV copy/export. Remaining
+  polish is a column chooser and a compact adaptive layout at narrow widths.
+- Command feedback: high-use command paths now show running text and disable
+  the initiating button. Remaining polish is a global status bar, progress
+  ring, and cancellation where cancellation is safe.
 - Accessibility: native controls provide a good baseline, but there has not
   been a complete Narrator, keyboard-only, high contrast, 200 percent scaling,
   and text-size pass. Dynamic output panes also need better accessible names and
@@ -104,9 +115,9 @@ ergonomics, and formal accessibility verification still need focused work.
   ipwhois non-commercial-use hooks, AI API key environment variables, policy
   actions, and deployment paths.
 - Configuration coupling: Guided settings cover core runtime/deployment choices,
-  and Advanced Keys covers the rest. A schema-driven config model would make it
-  easier to guarantee that every supported config key has a control type,
-  validation rule, help text, default, and save behavior.
+  Advanced Keys covers the rest, and the GUI now has metadata for type, risk,
+  restart, and privacy notes. A future fully generated form could remove the
+  remaining manual Guided wiring.
 - Notification-area implementation: the tray icon uses `Shell_NotifyIcon` and
   sets version 4 behavior, but it does not yet use a stable GUID identity or
   `LoadIconMetric` for optimal high-DPI icon selection.
@@ -116,8 +127,8 @@ ergonomics, and formal accessibility verification still need focused work.
 - The GUI has not completed a formal end-user accessibility test matrix.
 - The GUI has not completed a visual responsive sweep across small, medium,
   large, high-DPI, and increased-text Windows settings.
-- The GUI does not yet provide consistent in-app command state feedback for all
-  long-running or side-effecting commands.
+- The GUI does not yet provide a global command status bar or cancellation path
+  for every long-running command.
 - The GUI does not yet fully replace docs/CLI for every advanced workflow in a
   hand-held, step-by-step way. Advanced Keys and Policy JSON remain necessary
   escape hatches.
@@ -139,31 +150,28 @@ ergonomics, and formal accessibility verification still need focused work.
 
 ## Recommended Next GUI Work
 
-1. Build a reusable command execution UX:
-   status bar, progress ring, disabled initiating button, timeout text,
-   cancellation where safe, and consistent success/failure presentation.
-2. Convert fixed grids to adaptive layouts:
+1. Convert fixed grids to adaptive layouts:
    wrap filter bars, stack card groups below breakpoints, and use a compact
    alert list-detail layout at narrow widths.
-3. Replace the faux alert/config tables with a stronger table pattern:
-   keyboard-sortable headers, column sizing, saved filters, row details, and
-   export/copy affordances.
-4. Add field-level help:
-   small help buttons beside complicated or dangerous settings, with concise
-   explanations, safe defaults, expected effect, and rollback path.
-5. Make configuration schema-driven:
-   one metadata source for key name, category, default, type, validation,
-   danger level, help text, repo default, and local override behavior.
-6. Finish the accessibility pass:
+2. Add global command status polish:
+   status bar, progress ring, timeout text, cancellation where safe, and
+   consistent success/failure presentation.
+3. Add alert table refinements:
+   column chooser, saved named views, and narrow-width card/list layout.
+4. Continue configuration metadata work:
+   add defaults, validation ranges, repo default visibility, and generated
+   controls for more keys.
+5. Finish the accessibility pass:
    Narrator labels, tab order, focus visibility, high contrast, scaled text,
    keyboard-only operation, status announcements, and non-color-only severity.
-7. Improve notification-area robustness:
+6. Improve notification-area robustness:
    stable GUID identity, high-DPI icon loading, and possibly a small Help menu
    item that opens the relevant GUI help page.
 
 ## Ship Judgment
 
-The v0.8.5 GUI is acceptable as an operator-console preview with MSI install,
-self-contained WinUI runtime, persistent tray access, and meaningful guardrails.
-For a smooth end-user product experience, the next release should prioritize
-responsive layout and command-state feedback before adding more features.
+The v0.8.x GUI is acceptable as the operator-console baseline with MSI install,
+self-contained WinUI runtime, persistent tray access, meaningful guardrails,
+structured read-only command seams, and actionable Overview guidance. The next
+product-quality gate should be disposable-VM installer validation plus formal
+accessibility and responsive sweeps.

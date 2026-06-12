@@ -2,6 +2,7 @@ using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Navigation;
 using ArcaneEDR_Gui.Pages;
 using ArcaneEDR_Gui.Services;
 using WinRT.Interop;
@@ -21,23 +22,54 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
 
-        ApplyWindowIcon();
+        ApplyWindowChrome();
+        NavFrame.NavigationFailed += NavFrame_NavigationFailed;
         NavigateTo("home");
         Closed += MainWindow_Closed;
     }
 
-    private void ApplyWindowIcon()
+    private void ApplyWindowChrome()
     {
         var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
-        if (!File.Exists(iconPath))
-        {
-            return;
-        }
 
         var windowHandle = WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(windowHandle);
         _appWindow = AppWindow.GetFromWindowId(windowId);
-        _appWindow.SetIcon(iconPath);
+        if (File.Exists(iconPath))
+        {
+            _appWindow.SetIcon(iconPath);
+        }
+
+        ApplyTitleBarColors();
+    }
+
+    private void ApplyTitleBarColors()
+    {
+        if (_appWindow == null)
+        {
+            return;
+        }
+
+        try
+        {
+            AppWindowTitleBar titleBar = _appWindow.TitleBar;
+            titleBar.BackgroundColor = Colors.Black;
+            titleBar.ForegroundColor = Colors.White;
+            titleBar.InactiveBackgroundColor = Colors.Black;
+            titleBar.InactiveForegroundColor = Colors.LightGray;
+            titleBar.ButtonBackgroundColor = Colors.Black;
+            titleBar.ButtonForegroundColor = Colors.White;
+            titleBar.ButtonInactiveBackgroundColor = Colors.Black;
+            titleBar.ButtonInactiveForegroundColor = Colors.LightGray;
+            titleBar.ButtonHoverBackgroundColor = ColorHelper.FromArgb(255, 32, 32, 32);
+            titleBar.ButtonHoverForegroundColor = Colors.White;
+            titleBar.ButtonPressedBackgroundColor = ColorHelper.FromArgb(255, 48, 48, 48);
+            titleBar.ButtonPressedForegroundColor = Colors.White;
+        }
+        catch (Exception ex)
+        {
+            GuiDiagnostics.LogException("titlebar-colors", ex);
+        }
     }
 
     public void ShowAndActivate()
@@ -85,7 +117,6 @@ public sealed partial class MainWindow : Window
             catch (Exception ex)
             {
                 GuiDiagnostics.LogException("navigation:" + tag, ex);
-                throw;
             }
         }
     }
@@ -111,6 +142,12 @@ public sealed partial class MainWindow : Window
         {
             NavigateTo(item.Tag?.ToString() ?? "home");
         }
+    }
+
+    private void NavFrame_NavigationFailed(object sender, NavigationFailedEventArgs args)
+    {
+        GuiDiagnostics.LogException("navigation-failed", args.Exception);
+        args.Handled = true;
     }
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)

@@ -56,6 +56,17 @@ Assert-Contains $version "Arcane EDR" "Version output"
 $validation = Invoke-Arcane @("--validate-config")
 Assert-Contains $validation "Validation summary: 0 error(s)" "Config validation"
 
+$validationJsonText = (Invoke-Arcane @("--validate-config", "--json") | Out-String).Trim()
+$validationJson = $validationJsonText | ConvertFrom-Json
+Assert-True ($validationJson.schema -eq "arcane.validation.v1") "Validation JSON schema"
+Assert-True ($validationJson.error_count -eq 0) "Validation JSON error count"
+Assert-True ($validationJson.messages.Count -gt 0) "Validation JSON messages"
+
+$healthJsonText = (Invoke-Arcane @("--health", "--json") | Out-String).Trim()
+$healthJson = $healthJsonText | ConvertFrom-Json
+Assert-True ($healthJson.schema -eq "arcane.health.v1") "Health JSON schema"
+Assert-True (-not [System.String]::IsNullOrWhiteSpace($healthJson.service_state)) "Health JSON service state"
+
 $policyJsonText = (Invoke-Arcane @("--policy-inspect", "--json") | Out-String).Trim()
 $policy = $policyJsonText | ConvertFrom-Json
 Assert-True ($policy.storage -eq "jsonl") "Policy inspect should declare JSONL storage."
@@ -65,6 +76,18 @@ Assert-True (($policy.scopes | Where-Object { $_.scope -eq "response" }) -ne $nu
 
 $policyPreview = Invoke-Arcane @("--policy-preview", "--sample-rule", "NET-BEACON-TIMING-LOW-RISK", "--sample-process", "codex.exe", "--sample-score", "55")
 Assert-Contains $policyPreview "Detection policy preview" "Policy preview"
+
+$alertVolumeJson = (Invoke-Arcane @("--alert-volume", "--last", "10m", "--json") | Out-String).Trim() | ConvertFrom-Json
+Assert-True ($alertVolumeJson.schema -eq "arcane.alert_volume.v1") "Alert volume JSON schema"
+
+$agentActivityJson = (Invoke-Arcane @("--agent-activity", "--last", "10m", "--json") | Out-String).Trim() | ConvertFrom-Json
+Assert-True ($agentActivityJson.schema -eq "arcane.agent_activity.v1") "Agent activity JSON schema"
+
+$incidentsJson = (Invoke-Arcane @("--incidents", "--last", "10m", "--json") | Out-String).Trim() | ConvertFrom-Json
+Assert-True ($incidentsJson.schema -eq "arcane.incidents.v1") "Incidents JSON schema"
+
+$responseJson = (Invoke-Arcane @("--response-firewall", "list", "--json") | Out-String).Trim() | ConvertFrom-Json
+Assert-True ($responseJson.schema -eq "arcane.response_firewall.v1") "Response firewall JSON schema"
 
 $dailyPreview = Invoke-Arcane @("--preview-daily-report")
 Assert-Contains $dailyPreview "Determination" "Daily report preview"

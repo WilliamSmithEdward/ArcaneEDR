@@ -61,6 +61,8 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel>
                 <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Alerts" />
@@ -78,13 +80,33 @@
             </Button>
             <Button
                 Grid.Column="2"
+                AutomationProperties.Name="Copy visible alerts as CSV"
+                Click="CopyCsv_Click"
+                ToolTipService.ToolTip="Copy the current filtered alert rows as CSV">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon FontSize="16" Glyph="&#xE8C8;" />
+                    <TextBlock Text="Copy CSV" />
+                </StackPanel>
+            </Button>
+            <Button
+                Grid.Column="3"
+                AutomationProperties.Name="Export visible alerts as CSV"
+                Click="ExportCsv_Click"
+                ToolTipService.ToolTip="Export the current filtered alert rows as CSV">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon FontSize="16" Glyph="&#xEDE1;" />
+                    <TextBlock Text="Export" />
+                </StackPanel>
+            </Button>
+            <Button
+                Grid.Column="4"
                 AutomationProperties.Name="Open log directory"
                 Click="OpenLogs_Click"
                 ToolTipService.ToolTip="Open log directory">
                 <FontIcon FontSize="16" Glyph="&#xE838;" />
             </Button>
             <Button
-                Grid.Column="3"
+                Grid.Column="5"
                 AutomationProperties.Name="Alerts help"
                 Click="Help_Click"
                 ToolTipService.ToolTip="Explain alert table filters and evidence">

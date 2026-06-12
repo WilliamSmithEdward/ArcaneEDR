@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Web.Script.Serialization;
 
 namespace ArcaneEDR
 {
@@ -12,6 +13,20 @@ namespace ArcaneEDR
             IncidentStore store = new IncidentStore(config, null);
             TimeSpan lookback = InvestigationConsoleOptions.ParseLookback(args, TimeSpan.FromHours(24));
             List<IncidentSummary> summaries = store.ListSummaries(lookback);
+            bool json = HasFlag(args, "--json");
+
+            if (json)
+            {
+                Dictionary<string, object> root = new Dictionary<string, object>();
+                root["schema"] = "arcane.incidents.v1";
+                root["ok"] = true;
+                root["incident_store_file"] = config.IncidentStoreFile;
+                root["lookback"] = InvestigationConsoleOptions.Describe(lookback);
+                root["total_incidents"] = summaries.Count;
+                root["incidents"] = summaries;
+                Console.WriteLine(new JavaScriptSerializer().Serialize(root));
+                return 0;
+            }
 
             Console.WriteLine("Incidents from the last " + InvestigationConsoleOptions.Describe(lookback) + " using " + config.IncidentStoreFile);
             if (summaries.Count == 0)
@@ -89,6 +104,17 @@ namespace ArcaneEDR
             }
 
             return 0;
+        }
+
+        private static bool HasFlag(string[] args, string name)
+        {
+            if (args == null) return false;
+            foreach (string arg in args)
+            {
+                if (arg.Equals(name, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+
+            return false;
         }
 
     }
