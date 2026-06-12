@@ -185,7 +185,7 @@ namespace ArcaneEDR
             Console.WriteLine("  ArcaneEDR.exe --test-alert [--count <n>]");
             Console.WriteLine("  ArcaneEDR.exe --test-health");
             Console.WriteLine("  ArcaneEDR.exe --test-daily-report");
-            Console.WriteLine("  ArcaneEDR.exe --preview-daily-report [--json] [--archive]");
+            Console.WriteLine("  ArcaneEDR.exe --preview-daily-report [--json] [--archive] [--ai-payload]");
             Console.WriteLine("  ArcaneEDR.exe --test-ai-analysis");
             Console.WriteLine("  ArcaneEDR.exe --preview-ai-payload");
             Console.WriteLine("  ArcaneEDR.exe --alert-volume --last <duration>");

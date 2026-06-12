@@ -48,6 +48,12 @@ The default policy:
 - Keeps service lifecycle notifications eligible for external delivery; rate
   limits do not block clean starts, clean stops, crash recovery, or daily
   summaries.
+- Keeps policy-suppressed alerts in local JSONL evidence while omitting them
+  from daily-report priority callouts and high-signal tables. Daily reports
+  still summarize suppressed critical/high records as retained audit context.
+- Sends AI daily-report analysis an actionable-first aggregate: primary review
+  scope is non-policy-suppressed events, while policy-suppressed records are
+  labeled as local context rather than direct action items.
 - Trusts known major provider remote identity inside an allowed country for
   clean network-shape dampening. Country alone does not lower score.
 - Treats countries in `allowlists.allowed_remote_countries` as acceptable

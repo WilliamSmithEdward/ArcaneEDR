@@ -136,6 +136,7 @@ namespace ArcaneEDR
         {
             bool json = HasArg(args, "--json");
             bool archive = HasArg(args, "--archive");
+            bool aiPayload = HasArg(args, "--ai-payload");
 
             MonitorConfig config = MonitorConfig.Load(baseDirectory);
             HealthState state = HealthState.Load(Path.Combine(config.LogDirectory, "ArcaneServiceHealth.state"));
@@ -150,6 +151,12 @@ namespace ArcaneEDR
                 0);
             DailyReportSnapshot snapshot = reportBuilder.BuildSnapshot(now);
             string aiStatus = "disabled: preview mode";
+            if (aiPayload)
+            {
+                Console.WriteLine(reportBuilder.BuildAiPayload(snapshot));
+                return 0;
+            }
+
             string body = reportBuilder.BuildReport(snapshot, null, aiStatus);
             string archiveJson = reportBuilder.BuildArchiveJson(snapshot, null, aiStatus);
 

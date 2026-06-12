@@ -93,9 +93,31 @@ $dailyPreview = Invoke-Arcane @("--preview-daily-report")
 Assert-Contains $dailyPreview "Determination" "Daily report preview"
 Assert-Contains $dailyPreview "Local machine" "Daily report host machine"
 Assert-Contains $dailyPreview "Local IP addresses" "Daily report host IPs"
+Assert-Contains $dailyPreview "Actionable critical / high" "Daily report actionable priority counts"
+Assert-Contains $dailyPreview "Policy-suppressed local evidence" "Daily report policy-suppressed context"
+Assert-Contains $dailyPreview "Actionable Signal Summary" "Daily report actionable signal summary"
 
 $dailyPreviewJson = (Invoke-Arcane @("--preview-daily-report", "--json") | Out-String).Trim() | ConvertFrom-Json
 Assert-True (-not [System.String]::IsNullOrWhiteSpace($dailyPreviewJson.host_identity.machine_name)) "Daily report JSON host machine"
 Assert-True ($null -ne $dailyPreviewJson.host_identity.local_ip_addresses) "Daily report JSON host IPs"
+Assert-True ($null -ne $dailyPreviewJson.metrics.actionable_critical_count) "Daily report JSON actionable critical metric"
+Assert-True ($null -ne $dailyPreviewJson.metrics.policy_suppressed_high_signal_count) "Daily report JSON policy-suppressed high-signal metric"
+if ($dailyPreviewJson.top_severities.Count -ge 2) {
+    $severityOrder = @{ critical = 4; high = 3; medium = 2; low = 1 }
+    $previousRank = 99
+    foreach ($severity in $dailyPreviewJson.top_severities) {
+        $name = [string]$severity.name
+        $rank = if ($severityOrder.ContainsKey($name.ToLowerInvariant())) { $severityOrder[$name.ToLowerInvariant()] } else { 0 }
+        Assert-True ($rank -le $previousRank) "Daily report severity buckets should sort critical to low"
+        $previousRank = $rank
+    }
+}
+
+$aiPayload = Invoke-Arcane @("--preview-daily-report", "--ai-payload")
+Assert-Contains $aiPayload "primary_review_scope=actionable_non_policy_suppressed_alerts" "AI payload actionable review scope"
+Assert-Contains $aiPayload "policy_suppressed_scope=retained_local_audit_context_not_primary_review_queue" "AI payload suppressed context scope"
+Assert-Contains $aiPayload "ActionableCriticalAlerts" "AI payload actionable critical count"
+Assert-Contains $aiPayload "PolicySuppressedHighAlerts" "AI payload policy-suppressed high count"
+Assert-Contains $aiPayload "PolicySuppressedHighSignalAlerts" "AI payload policy-suppressed high-signal count"
 
 Write-Host "Fixture tests passed."

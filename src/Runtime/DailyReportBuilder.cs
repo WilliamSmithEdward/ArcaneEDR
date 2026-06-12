@@ -69,6 +69,8 @@ namespace ArcaneEDR
             builder.AppendLine("privacy_mode=redacted_aggregate_summary_only");
             builder.AppendLine("omitted_fields=alert_body,entity,command_line,script_block,user,path,ip,url,email,secrets");
             builder.AppendLine("analysis_guardrails=do_not_treat_alert_volume_alone_as_compromise;weigh_baseline_learning_maintenance_automation_context_and_telemetry_gaps;state_uncertainty_when_source_context_is_missing");
+            builder.AppendLine("primary_review_scope=actionable_non_policy_suppressed_alerts");
+            builder.AppendLine("policy_suppressed_scope=retained_local_audit_context_not_primary_review_queue");
             builder.AppendLine("recipient_question=is_compromise_confirmed_or_review_required");
             builder.AppendLine("report_verdict=" + SanitizeToken(BuildOperatorVerdict(snapshot, metrics)));
             builder.AppendLine("compromise_assessment=" + SanitizeText(BuildCompromiseAssessment(snapshot, metrics)));
@@ -168,10 +170,10 @@ namespace ArcaneEDR
             root["sections"] = new List<string>(config.DailyReportSections);
             root["metrics"] = BuildMetricsObject(metrics);
             root["health"] = BuildHealthObject(snapshot);
-            root["top_severities"] = BuildBucketObjects(BuildAlertBuckets(snapshot.Alerts, "severity"), config.DailyReportBucketRows);
-            root["top_categories"] = BuildBucketObjects(BuildAlertBuckets(snapshot.Alerts, "category"), config.DailyReportBucketRows);
-            root["top_rules"] = BuildBucketObjects(BuildAlertBuckets(snapshot.Alerts, "rule"), config.DailyReportBucketRows);
-            root["high_signal"] = BuildSignalObjects(BuildHighSignalSummaries(snapshot.Alerts, 75), config.DailyReportHighSignalRows);
+            root["top_severities"] = BuildBucketObjects(BuildAlertBuckets(ActionableAlerts(snapshot.Alerts), "severity"), config.DailyReportBucketRows);
+            root["top_categories"] = BuildBucketObjects(BuildAlertBuckets(ActionableAlerts(snapshot.Alerts), "category"), config.DailyReportBucketRows);
+            root["top_rules"] = BuildBucketObjects(BuildAlertBuckets(ActionableAlerts(snapshot.Alerts), "rule"), config.DailyReportBucketRows);
+            root["high_signal"] = BuildSignalObjects(BuildHighSignalSummaries(snapshot.Alerts, 75, true), config.DailyReportHighSignalRows);
             root["automation_activity"] = BuildAgentActivityObject(snapshot.AgentActivities);
             root["ai_review"] = BuildAiObject(aiResult, aiStatus);
 
@@ -196,10 +198,16 @@ namespace ArcaneEDR
 
         private void AppendCriticalCallouts(StringBuilder builder, DailyReportSnapshot snapshot, DailyReportMetrics metrics)
         {
-            List<DailySignalSummary> critical = BuildHighSignalSummaries(snapshot.Alerts, 90);
+            List<DailySignalSummary> critical = BuildHighSignalSummaries(snapshot.Alerts, 90, true);
             if (critical.Count == 0)
             {
-                builder.AppendLine("No critical-priority local signals were identified in the last 24 hours.");
+                builder.AppendLine("No actionable critical-priority signals were identified in the last 24 hours.");
+                if (metrics.PolicySuppressedCriticalCount > 0)
+                {
+                    builder.AppendLine();
+                    builder.AppendLine(metrics.PolicySuppressedCriticalCount.ToString(CultureInfo.InvariantCulture) +
+                        " policy-suppressed critical-priority local record(s) were retained for audit and omitted from priority callouts.");
+                }
                 return;
             }
 
@@ -239,7 +247,9 @@ namespace ArcaneEDR
                     builder.AppendLine("| Item | Value |");
                     builder.AppendLine("| --- | --- |");
                     builder.AppendLine("| 24h alerts | " + metrics.WindowAlerts.ToString(CultureInfo.InvariantCulture) + " |");
-                    builder.AppendLine("| Critical / high priority | " + metrics.CriticalCount.ToString(CultureInfo.InvariantCulture) + " critical-priority, " + metrics.HighCount.ToString(CultureInfo.InvariantCulture) + " high-priority |");
+                    builder.AppendLine("| Actionable critical / high | " + metrics.CriticalCount.ToString(CultureInfo.InvariantCulture) + " critical-priority, " + metrics.HighCount.ToString(CultureInfo.InvariantCulture) + " high-priority |");
+                    builder.AppendLine("| Local critical / high retained | " + metrics.LocalCriticalCount.ToString(CultureInfo.InvariantCulture) + " critical-priority, " + metrics.LocalHighCount.ToString(CultureInfo.InvariantCulture) + " high-priority |");
+                    builder.AppendLine("| Policy-suppressed local evidence | " + PolicySuppressedSummary(metrics) + " |");
                     builder.AppendLine("| External-qualified before rate limits | " + metrics.ExternalQualified.ToString(CultureInfo.InvariantCulture) + " |");
                     builder.AppendLine("| Health | " + TableCell(BuildHealthRead(snapshot)) + " |");
                     builder.AppendLine("| Baseline learning | " + (snapshot.BaselineLearningMode ? "On" : "Off") + " |");
@@ -250,12 +260,13 @@ namespace ArcaneEDR
 
                 if (DailyReportSectionEnabled("SignalSummary"))
                 {
-                    builder.AppendLine("## Signal Summary");
-                    AppendBucketTable(builder, "Severity", BuildAlertBuckets(alerts, "severity"), config.DailyReportBucketRows);
+                    List<DailyAlertRecord> actionableAlerts = ActionableAlerts(alerts);
+                    builder.AppendLine("## Actionable Signal Summary");
+                    AppendBucketTable(builder, "Severity", BuildAlertBuckets(actionableAlerts, "severity"), config.DailyReportBucketRows);
                     builder.AppendLine();
-                    AppendBucketTable(builder, "Top Categories", BuildAlertBuckets(alerts, "category"), config.DailyReportBucketRows);
+                    AppendBucketTable(builder, "Top Categories", BuildAlertBuckets(actionableAlerts, "category"), config.DailyReportBucketRows);
                     builder.AppendLine();
-                    AppendBucketTable(builder, "Top Rules", BuildAlertBuckets(alerts, "rule"), config.DailyReportBucketRows);
+                    AppendBucketTable(builder, "Top Rules", BuildAlertBuckets(actionableAlerts, "rule"), config.DailyReportBucketRows);
                     builder.AppendLine();
                 }
 
@@ -296,18 +307,26 @@ namespace ArcaneEDR
 
             builder.AppendLine("[alert_volume]");
             builder.AppendLine("WindowAlerts: " + alerts.Count.ToString(CultureInfo.InvariantCulture));
-            builder.AppendLine("CriticalAlerts: " + metrics.CriticalCount.ToString(CultureInfo.InvariantCulture));
-            builder.AppendLine("HighAlerts: " + metrics.HighCount.ToString(CultureInfo.InvariantCulture));
-            builder.AppendLine("MediumAlerts: " + metrics.MediumCount.ToString(CultureInfo.InvariantCulture));
-            builder.AppendLine("LowAlerts: " + metrics.LowCount.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine("ActionableCriticalAlerts: " + metrics.CriticalCount.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine("ActionableHighAlerts: " + metrics.HighCount.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine("ActionableMediumAlerts: " + metrics.MediumCount.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine("ActionableLowAlerts: " + metrics.LowCount.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine("LocalCriticalAlerts: " + metrics.LocalCriticalCount.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine("LocalHighAlerts: " + metrics.LocalHighCount.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine("PolicySuppressedAlerts: " + metrics.PolicySuppressedCount.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine("PolicySuppressedCriticalAlerts: " + metrics.PolicySuppressedCriticalCount.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine("PolicySuppressedHighAlerts: " + metrics.PolicySuppressedHighCount.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine("ActionableHighSignalAlerts: " + metrics.HighSignalCount.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine("PolicySuppressedHighSignalAlerts: " + metrics.PolicySuppressedHighSignalCount.ToString(CultureInfo.InvariantCulture));
             builder.AppendLine("ExternalQualifiedBeforeRateLimits: " + metrics.ExternalQualified.ToString(CultureInfo.InvariantCulture));
             builder.AppendLine("MaintenanceContext: " + metrics.MaintenanceContext.ToString(CultureInfo.InvariantCulture));
             builder.AppendLine("AgentContext: " + metrics.AgentContext.ToString(CultureInfo.InvariantCulture));
             builder.AppendLine("HighestScore: " + metrics.HighestScore.ToString(CultureInfo.InvariantCulture));
-            AppendBuckets(builder, "Severity", BuildAlertBuckets(alerts, "severity"), 6);
-            AppendBuckets(builder, "Category", BuildAlertBuckets(alerts, "category"), 8);
-            AppendBuckets(builder, "Rule", BuildAlertBuckets(alerts, "rule"), 10);
-            AppendBuckets(builder, "ProcessFamily", BuildAlertBuckets(alerts, "process"), 8);
+            List<DailyAlertRecord> actionable = ActionableAlerts(alerts);
+            AppendBuckets(builder, "Severity", BuildAlertBuckets(actionable, "severity"), 6);
+            AppendBuckets(builder, "Category", BuildAlertBuckets(actionable, "category"), 8);
+            AppendBuckets(builder, "Rule", BuildAlertBuckets(actionable, "rule"), 10);
+            AppendBuckets(builder, "ProcessFamily", BuildAlertBuckets(actionable, "process"), 8);
             builder.AppendLine();
 
             builder.AppendLine("[false_positive_context]");
@@ -331,7 +350,7 @@ namespace ArcaneEDR
 
         private void AppendHighSignal(StringBuilder builder, List<DailyAlertRecord> alerts, int maxRows)
         {
-            List<DailySignalSummary> highSignal = BuildHighSignalSummaries(alerts, 75);
+            List<DailySignalSummary> highSignal = BuildHighSignalSummaries(alerts, 75, true);
 
             if (highSignal.Count == 0)
             {
@@ -357,7 +376,15 @@ namespace ArcaneEDR
             {
                 builder.AppendLine();
                 builder.AppendLine((highSignal.Count - limit).ToString(CultureInfo.InvariantCulture) +
-                    " additional high-signal alert(s) omitted from this quick report.");
+                    " additional actionable high-signal alert group(s) omitted from this quick report.");
+            }
+
+            int suppressed = CountPolicySuppressedHighSignal(alerts, 75);
+            if (suppressed > 0)
+            {
+                builder.AppendLine();
+                builder.AppendLine(suppressed.ToString(CultureInfo.InvariantCulture) +
+                    " policy-suppressed high-signal local record(s) were retained for audit and omitted from this priority table.");
             }
         }
 
@@ -391,6 +418,13 @@ namespace ArcaneEDR
                 notes++;
             }
 
+            if (metrics.PolicySuppressedHighSignalCount > 0)
+            {
+                builder.AppendLine("| Policy-suppressed high-signal volume | " + TableCell(metrics.PolicySuppressedHighSignalCount.ToString(CultureInfo.InvariantCulture) +
+                    " high-signal record(s) were retained locally but omitted from priority tables; spot-check the matching policy if that trust decision is stale.") + " |");
+                notes++;
+            }
+
             if (snapshot.TotalPollFailures > 0 || snapshot.CurrentRunPollFailures > 0)
             {
                 builder.AppendLine("| Collector gaps observed | Check service permissions before interpreting missing telemetry as quietness. |");
@@ -411,34 +445,41 @@ namespace ArcaneEDR
             foreach (DailyAlertRecord alert in snapshot.Alerts)
             {
                 if (alert.Score > metrics.HighestScore) metrics.HighestScore = alert.Score;
-                if (alert.Score >= 90) metrics.CriticalCount++;
-                else if (alert.Score >= 75) metrics.HighCount++;
-                else if (alert.Score >= 60) metrics.MediumCount++;
-                else metrics.LowCount++;
+                if (alert.Score >= 90) metrics.LocalCriticalCount++;
+                else if (alert.Score >= 75) metrics.LocalHighCount++;
+
+                bool actionable = IsActionableForReport(alert);
+                if (actionable)
+                {
+                    if (alert.Score >= 90) metrics.CriticalCount++;
+                    else if (alert.Score >= 75) metrics.HighCount++;
+                    else if (alert.Score >= 60) metrics.MediumCount++;
+                    else metrics.LowCount++;
+                }
+                else
+                {
+                    metrics.PolicySuppressedCount++;
+                    if (alert.Score >= 90) metrics.PolicySuppressedCriticalCount++;
+                    else if (alert.Score >= 75) metrics.PolicySuppressedHighCount++;
+                    if (IsHighSignalRecord(alert, 75)) metrics.PolicySuppressedHighSignalCount++;
+                }
 
                 if (WouldQualifyForExternal(alert)) metrics.ExternalQualified++;
                 if (alert.MaintenanceContext) metrics.MaintenanceContext++;
                 if (alert.AgentContext) metrics.AgentContext++;
             }
 
-            metrics.HighSignalCount = BuildHighSignalList(snapshot.Alerts, 75).Count;
+            metrics.HighSignalCount = BuildHighSignalList(snapshot.Alerts, 75, true).Count;
             return metrics;
         }
 
-        private List<DailyAlertRecord> BuildHighSignalList(List<DailyAlertRecord> alerts, int minimumScore)
+        private List<DailyAlertRecord> BuildHighSignalList(List<DailyAlertRecord> alerts, int minimumScore, bool actionableOnly)
         {
             List<DailyAlertRecord> highSignal = new List<DailyAlertRecord>();
             foreach (DailyAlertRecord alert in alerts)
             {
-                if (alert.Score >= minimumScore ||
-                    (minimumScore <= 75 &&
-                        AlertRuleTaxonomy.HasAnyPrefix(
-                            alert.RuleId,
-                            AlertRuleTaxonomy.PrefixAuthRemote,
-                            AlertRuleTaxonomy.PrefixNetworkLan,
-                            AlertRuleTaxonomy.PrefixPersistence,
-                            AlertRuleTaxonomy.PrefixFile,
-                            AlertRuleTaxonomy.PrefixRat)))
+                if (actionableOnly && !IsActionableForReport(alert)) continue;
+                if (IsHighSignalRecord(alert, minimumScore))
                 {
                     highSignal.Add(alert);
                 }
@@ -454,10 +495,55 @@ namespace ArcaneEDR
             return highSignal;
         }
 
-        private List<DailySignalSummary> BuildHighSignalSummaries(List<DailyAlertRecord> alerts, int minimumScore)
+        private static bool IsHighSignalRecord(DailyAlertRecord alert, int minimumScore)
+        {
+            if (alert == null) return false;
+            return alert.Score >= minimumScore ||
+                (minimumScore <= 75 &&
+                    AlertRuleTaxonomy.HasAnyPrefix(
+                        alert.RuleId,
+                        AlertRuleTaxonomy.PrefixAuthRemote,
+                        AlertRuleTaxonomy.PrefixNetworkLan,
+                        AlertRuleTaxonomy.PrefixPersistence,
+                        AlertRuleTaxonomy.PrefixFile,
+                        AlertRuleTaxonomy.PrefixRat));
+        }
+
+        private static int CountPolicySuppressedHighSignal(List<DailyAlertRecord> alerts, int minimumScore)
+        {
+            int count = 0;
+            foreach (DailyAlertRecord alert in alerts)
+            {
+                if (!IsActionableForReport(alert) && IsHighSignalRecord(alert, minimumScore))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        private static List<DailyAlertRecord> ActionableAlerts(List<DailyAlertRecord> alerts)
+        {
+            List<DailyAlertRecord> result = new List<DailyAlertRecord>();
+            foreach (DailyAlertRecord alert in alerts)
+            {
+                if (IsActionableForReport(alert)) result.Add(alert);
+            }
+
+            return result;
+        }
+
+        private static bool IsActionableForReport(DailyAlertRecord alert)
+        {
+            if (alert == null) return false;
+            return !alert.ExternalSuppressedByPolicy || alert.ExternalForcedByPolicy;
+        }
+
+        private List<DailySignalSummary> BuildHighSignalSummaries(List<DailyAlertRecord> alerts, int minimumScore, bool actionableOnly)
         {
             Dictionary<string, DailySignalSummary> summaries = new Dictionary<string, DailySignalSummary>(StringComparer.OrdinalIgnoreCase);
-            foreach (DailyAlertRecord alert in BuildHighSignalList(alerts, minimumScore))
+            foreach (DailyAlertRecord alert in BuildHighSignalList(alerts, minimumScore, actionableOnly))
             {
                 string key = alert.RuleId + "|" + alert.Title;
                 DailySignalSummary summary;
@@ -569,6 +655,8 @@ namespace ArcaneEDR
                     : "Baseline learning is off; repeated new signals may deserve more weight.") + " |");
             builder.AppendLine("| Alert volume | " + metrics.WindowAlerts.ToString(CultureInfo.InvariantCulture) +
                 " alert(s) | Volume alone is not evidence of compromise; rule type and context matter more. |");
+            builder.AppendLine("| Policy-suppressed local evidence | " + PolicySuppressedSummary(metrics) +
+                " | These records stay in JSONL/history but are left out of priority callouts unless the trust decision changes. |");
             builder.AppendLine("| Automation context | " + metrics.AgentContext.ToString(CultureInfo.InvariantCulture) +
                 " alert(s) | Known automation or administrative activity can explain some alert patterns. |");
             builder.AppendLine("| Maintenance context | " + metrics.MaintenanceContext.ToString(CultureInfo.InvariantCulture) +
@@ -611,6 +699,11 @@ namespace ArcaneEDR
                 return "No confirmed compromise; review recommended for selected high-signal activity.";
             }
 
+            if (metrics.PolicySuppressedHighSignalCount > 0)
+            {
+                return "No confirmed compromise; policy-suppressed high-signal local evidence was retained but does not drive the primary review queue.";
+            }
+
             return "No confirmed compromise from the last 24 hours of Arcane telemetry.";
         }
 
@@ -640,8 +733,9 @@ namespace ArcaneEDR
 
         private string BuildVerdictReason(DailyReportSnapshot snapshot, DailyReportMetrics metrics)
         {
-            string reason = metrics.CriticalCount.ToString(CultureInfo.InvariantCulture) + " critical-priority, " +
-                metrics.HighCount.ToString(CultureInfo.InvariantCulture) + " high-priority, " +
+            string reason = metrics.CriticalCount.ToString(CultureInfo.InvariantCulture) + " actionable critical-priority, " +
+                metrics.HighCount.ToString(CultureInfo.InvariantCulture) + " actionable high-priority, " +
+                metrics.PolicySuppressedHighSignalCount.ToString(CultureInfo.InvariantCulture) + " policy-suppressed high-signal retained locally, " +
                 metrics.ExternalQualified.ToString(CultureInfo.InvariantCulture) + " external-qualified alert(s).";
             if (snapshot.BaselineLearningMode)
             {
@@ -661,6 +755,11 @@ namespace ArcaneEDR
             if (metrics.HighCount > 0)
             {
                 return "Review the high-signal table and tune only after confirming expected software or administrative activity.";
+            }
+
+            if (metrics.PolicySuppressedHighSignalCount > 0)
+            {
+                return "No priority action from tuned evidence; spot-check policy-suppressed context only if the trust decision changed.";
             }
 
             return "No immediate action indicated; continue collecting baseline data and review new high-signal changes.";
@@ -686,8 +785,37 @@ namespace ArcaneEDR
                 ", total=" + snapshot.TotalPollFailures.ToString(CultureInfo.InvariantCulture);
         }
 
+        private static string PolicySuppressedSummary(DailyReportMetrics metrics)
+        {
+            if (metrics.PolicySuppressedCount == 0) return "0";
+
+            List<string> parts = new List<string>();
+            parts.Add(metrics.PolicySuppressedCount.ToString(CultureInfo.InvariantCulture) + " retained locally");
+            if (metrics.PolicySuppressedCriticalCount > 0)
+            {
+                parts.Add(metrics.PolicySuppressedCriticalCount.ToString(CultureInfo.InvariantCulture) + " critical");
+            }
+
+            if (metrics.PolicySuppressedHighCount > 0)
+            {
+                parts.Add(metrics.PolicySuppressedHighCount.ToString(CultureInfo.InvariantCulture) + " high");
+            }
+
+            if (metrics.PolicySuppressedHighSignalCount > 0)
+            {
+                parts.Add(metrics.PolicySuppressedHighSignalCount.ToString(CultureInfo.InvariantCulture) + " high-signal omitted from priority tables");
+            }
+
+            return String.Join("; ", parts.ToArray());
+        }
+
         private static string ExplainAlert(DailyAlertRecord alert)
         {
+            if (alert.ExternalSuppressedByPolicy && !alert.ExternalForcedByPolicy)
+            {
+                return "Policy-suppressed local evidence; retained for audit and omitted from priority review.";
+            }
+
             if (AlertRuleTaxonomy.HasPrefix(alert.RuleId, AlertRuleTaxonomy.PrefixPowerShellEncoded)) return "Encoded or obfuscated PowerShell; review command origin and parent process.";
             if (AlertRuleTaxonomy.HasPrefix(alert.RuleId, AlertRuleTaxonomy.PrefixNetworkC2Beacon)) return "Beacon-like timing; confirm process and destination before assuming C2.";
             if (AlertRuleTaxonomy.HasPrefix(alert.RuleId, AlertRuleTaxonomy.PrefixRat)) return "RAT/LOLBin-style egress; verify command line and destination.";
@@ -734,10 +862,16 @@ namespace ArcaneEDR
         {
             Dictionary<string, object> result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
             result["window_alerts"] = metrics.WindowAlerts;
-            result["critical_count"] = metrics.CriticalCount;
-            result["high_count"] = metrics.HighCount;
-            result["medium_count"] = metrics.MediumCount;
-            result["low_count"] = metrics.LowCount;
+            result["actionable_critical_count"] = metrics.CriticalCount;
+            result["actionable_high_count"] = metrics.HighCount;
+            result["actionable_medium_count"] = metrics.MediumCount;
+            result["actionable_low_count"] = metrics.LowCount;
+            result["local_critical_count"] = metrics.LocalCriticalCount;
+            result["local_high_count"] = metrics.LocalHighCount;
+            result["policy_suppressed_count"] = metrics.PolicySuppressedCount;
+            result["policy_suppressed_critical_count"] = metrics.PolicySuppressedCriticalCount;
+            result["policy_suppressed_high_count"] = metrics.PolicySuppressedHighCount;
+            result["policy_suppressed_high_signal_count"] = metrics.PolicySuppressedHighSignalCount;
             result["external_qualified_before_rate_limits"] = metrics.ExternalQualified;
             result["maintenance_context"] = metrics.MaintenanceContext;
             result["agent_context"] = metrics.AgentContext;
@@ -1004,7 +1138,7 @@ namespace ArcaneEDR
                 if (record.AgentContext) bucket.AgentContext++;
             }
 
-            return SortBuckets(buckets);
+            return SortBuckets(buckets, field);
         }
 
         private List<DailyReportBucket> BuildAgentBuckets(List<DailyAgentActivityRecord> records, string field)
@@ -1026,21 +1160,36 @@ namespace ArcaneEDR
                 if (record.MaintenanceContext) bucket.MaintenanceContext++;
             }
 
-            return SortBuckets(buckets);
+            return SortBuckets(buckets, field);
         }
 
-        private static List<DailyReportBucket> SortBuckets(Dictionary<string, DailyReportBucket> buckets)
+        private static List<DailyReportBucket> SortBuckets(Dictionary<string, DailyReportBucket> buckets, string field)
         {
             List<DailyReportBucket> result = new List<DailyReportBucket>(buckets.Values);
             result.Sort(delegate(DailyReportBucket left, DailyReportBucket right)
             {
-                int countComparison = right.Count.CompareTo(left.Count);
-                if (countComparison != 0) return countComparison;
+                if (field.Equals("severity", StringComparison.OrdinalIgnoreCase))
+                {
+                    int severityComparison = SeverityRank(right.Name).CompareTo(SeverityRank(left.Name));
+                    if (severityComparison != 0) return severityComparison;
+                }
+
                 int scoreComparison = right.MaxScore.CompareTo(left.MaxScore);
                 if (scoreComparison != 0) return scoreComparison;
+                int countComparison = right.Count.CompareTo(left.Count);
+                if (countComparison != 0) return countComparison;
                 return String.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase);
             });
             return result;
+        }
+
+        private static int SeverityRank(string severity)
+        {
+            if (severity.Equals("critical", StringComparison.OrdinalIgnoreCase)) return 4;
+            if (severity.Equals("high", StringComparison.OrdinalIgnoreCase)) return 3;
+            if (severity.Equals("medium", StringComparison.OrdinalIgnoreCase)) return 2;
+            if (severity.Equals("low", StringComparison.OrdinalIgnoreCase)) return 1;
+            return 0;
         }
 
         private static void AppendBuckets(StringBuilder builder, string label, List<DailyReportBucket> buckets, int limit)
@@ -1324,6 +1473,12 @@ namespace ArcaneEDR
         public int HighCount;
         public int MediumCount;
         public int LowCount;
+        public int LocalCriticalCount;
+        public int LocalHighCount;
+        public int PolicySuppressedCount;
+        public int PolicySuppressedCriticalCount;
+        public int PolicySuppressedHighCount;
+        public int PolicySuppressedHighSignalCount;
         public int ExternalQualified;
         public int MaintenanceContext;
         public int AgentContext;
