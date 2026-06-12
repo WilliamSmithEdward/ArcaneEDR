@@ -38,9 +38,13 @@ namespace ArcaneEDR
         {
             EnsureSource();
             EventLogEntryType entryType = EntryTypeFor(alert);
+            HostIdentitySnapshot host = alert.HostIdentity;
             string message =
                 "Rule: " + alert.RuleId + Environment.NewLine +
                 "Category: " + AlertRulePolicy.AlertCategory(alert) + Environment.NewLine +
+                "LocalMachine: " + host.DisplayName + Environment.NewLine +
+                "LocalDnsHostname: " + host.DnsHostName + Environment.NewLine +
+                "LocalIpAddresses: " + host.LocalIpAddressSummary + Environment.NewLine +
                 "MaintenanceContext: " + alert.MaintenanceContext + Environment.NewLine +
                 "Severity: " + alert.Severity + Environment.NewLine +
                 "Score: " + alert.Score.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +

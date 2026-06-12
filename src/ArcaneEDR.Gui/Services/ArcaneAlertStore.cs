@@ -24,10 +24,21 @@ internal sealed class ArcaneAlertRecord
     public bool MaintenanceContext { get; set; }
     public bool ExternalSuppressedByPolicy { get; set; }
     public bool ExternalForcedByPolicy { get; set; }
+    public string AlertId { get; set; } = "";
+    public bool ExternalNotificationSent { get; set; }
+    public string ExternalNotificationStatus { get; set; } = "";
+    public string ExternalNotificationReason { get; set; } = "";
+    public string ExternalNotificationProvider { get; set; } = "";
     public string Recommendation { get; set; } = "";
     public string Entity { get; set; } = "";
     public string Body { get; set; } = "";
     public string RawJson { get; set; } = "";
+    public Dictionary<string, string> Metadata { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    public string MetadataValue(string key)
+    {
+        return Metadata.TryGetValue(key, out string? value) ? value : "";
+    }
 
     public string SystemTimeDisplay
     {
@@ -46,6 +57,64 @@ internal sealed class ArcaneAlertRecord
     public string Summary => String.IsNullOrWhiteSpace(Process)
         ? Title
         : Process + " - " + Title;
+
+    public string ExternalNotificationGlyph
+    {
+        get
+        {
+            string status = ExternalNotificationStatus ?? "";
+            if (ExternalNotificationSent || status.Equals("sent", StringComparison.OrdinalIgnoreCase)) return "\uE7ED";
+            if (status.Equals("grouped", StringComparison.OrdinalIgnoreCase)) return "\uE8F2";
+            if (String.IsNullOrWhiteSpace(status) || status.Equals("not_recorded", StringComparison.OrdinalIgnoreCase)) return "\uE9CE";
+            return "\uE7F4";
+        }
+    }
+
+    public string ExternalNotificationDisplay
+    {
+        get
+        {
+            string label = ExternalNotificationStatusLabel;
+            List<string> parts = new List<string> { label };
+            if (!String.IsNullOrWhiteSpace(ExternalNotificationProvider)) parts.Add("provider=" + ExternalNotificationProvider);
+            if (!String.IsNullOrWhiteSpace(ExternalNotificationReason)) parts.Add(ExternalNotificationReason);
+            return String.Join(Environment.NewLine, parts);
+        }
+    }
+
+    public string ExternalNotificationStatusLabel
+    {
+        get
+        {
+            string status = ExternalNotificationStatus ?? "";
+            if (ExternalNotificationSent || status.Equals("sent", StringComparison.OrdinalIgnoreCase)) return "Notification sent";
+            if (status.Equals("grouped", StringComparison.OrdinalIgnoreCase)) return "Grouped into one notification";
+            if (status.Equals("queued", StringComparison.OrdinalIgnoreCase)) return "Notification queued";
+            if (status.Equals("below_threshold", StringComparison.OrdinalIgnoreCase)) return "No notification: below threshold";
+            if (status.Equals("baseline_learning", StringComparison.OrdinalIgnoreCase)) return "No notification: baseline learning";
+            if (status.Equals("suppressed_by_policy", StringComparison.OrdinalIgnoreCase)) return "No notification: policy suppressed";
+            if (status.Equals("suppression_group", StringComparison.OrdinalIgnoreCase)) return "No notification: suppression group";
+            if (status.Equals("maintenance_threshold", StringComparison.OrdinalIgnoreCase)) return "No notification: maintenance threshold";
+            if (status.Equals("response_threshold", StringComparison.OrdinalIgnoreCase)) return "No notification: response threshold";
+            if (status.Equals("dampened", StringComparison.OrdinalIgnoreCase)) return "No notification: repeated alert dampened";
+            if (status.Equals("per_dispatch_limit", StringComparison.OrdinalIgnoreCase)) return "No notification: dispatch limit";
+            if (status.Equals("hourly_limit", StringComparison.OrdinalIgnoreCase)) return "No notification: hourly limit";
+            if (status.Equals("provider_unavailable", StringComparison.OrdinalIgnoreCase)) return "No notification: provider unavailable";
+            if (status.Equals("skipped_by_sink", StringComparison.OrdinalIgnoreCase)) return "No notification: provider skipped";
+            if (status.Equals("failed", StringComparison.OrdinalIgnoreCase)) return "Notification failed";
+            if (String.IsNullOrWhiteSpace(status) || status.Equals("not_recorded", StringComparison.OrdinalIgnoreCase)) return "Notification status not recorded";
+            return "Notification status: " + status;
+        }
+    }
+}
+
+internal sealed class ArcaneNotificationOutcome
+{
+    public DateTime TimestampUtc { get; set; }
+    public bool Sent { get; set; }
+    public string Status { get; set; } = "";
+    public string Reason { get; set; } = "";
+    public string Provider { get; set; } = "";
 }
 
 internal sealed class ArcaneOverviewRecommendation
@@ -92,9 +161,11 @@ internal static class ArcaneAlertStore
 
     public static List<ArcaneAlertRecord> ReadAlerts(int maxRows = 2000)
     {
-        string path = ArcanePaths.Discover().AlertsFile();
+        ArcanePaths paths = ArcanePaths.Discover();
+        string path = paths.AlertsFile();
         if (!File.Exists(path)) return new List<ArcaneAlertRecord>();
 
+        Dictionary<string, ArcaneNotificationOutcome> notificationOutcomes = ReadNotificationOutcomes(paths);
         string[] lines = File.ReadAllLines(path);
         int start = Math.Max(0, lines.Length - maxRows);
         List<ArcaneAlertRecord> records = new List<ArcaneAlertRecord>();
@@ -104,7 +175,7 @@ internal static class ArcaneAlertStore
             string line = lines[index];
             if (String.IsNullOrWhiteSpace(line)) continue;
 
-            ArcaneAlertRecord? record = TryParse(line);
+            ArcaneAlertRecord? record = TryParse(line, notificationOutcomes);
             if (record != null)
             {
                 records.Add(record);
@@ -199,7 +270,7 @@ internal static class ArcaneAlertStore
         return recommendations.Take(5).ToList();
     }
 
-    private static ArcaneAlertRecord? TryParse(string rawJson)
+    private static ArcaneAlertRecord? TryParse(string rawJson, Dictionary<string, ArcaneNotificationOutcome> notificationOutcomes)
     {
         try
         {
@@ -207,14 +278,16 @@ internal static class ArcaneAlertStore
             JsonElement root = document.RootElement;
             string entity = StringValue(root, "entity");
             string body = StringValue(root, "body");
-            string owner = EntityValue(entity, "remote_owner");
+            Dictionary<string, string> metadata = EntityMetadata(entity);
+            string owner = MetadataValue(metadata, "remote_owner");
             if (String.IsNullOrWhiteSpace(owner))
             {
-                owner = EntityValue(entity, "asn_org");
+                owner = MetadataValue(metadata, "asn_org");
             }
 
-            return new ArcaneAlertRecord
+            ArcaneAlertRecord record = new ArcaneAlertRecord
             {
+                AlertId = StringValue(root, "alert_id"),
                 TimestampUtc = ParseTimestamp(StringValue(root, "timestamp_utc")),
                 LocalTime = StringValue(root, "system_local_time"),
                 RuleId = StringValue(root, "rule_id"),
@@ -222,24 +295,105 @@ internal static class ArcaneAlertStore
                 Severity = StringValue(root, "severity"),
                 Score = IntValue(root, "score"),
                 Title = StringValue(root, "title"),
-                Process = EntityValue(entity, "process"),
-                RemoteIp = EntityValue(entity, "remote_ip"),
-                Country = EntityValue(entity, "country"),
+                Process = MetadataValue(metadata, "process"),
+                RemoteIp = MetadataValue(metadata, "remote_ip"),
+                Country = MetadataValue(metadata, "country"),
                 Company = owner,
                 PolicyContext = StringValue(root, "policy_context"),
                 MaintenanceContext = BoolValue(root, "maintenance_context"),
                 ExternalSuppressedByPolicy = BoolValue(root, "external_suppressed_by_policy"),
                 ExternalForcedByPolicy = BoolValue(root, "external_forced_by_policy"),
+                ExternalNotificationSent = BoolValue(root, "external_notification_sent"),
+                ExternalNotificationStatus = StringValue(root, "external_notification_status"),
+                ExternalNotificationReason = StringValue(root, "external_notification_reason"),
                 Recommendation = StringValue(root, "recommendation"),
                 Entity = entity,
                 Body = body,
-                RawJson = rawJson
+                RawJson = rawJson,
+                Metadata = metadata
+            };
+
+            ApplyNotificationOutcome(record, notificationOutcomes);
+            return record;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static Dictionary<string, ArcaneNotificationOutcome> ReadNotificationOutcomes(ArcanePaths paths)
+    {
+        Dictionary<string, ArcaneNotificationOutcome> outcomes = new Dictionary<string, ArcaneNotificationOutcome>(StringComparer.OrdinalIgnoreCase);
+        string path = Path.Combine(paths.LogDirectory, "ArcaneAlertNotifications.jsonl");
+        if (!File.Exists(path)) return outcomes;
+
+        foreach (string line in File.ReadAllLines(path))
+        {
+            ArcaneNotificationOutcome? outcome = TryParseNotificationOutcome(line, out string alertId);
+            if (outcome == null || String.IsNullOrWhiteSpace(alertId)) continue;
+
+            if (!outcomes.TryGetValue(alertId, out ArcaneNotificationOutcome? existing) ||
+                outcome.TimestampUtc >= existing.TimestampUtc)
+            {
+                outcomes[alertId] = outcome;
+            }
+        }
+
+        return outcomes;
+    }
+
+    private static ArcaneNotificationOutcome? TryParseNotificationOutcome(string rawJson, out string alertId)
+    {
+        alertId = "";
+        if (String.IsNullOrWhiteSpace(rawJson)) return null;
+
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(rawJson);
+            JsonElement root = document.RootElement;
+            alertId = StringValue(root, "alert_id");
+            return new ArcaneNotificationOutcome
+            {
+                TimestampUtc = ParseTimestamp(StringValue(root, "timestamp_utc")),
+                Sent = BoolValue(root, "sent"),
+                Status = StringValue(root, "status"),
+                Reason = StringValue(root, "reason"),
+                Provider = StringValue(root, "provider")
             };
         }
         catch
         {
             return null;
         }
+    }
+
+    private static void ApplyNotificationOutcome(ArcaneAlertRecord record, Dictionary<string, ArcaneNotificationOutcome> outcomes)
+    {
+        if (record == null) return;
+
+        if (!String.IsNullOrWhiteSpace(record.AlertId) &&
+            outcomes != null &&
+            outcomes.TryGetValue(record.AlertId, out ArcaneNotificationOutcome? outcome))
+        {
+            record.ExternalNotificationSent = outcome.Sent;
+            record.ExternalNotificationStatus = outcome.Status;
+            record.ExternalNotificationReason = outcome.Reason;
+            record.ExternalNotificationProvider = outcome.Provider;
+            return;
+        }
+
+        if (!String.IsNullOrWhiteSpace(record.ExternalNotificationStatus)) return;
+
+        if (record.ExternalSuppressedByPolicy)
+        {
+            record.ExternalNotificationStatus = "suppressed_by_policy";
+            record.ExternalNotificationReason = "Detection policy suppressed external delivery.";
+            return;
+        }
+
+        record.ExternalNotificationStatus = "not_recorded";
+        record.ExternalNotificationReason = "This alert was written before notification outcome tracking was available, or no delivery outcome has been recorded yet.";
     }
 
     private static string BuildAlertDetail(ArcaneAlertRecord alert)
@@ -306,5 +460,61 @@ internal static class ArcaneAlertStore
         }
 
         return entity.Substring(start, end - start).Trim();
+    }
+
+    private static Dictionary<string, string> EntityMetadata(string entity)
+    {
+        Dictionary<string, string> metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string key in KnownEntityKeys)
+        {
+            string value = EntityValue(entity, key);
+            if (!String.IsNullOrWhiteSpace(value))
+            {
+                metadata[key] = value;
+            }
+        }
+
+        string remote = MetadataValue(metadata, "remote");
+        if (!String.IsNullOrWhiteSpace(remote))
+        {
+            string remoteIp = MetadataValue(metadata, "remote_ip");
+            string port = ExtractPort(remote, remoteIp);
+            if (!String.IsNullOrWhiteSpace(port))
+            {
+                metadata["remote_port"] = port;
+            }
+        }
+
+        return metadata;
+    }
+
+    private static string MetadataValue(Dictionary<string, string> metadata, string key)
+    {
+        return metadata.TryGetValue(key, out string? value) ? value : "";
+    }
+
+    private static string ExtractPort(string remote, string remoteIp)
+    {
+        string value = remote.Trim();
+        if (value.Length == 0) return "";
+
+        int colon = value.LastIndexOf(':');
+        if (colon < 0 || colon >= value.Length - 1) return "";
+
+        string candidate = value.Substring(colon + 1);
+        if (!Int32.TryParse(candidate, NumberStyles.Integer, CultureInfo.InvariantCulture, out int port))
+        {
+            return "";
+        }
+
+        if (port < 0 || port > 65535) return "";
+
+        if (!String.IsNullOrWhiteSpace(remoteIp) &&
+            value.StartsWith(remoteIp + ":", StringComparison.OrdinalIgnoreCase))
+        {
+            return port.ToString(CultureInfo.InvariantCulture);
+        }
+
+        return port.ToString(CultureInfo.InvariantCulture);
     }
 }

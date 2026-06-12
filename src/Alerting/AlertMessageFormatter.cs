@@ -11,9 +11,10 @@ namespace ArcaneEDR
 
         public static string BuildSubject(Alert alert)
         {
+            string host = SubjectHostToken(alert == null ? null : alert.HostIdentity);
             if (IsDailySummary(alert.RuleId))
             {
-                return "[Arcane EDR][daily] Daily report " +
+                return "[Arcane EDR][" + host + "][daily] Daily report " +
                     alert.TimestampUtc.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + " UTC";
             }
 
@@ -23,7 +24,7 @@ namespace ArcaneEDR
                 title += " (" + alert.TimestampUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) + " UTC)";
             }
 
-            return "[Arcane EDR][" + alert.Severity + "][" + alert.RuleId + "] " + title;
+            return "[Arcane EDR][" + host + "][" + alert.Severity + "][" + alert.RuleId + "] " + title;
         }
 
         public static string BuildHtml(Alert alert)
@@ -39,6 +40,7 @@ namespace ArcaneEDR
                 BuildAlertFieldHtml("Rule", presentation.RuleId) +
                 BuildAlertFieldHtml("Category", presentation.Category) +
                 BuildAlertFieldHtml("Source", presentation.SourceSummary) +
+                BuildHostHeaderFieldsHtml(alert.HostIdentity) +
                 BuildRemoteHeaderFieldsHtml(presentation.Remote) +
                 BuildAlertFieldHtml("Maintenance Context", alert.MaintenanceContext ? "true" : "false") +
                 BuildAlertFieldHtml("Severity", alert.Severity) +
@@ -62,12 +64,14 @@ namespace ArcaneEDR
 
             AlertPresentation presentation = AlertPresentation.FromAlert(alert);
             string remoteHeaderLines = BuildRemoteHeaderFieldsPlainText(presentation.Remote);
+            string hostHeaderLines = BuildHostHeaderFieldsPlainText(alert.HostIdentity);
 
             return
                 presentation.Title + Environment.NewLine + Environment.NewLine +
                 "Rule: " + presentation.RuleId + Environment.NewLine +
                 "Category: " + presentation.Category + Environment.NewLine +
                 "Source: " + presentation.SourceSummary + Environment.NewLine +
+                hostHeaderLines +
                 remoteHeaderLines +
                 "MaintenanceContext: " + alert.MaintenanceContext + Environment.NewLine +
                 "Severity: " + alert.Severity + Environment.NewLine +
@@ -87,6 +91,18 @@ namespace ArcaneEDR
         public static string Compact(string value, int maxLength)
         {
             return TextFormatting.CompactOrEmpty(value, maxLength);
+        }
+
+        private static string SubjectHostToken(HostIdentitySnapshot host)
+        {
+            string value = host == null ? "" : host.DisplayName;
+            if (String.IsNullOrWhiteSpace(value)) value = "unknown-host";
+            value = value.Replace("[", "")
+                .Replace("]", "")
+                .Replace("\r", "")
+                .Replace("\n", "")
+                .Trim();
+            return TextFormatting.CompactOrEmpty(value, 40);
         }
 
         private static string BuildWhyHtml(Alert alert)
@@ -169,6 +185,15 @@ namespace ArcaneEDR
                 BuildOptionalAlertFieldHtml("Remote Enrichment", metadata.Enrichment);
         }
 
+        private static string BuildHostHeaderFieldsHtml(HostIdentitySnapshot host)
+        {
+            if (host == null) return "";
+
+            return BuildOptionalAlertFieldHtml("Local Machine", host.DisplayName) +
+                BuildOptionalAlertFieldHtml("Local DNS Hostname", host.DnsHostName) +
+                BuildOptionalAlertFieldHtml("Local IP Addresses", host.LocalIpAddressSummary);
+        }
+
         private static string BuildRemoteHeaderFieldsPlainText(RemoteEndpointPresentation metadata)
         {
             if (metadata == null || !metadata.HasAny) return "";
@@ -180,6 +205,17 @@ namespace ArcaneEDR
             AppendOptionalPlainTextField(ref text, "RemoteASN", metadata.Asn);
             AppendOptionalPlainTextField(ref text, "RemoteDomain", metadata.Domain);
             AppendOptionalPlainTextField(ref text, "RemoteEnrichment", metadata.Enrichment);
+            return text;
+        }
+
+        private static string BuildHostHeaderFieldsPlainText(HostIdentitySnapshot host)
+        {
+            if (host == null) return "";
+
+            string text = "";
+            AppendOptionalPlainTextField(ref text, "LocalMachine", host.DisplayName);
+            AppendOptionalPlainTextField(ref text, "LocalDnsHostname", host.DnsHostName);
+            AppendOptionalPlainTextField(ref text, "LocalIpAddresses", host.LocalIpAddressSummary);
             return text;
         }
 

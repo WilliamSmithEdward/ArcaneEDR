@@ -13,6 +13,7 @@ public sealed class AlertTableColumnWidths : INotifyPropertyChanged
     private double rule = 180;
     private double category = 110;
     private double score = 70;
+    private double notification = 86;
     private double country = 90;
     private double process = 150;
     private double company = 190;
@@ -44,6 +45,12 @@ public sealed class AlertTableColumnWidths : INotifyPropertyChanged
         set => Set(ref score, value);
     }
 
+    public double Notification
+    {
+        get => notification;
+        set => Set(ref notification, value);
+    }
+
     public double Country
     {
         get => country;
@@ -68,7 +75,7 @@ public sealed class AlertTableColumnWidths : INotifyPropertyChanged
         set => Set(ref title, value);
     }
 
-    public double TotalWidth => Time + Rule + Category + Score + Country + Process + Company + Title;
+    public double TotalWidth => Time + Rule + Category + Score + Notification + Country + Process + Company + Title;
 
     public void Resize(string column, double delta)
     {
@@ -85,6 +92,9 @@ public sealed class AlertTableColumnWidths : INotifyPropertyChanged
                 break;
             case "Score":
                 Score += delta;
+                break;
+            case "Notification":
+                Notification += delta;
                 break;
             case "Country":
                 Country += delta;

@@ -265,6 +265,26 @@
                                         </Button>
                                         <controls:CursorResizeHandle x:Name="ScoreColumnResizeHandle" CursorShape="SizeWestEast" Style="{StaticResource ColumnResizeHandleStyle}" Tag="Score" ToolTipService.ToolTip="Resize Score column" />
                                     </Grid>
+                                    <Grid Width="{Binding Notification, Source={StaticResource AlertColumnWidths}}">
+                                        <Button
+                                            AutomationProperties.Name="Sort by notification status"
+                                            Click="SortHeader_Click"
+                                            Style="{StaticResource AlertHeaderButtonStyle}"
+                                            Tag="Notification"
+                                            ToolTipService.ToolTip="Sort by external notification status">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon
+                                                    FontFamily="Segoe MDL2 Assets"
+                                                    FontSize="14"
+                                                    Glyph="&#xE7ED;" />
+                                                <TextBlock
+                                                    x:Name="NotificationSortIndicator"
+                                                    MinWidth="14"
+                                                    FontFamily="Segoe UI Symbol" />
+                                            </StackPanel>
+                                        </Button>
+                                        <controls:CursorResizeHandle x:Name="NotificationColumnResizeHandle" CursorShape="SizeWestEast" Style="{StaticResource ColumnResizeHandleStyle}" Tag="Notification" ToolTipService.ToolTip="Resize Notification column" />
+                                    </Grid>
                                     <Grid Width="{Binding Country, Source={StaticResource AlertColumnWidths}}">
                                         <Button
                                             AutomationProperties.Name="Sort by country"
@@ -359,7 +379,17 @@
                                             <StackPanel
                                                 MinWidth="{Binding TotalWidth, Source={StaticResource AlertColumnWidths}}"
                                                 Orientation="Horizontal"
-                                                Padding="0,6">
+                                                Padding="0,6"
+                                                RightTapped="AlertRow_RightTapped">
+                                                <StackPanel.ContextFlyout>
+                                                    <MenuFlyout>
+                                                        <MenuFlyoutItem
+                                                            Text="Create policy from alert..."
+                                                            CommandParameter="{Binding}"
+                                                            Click="CreatePolicyFromAlert_Click"
+                                                            ToolTipService.ToolTip="Open a guided policy wizard using metadata from this alert." />
+                                                    </MenuFlyout>
+                                                </StackPanel.ContextFlyout>
                                                 <TextBlock
                                                     Width="{Binding Time, Source={StaticResource AlertColumnWidths}}"
                                                     FontFamily="Consolas"
@@ -368,6 +398,14 @@
                                                 <TextBlock Width="{Binding Rule, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding RuleId}" />
                                                 <TextBlock Width="{Binding Category, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Category}" />
                                                 <TextBlock Width="{Binding Score, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Score}" />
+                                                <TextBlock
+                                                    Width="{Binding Notification, Source={StaticResource AlertColumnWidths}}"
+                                                    FontFamily="Segoe MDL2 Assets"
+                                                    FontSize="16"
+                                                    HorizontalTextAlignment="Center"
+                                                    Style="{StaticResource AlertCellTextStyle}"
+                                                    Text="{Binding ExternalNotificationGlyph}"
+                                                    ToolTipService.ToolTip="{Binding ExternalNotificationDisplay}" />
                                                 <TextBlock Width="{Binding Country, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Country}" />
                                                 <TextBlock Width="{Binding Process, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Process}" />
                                                 <TextBlock Width="{Binding Company, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Company}" />
@@ -380,38 +418,55 @@
                         </ScrollViewer>
                     </Border>
 
-                    <controls:CursorResizeHandle
-                        x:Name="AlertDetailsResizeHandle"
-                        Grid.Row="2"
-                        CursorShape="SizeNorthSouth"
-                        ToolTipService.ToolTip="Resize alert metadata panel">
-                        <controls:CursorResizeHandle.Template>
-                            <ControlTemplate TargetType="controls:CursorResizeHandle">
-                                <Grid Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
-                                    <StackPanel
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        Orientation="Horizontal"
-                                        Spacing="4">
-                                        <Rectangle
-                                            Width="28"
-                                            Height="2"
-                                            Fill="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                                            Opacity="0.75"
-                                            RadiusX="1"
-                                            RadiusY="1" />
-                                        <Rectangle
-                                            Width="28"
-                                            Height="2"
-                                            Fill="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                                            Opacity="0.75"
-                                            RadiusX="1"
-                                            RadiusY="1" />
-                                    </StackPanel>
-                                </Grid>
-                            </ControlTemplate>
-                        </controls:CursorResizeHandle.Template>
-                    </controls:CursorResizeHandle>
+                    <Grid Grid.Row="2">
+                        <Border
+                            Height="1"
+                            VerticalAlignment="Center"
+                            Background="{ThemeResource DividerStrokeColorDefaultBrush}"
+                            Opacity="0.55" />
+                        <controls:CursorResizeHandle
+                            x:Name="AlertDetailsResizeHandle"
+                            Width="96"
+                            HorizontalAlignment="Center"
+                            CursorShape="SizeNorthSouth"
+                            ToolTipService.ToolTip="Resize alert metadata panel">
+                            <controls:CursorResizeHandle.Template>
+                                <ControlTemplate TargetType="controls:CursorResizeHandle">
+                                    <Grid Background="Transparent">
+                                        <Border
+                                            Width="74"
+                                            Height="6"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                            CornerRadius="3"
+                                            Opacity="0.78">
+                                            <StackPanel
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                Orientation="Horizontal"
+                                                Spacing="5">
+                                                <Rectangle
+                                                    Width="24"
+                                                    Height="2"
+                                                    Fill="{ThemeResource TextFillColorSecondaryBrush}"
+                                                    Opacity="0.68"
+                                                    RadiusX="1"
+                                                    RadiusY="1" />
+                                                <Rectangle
+                                                    Width="24"
+                                                    Height="2"
+                                                    Fill="{ThemeResource TextFillColorSecondaryBrush}"
+                                                    Opacity="0.68"
+                                                    RadiusX="1"
+                                                    RadiusY="1" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                </ControlTemplate>
+                            </controls:CursorResizeHandle.Template>
+                        </controls:CursorResizeHandle>
+                    </Grid>
 
                     <Border Grid.Row="3" Style="{StaticResource SectionCardStyle}">
                         <Grid RowSpacing="8">
@@ -423,11 +478,24 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock FontWeight="SemiBold" Text="Alert metadata" />
+                                <Button
+                                    x:Name="CreatePolicyFromSelectedAlertButton"
+                                    Grid.Column="1"
+                                    AutomationProperties.Name="Create policy from selected alert"
+                                    Click="CreatePolicyFromAlert_Click"
+                                    IsEnabled="False"
+                                    ToolTipService.ToolTip="Open a guided policy wizard using metadata from the selected alert.">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon FontSize="14" Glyph="&#xE710;" />
+                                        <TextBlock Text="Create policy" />
+                                    </StackPanel>
+                                </Button>
                                 <TextBlock
                                     x:Name="SelectedAlertHintText"
-                                    Grid.Column="1"
+                                    Grid.Column="2"
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                     Text="Select an alert"
                                     TextTrimming="CharacterEllipsis" />

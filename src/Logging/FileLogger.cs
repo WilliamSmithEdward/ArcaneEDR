@@ -50,6 +50,29 @@ namespace ArcaneEDR
             }
         }
 
+        public void AlertNotificationOutcome(Alert alert, string provider)
+        {
+            if (alert == null) return;
+
+            try
+            {
+                AppendLine("ArcaneAlertNotifications.jsonl", "{" +
+                    "\"timestamp_utc\":\"" + JsonFields.Escape(UtcTimestamp.Format(DateTime.UtcNow)) + "\"," +
+                    "\"alert_id\":\"" + JsonFields.Escape(alert.EnsureAlertId()) + "\"," +
+                    "\"rule_id\":\"" + JsonFields.Escape(alert.RuleId) + "\"," +
+                    "\"score\":" + alert.Score.ToString(CultureInfo.InvariantCulture) + "," +
+                    "\"sent\":" + (alert.ExternalNotificationSent ? "true" : "false") + "," +
+                    "\"status\":\"" + JsonFields.Escape(alert.ExternalNotificationStatus) + "\"," +
+                    "\"reason\":\"" + JsonFields.Escape(alert.ExternalNotificationReason) + "\"," +
+                    "\"provider\":\"" + JsonFields.Escape(provider) + "\"" +
+                    "}");
+            }
+            catch (Exception ex)
+            {
+                Write("WARN", "Alert notification outcome write failed: " + ex.Message);
+            }
+        }
+
         private void Write(string level, string message)
         {
             string line = DateTime.UtcNow.ToString("u", CultureInfo.InvariantCulture) + " " + level + " " + message;

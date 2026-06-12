@@ -24,6 +24,10 @@ namespace ArcaneEDR
         public bool ExternalSuppressedByPolicy;
         public bool ExternalForcedByPolicy;
         public string PolicyContext;
+        public string AlertId;
+        public bool ExternalNotificationSent;
+        public string ExternalNotificationStatus;
+        public string ExternalNotificationReason;
 
         public string SystemLocalTime
         {
@@ -38,6 +42,28 @@ namespace ArcaneEDR
         public string SystemUtcOffset
         {
             get { return FormatSystemUtcOffset(TimestampUtc); }
+        }
+
+        public HostIdentitySnapshot HostIdentity
+        {
+            get { return ArcaneEDR.HostIdentity.Current(); }
+        }
+
+        public string EnsureAlertId()
+        {
+            if (String.IsNullOrWhiteSpace(AlertId))
+            {
+                AlertId = Guid.NewGuid().ToString("N");
+            }
+
+            return AlertId;
+        }
+
+        public void MarkExternalNotification(string status, string reason, bool sent)
+        {
+            ExternalNotificationStatus = status ?? "";
+            ExternalNotificationReason = reason ?? "";
+            ExternalNotificationSent = sent;
         }
 
         public static Alert Create(string ruleId, string title, int score, string body, string recommendation, string cooldownKey)
@@ -209,11 +235,18 @@ namespace ArcaneEDR
 
         public string ToJson()
         {
+            HostIdentitySnapshot host = HostIdentity;
+            string alertId = EnsureAlertId();
             return "{" +
+                "\"alert_id\":\"" + JsonFields.Escape(alertId) + "\"," +
                 "\"timestamp_utc\":\"" + JsonFields.Escape(UtcTimestamp.Format(TimestampUtc)) + "\"," +
                 "\"system_local_time\":\"" + JsonFields.Escape(SystemLocalTime) + "\"," +
                 "\"system_time_zone\":\"" + JsonFields.Escape(SystemTimeZoneId) + "\"," +
                 "\"system_utc_offset\":\"" + JsonFields.Escape(SystemUtcOffset) + "\"," +
+                "\"local_machine_name\":\"" + JsonFields.Escape(host.MachineName) + "\"," +
+                "\"local_dns_host_name\":\"" + JsonFields.Escape(host.DnsHostName) + "\"," +
+                "\"local_ip_addresses\":" + HostIpAddressesToJson(host) + "," +
+                "\"host_identity\":" + host.ToJsonObject() + "," +
                 "\"rule_id\":\"" + JsonFields.Escape(RuleId) + "\"," +
                 "\"category\":\"" + JsonFields.Escape(Category) + "\"," +
                 "\"maintenance_context\":" + (MaintenanceContext ? "true" : "false") + "," +
@@ -224,12 +257,28 @@ namespace ArcaneEDR
                 "\"policy_context\":\"" + JsonFields.Escape(PolicyContext) + "\"," +
                 "\"external_suppressed_by_policy\":" + (ExternalSuppressedByPolicy ? "true" : "false") + "," +
                 "\"external_forced_by_policy\":" + (ExternalForcedByPolicy ? "true" : "false") + "," +
+                "\"external_notification_sent\":" + (ExternalNotificationSent ? "true" : "false") + "," +
+                "\"external_notification_status\":\"" + JsonFields.Escape(ExternalNotificationStatus) + "\"," +
+                "\"external_notification_reason\":\"" + JsonFields.Escape(ExternalNotificationReason) + "\"," +
                 "\"body\":\"" + JsonFields.Escape(Body) + "\"," +
                 "\"recommendation\":\"" + JsonFields.Escape(Recommendation) + "\"," +
                 "\"entity\":\"" + JsonFields.Escape(EntitySummary) + "\"," +
                 "\"response_process_id\":" + ResponseProcessId.ToString(CultureInfo.InvariantCulture) + "," +
                 "\"response_remote_address\":\"" + JsonFields.Escape(ResponseRemoteAddress == null ? "" : ResponseRemoteAddress.ToString()) + "\"" +
                 "}";
+        }
+
+        private static string HostIpAddressesToJson(HostIdentitySnapshot host)
+        {
+            if (host == null || host.LocalIpAddresses == null || host.LocalIpAddresses.Count == 0) return "[]";
+
+            List<string> encoded = new List<string>();
+            foreach (string address in host.LocalIpAddresses)
+            {
+                encoded.Add("\"" + JsonFields.Escape(address) + "\"");
+            }
+
+            return "[" + String.Join(",", encoded.ToArray()) + "]";
         }
 
         public void AddWhy(string reason)

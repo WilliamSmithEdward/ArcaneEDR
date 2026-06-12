@@ -194,7 +194,14 @@ namespace ArcaneEDR
                 CooldownKey = source.CooldownKey,
                 TimestampUtc = source.TimestampUtc,
                 ResponseProcessId = source.ResponseProcessId,
-                ResponseRemoteAddress = source.ResponseRemoteAddress
+                ResponseRemoteAddress = source.ResponseRemoteAddress,
+                AlertId = source.EnsureAlertId(),
+                ExternalNotificationSent = source.ExternalNotificationSent,
+                ExternalNotificationStatus = source.ExternalNotificationStatus,
+                ExternalNotificationReason = source.ExternalNotificationReason,
+                ExternalSuppressedByPolicy = source.ExternalSuppressedByPolicy,
+                ExternalForcedByPolicy = source.ExternalForcedByPolicy,
+                PolicyContext = source.PolicyContext
             };
         }
 
@@ -223,7 +230,14 @@ namespace ArcaneEDR
                 alert.MaintenanceContext ? "true" : "false",
                 Encode(alert.SystemLocalTime),
                 Encode(alert.SystemTimeZoneId),
-                Encode(alert.SystemUtcOffset)
+                Encode(alert.SystemUtcOffset),
+                Encode(alert.EnsureAlertId()),
+                alert.ExternalNotificationSent ? "true" : "false",
+                Encode(alert.ExternalNotificationStatus),
+                Encode(alert.ExternalNotificationReason),
+                alert.ExternalSuppressedByPolicy ? "true" : "false",
+                alert.ExternalForcedByPolicy ? "true" : "false",
+                Encode(alert.PolicyContext)
             };
 
             return String.Join("\t", fields);
@@ -271,7 +285,14 @@ namespace ArcaneEDR
                 CooldownKey = Decode(fields[9]),
                 TimestampUtc = timestamp.ToUniversalTime(),
                 ResponseProcessId = processId,
-                ResponseRemoteAddress = remoteAddress
+                ResponseRemoteAddress = remoteAddress,
+                AlertId = fields.Length > 20 ? Decode(fields[20]) : "",
+                ExternalNotificationSent = fields.Length > 21 && fields[21].Equals("true", StringComparison.OrdinalIgnoreCase),
+                ExternalNotificationStatus = fields.Length > 22 ? Decode(fields[22]) : "",
+                ExternalNotificationReason = fields.Length > 23 ? Decode(fields[23]) : "",
+                ExternalSuppressedByPolicy = fields.Length > 24 && fields[24].Equals("true", StringComparison.OrdinalIgnoreCase),
+                ExternalForcedByPolicy = fields.Length > 25 && fields[25].Equals("true", StringComparison.OrdinalIgnoreCase),
+                PolicyContext = fields.Length > 26 ? Decode(fields[26]) : ""
             };
 
             if (fields.Length > 14)

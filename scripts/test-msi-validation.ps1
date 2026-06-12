@@ -131,6 +131,13 @@ else {
 
 if (Test-Path -LiteralPath $installedGui) {
     Pass "Installed GUI exists: $installedGui"
+    try {
+        & (Join-Path $root "scripts\test-gui-payload.ps1") -Path (Join-Path $installedRoot "gui")
+        Pass "Installed GUI payload is internally consistent"
+    }
+    catch {
+        Fail "Installed GUI payload validation failed: $($_.Exception.Message)"
+    }
 }
 else {
     Warn "Installed GUI not found at $installedGui"

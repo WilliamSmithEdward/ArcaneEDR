@@ -156,8 +156,10 @@ Arcane decision:
   config-path clutter.
 - [x] Alerts: tabbed table/volume/raw evidence, table filters bound to config,
   sortable scan columns, selected-row detail.
-- [x] Policy: inspect/preview/open workflow remains available; structured policy
-  editing is available through the Configuration policy JSON editor.
+- [x] Policy: inspect/preview/open workflow remains available; the Policy tab
+  provides structured create/read/update/delete, header sorting, hide-disabled
+  filtering, move up/down ordering, and a guided Add policy wizard. Raw policy
+  JSON remains available as an escape hatch.
 - [x] Reports: preview/JSON/send are available and output is scroll-safe.
 - [x] Configuration: guided controls, advanced key editor, policy JSON editor,
   validation, reset with backup.
@@ -179,6 +181,8 @@ Arcane decision:
   title, and actions into distinct grid columns.
 - Alerts now uses local JSONL parsing for operator rows and keeps raw evidence
   as a secondary tab.
+- Policy now uses a shared scope catalog for entry type labels, order, section
+  names, default actions, and wizard/editor dropdowns.
 - Configuration saves runtime/deployment config through GUI controls, creates
   timestamped backups, and validates with Arcane's real CLI validator.
 - High-impact maintenance actions use confirmation dialogs with safe cancel

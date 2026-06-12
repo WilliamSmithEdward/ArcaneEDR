@@ -43,6 +43,9 @@ $alertStoreCode = Get-Content -LiteralPath (Join-Path $root "src\ArcaneEDR.Gui\S
 $validationView = Get-Content -LiteralPath (Join-Path $root "src\ArcaneEDR.Gui\Services\ArcaneValidationView.cs") -Raw
 $stateReader = Get-Content -LiteralPath (Join-Path $root "src\ArcaneEDR.Gui\Services\ArcaneStateReader.cs") -Raw
 $commandStatus = Get-Content -LiteralPath (Join-Path $root "src\ArcaneEDR.Gui\Services\GuiCommandStatus.cs") -Raw
+$buildGuiScript = Get-Content -LiteralPath (Join-Path $root "scripts\build-gui.ps1") -Raw
+$guiPayloadTest = Get-Content -LiteralPath (Join-Path $root "scripts\test-gui-payload.ps1") -Raw
+$reportsXaml = Get-Content -LiteralPath (Join-Path $root "src\ArcaneEDR.Gui\Pages\ReportsPage.xaml") -Raw
 $reportsCode = Get-Content -LiteralPath (Join-Path $root "src\ArcaneEDR.Gui\Pages\ReportsPage.xaml.cs") -Raw
 $maintenanceCode = Get-Content -LiteralPath (Join-Path $root "src\ArcaneEDR.Gui\Pages\MaintenancePage.xaml.cs") -Raw
 $configCode = Get-Content -LiteralPath (Join-Path $root "src\ArcaneEDR.Gui\Pages\ConfigurationPage.xaml.cs") -Raw
@@ -70,6 +73,12 @@ Assert-Contains $appCode '_window.ShowAndActivate();' "Normal launch window acti
 Assert-Contains $appCode 'args.Handled = true' "XAML exception handler"
 Assert-Contains $mainWindowCode 'NavFrame.NavigationFailed += NavFrame_NavigationFailed' "Frame navigation failure handler"
 Assert-Contains $mainWindowCode 'args.Handled = true' "Frame navigation failure handled"
+Assert-Contains $buildGuiScript '[switch]$NoClean' "GUI build clean override"
+Assert-Contains $buildGuiScript 'Remove-Item -LiteralPath $cleanTargetFullPath -Recurse -Force' "GUI clean removes stale WinUI generated files"
+Assert-Contains $buildGuiScript 'test-gui-payload.ps1' "GUI build validates payload coherence"
+Assert-Contains $guiPayloadTest 'Pages' "GUI payload validator checks page resources"
+Assert-Contains $guiPayloadTest 'ArcaneEDR.Gui.pri' "GUI payload validator checks PRI resources"
+Assert-Contains $guiPayloadTest 'timestamp skew' "GUI payload validator catches mixed resource timestamps"
 Assert-Contains $mainWindowCode 'ApplyTitleBarColors' "Title bar color hook"
 Assert-Contains $mainWindowCode 'titleBar.BackgroundColor = Colors.Black' "Black active title bar"
 Assert-Contains $mainWindowCode 'titleBar.ButtonBackgroundColor = Colors.Black' "Black title bar buttons"
@@ -97,6 +106,12 @@ Assert-NotContains $homeCode 'IndexOf("summary"' "Validation broad summary parse
 Assert-Contains $commandStatus 'button.IsEnabled = false' "Command feedback disables initiating button"
 Assert-Contains $commandStatus 'Command failed:' "Command feedback error text"
 Assert-Contains $reportsCode 'GuiCommandStatus.RunAsync' "Reports command feedback"
+Assert-Contains $reportsXaml 'Text="Report preview"' "Reports friendly preview label"
+Assert-Contains $reportsXaml 'IsTextSelectionEnabled="True"' "Reports preview selectable text"
+Assert-Contains $reportsXaml 'TextWrapping="Wrap"' "Reports preview wrapped text"
+Assert-Contains $reportsCode 'RenderReportPreview(output)' "Reports markdown preview rendering"
+Assert-Contains $reportsCode 'json ? output : RenderReportPreview(output)' "Reports JSON remains raw"
+Assert-Contains $reportsCode 'FlushTable' "Reports markdown table cleanup"
 Assert-Contains $maintenanceCode 'RunMaintenanceAsync' "Maintenance command feedback"
 Assert-Contains $configCode 'Validating configuration...' "Configuration validation status"
 

@@ -4,20 +4,20 @@ Arcane uses one JSON policy file for allow, block, trust, response, remote
 endpoint, and structured alert tuning decisions. Configure it with `PolicyFile`
 in `ArcaneEDR.config`.
 
-The policy model is scope-based. Current scopes are:
+The policy model is scope-based, but the operator-facing GUI presents one
+unified list of policy entries. Current entry types are:
 
-- `alert`: local alert tuning rules such as score changes, external
-  suppression, force alert, and tag-only entries.
-- `remote_endpoint`: remote identity rules for trusted provider/country/ASN,
-  suspicious destinations, blocked destinations, and unknown-country behavior.
-- `response`: active-response allow/block entries. The JSON remains simple
-  lists, and Arcane adapts them into deterministic response-scope rules
-  internally.
-- `report`: reserved for future deterministic report tuning.
+- `Allowlist`: JSON list/map settings for expected local context.
+- `Blocklist`: JSON list/map settings for explicit deny-list context.
+- `Response guardrail`: JSON list/map settings that gate active response.
+- `Network endpoint`: ordered remote identity rules for trusted provider,
+  country, ASN, suspicious destination, blocked destination, and
+  unknown-country behavior.
+- `Alert tuning`: ordered local alert tuning rules such as score changes,
+  external suppression, force alert, trusted context, and tag-only entries.
 
-Scopes let Arcane keep one rule-engine pattern while avoiding accidental field
-mixing between alert records, remote endpoint records, response actions, and
-future report records.
+The GUI uses a shared policy scope catalog so the list, editor, and wizard show
+the same entry types, ordering, default actions, and JSON sections.
 
 The tracked default is `config\arcane-policy.example.json`. For host-specific
 tuning, copy it to an ignored local policy file and point `PolicyFile` there.
@@ -57,6 +57,11 @@ The default policy:
 - Treats ordinary country-unavailable context as an observe score enhancer.
 
 Use `--validate-config` after editing the policy file.
+
+The Windows GUI Policy tab can create, edit, delete, sort, filter, and reorder
+policy entries. The Add policy wizard creates blank entries, and the Alerts tab
+can create a draft from selected alert metadata. Raw Policy JSON remains an
+escape hatch for advanced edits.
 
 Inspect loaded policy counts and scopes:
 

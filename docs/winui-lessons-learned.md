@@ -63,6 +63,13 @@ evidence and local state belong under the documented data/log paths.
 The publish/MSI path must close running GUI instances before copying GUI DLLs.
 Otherwise `ArcaneEDR.Gui.dll` can remain locked and produce partial publishes.
 
+WinUI `*.xbf` files and `ArcaneEDR.Gui.pri` are part of the executable GUI
+payload, not optional resources. A newer `ArcaneEDR.Gui.dll` beside stale
+`Pages\*.xbf` files can make page navigation fail during generated
+`Connect(...)` casts. Every GUI build, publish, MSI install, and MSI validation
+should run `scripts\test-gui-payload.ps1` so DLL, PRI, and XBF resources are
+present and from the same build window.
+
 ## GUI Process Posture
 
 Run the GUI as a normal user app. Do not make the GUI permanently elevated.
@@ -216,6 +223,12 @@ install.
 Overview should be an operator note, not a diagnostic dump. Put the plain
 status, validation blockers/warnings, and next action first; keep raw evidence
 and timestamps one level lower.
+
+For complex configuration surfaces, keep operator-facing choices in one
+catalog or metadata model. Arcane's Policy tab uses a shared policy scope
+catalog for entry type labels, file sections, default actions, sort order, and
+wizard/editor dropdowns. Avoid parallel hard-coded lists in XAML, page code,
+and store code; they drift quickly and make "unified" models feel fragmented.
 
 ## Upgrade Discipline
 

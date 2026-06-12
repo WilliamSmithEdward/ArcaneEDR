@@ -309,11 +309,7 @@ internal static class ArcanePolicyDocument
     public static string SaveFormatted(string json)
     {
         string path = ArcanePaths.Discover().PolicyFile;
-        using JsonDocument document = JsonDocument.Parse(json);
-        string formatted = JsonSerializer.Serialize(document.RootElement, new JsonSerializerOptions
-        {
-            WriteIndented = true
-        });
+        string formatted = GuiJson.Format(json);
 
         string backup = "";
         if (File.Exists(path))
@@ -330,11 +326,7 @@ internal static class ArcanePolicyDocument
 
     public static string Format(string json)
     {
-        using JsonDocument document = JsonDocument.Parse(json);
-        return JsonSerializer.Serialize(document.RootElement, new JsonSerializerOptions
-        {
-            WriteIndented = true
-        });
+        return GuiJson.Format(json);
     }
 }
 

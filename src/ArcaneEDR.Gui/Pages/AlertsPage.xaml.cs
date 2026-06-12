@@ -4,10 +4,12 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Windows.ApplicationModel.DataTransfer;
 using ArcaneEDR_Gui.Controls;
 using ArcaneEDR_Gui.Services;
@@ -26,6 +28,9 @@ public sealed partial class AlertsPage : Page
     private List<ArcaneAlertRecord> visibleAlerts = new List<ArcaneAlertRecord>();
     private CancellationTokenSource? refreshCancellation;
     private int refreshGeneration;
+    private ArcaneAlertRecord? contextMenuAlert;
+    private const double MinAlertDetailsHeight = 140;
+    private const double MaxAlertDetailsHeight = 360;
 
     public AlertsPage()
     {
@@ -66,7 +71,9 @@ public sealed partial class AlertsPage : Page
             "Alerts help",
             "The Alerts table is local evidence first: filtering or grouping changes what you see in the GUI, not what Arcane preserves in JSONL.\n\n" +
             "Use External threshold to focus on entries that would normally qualify for external notification under the current MinimumEmailScore.\n\n" +
+            "The bell column shows whether Arcane recorded an external notification outcome for a row. Hover it to see sent, grouped, suppressed, rate-limited, provider unavailable, or not-recorded details.\n\n" +
             "Country and company values come from enrichment. Missing company data is not proof of compromise; pair it with process, rule, score, country, and policy context.\n\n" +
+            "Right-click an alert row, or use Create policy in the metadata panel, to start a guided policy draft from alert metadata.\n\n" +
             "Copy CSV and Export use the current filtered/sorted table view only. Raw JSONL remains available for exact evidence when you need the underlying record.");
     }
 
@@ -108,6 +115,36 @@ public sealed partial class AlertsPage : Page
         ShowSelectedAlert(AlertsList.SelectedItem as ArcaneAlertRecord);
     }
 
+    private void AlertRow_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement element && element.DataContext is ArcaneAlertRecord alert)
+        {
+            contextMenuAlert = alert;
+            AlertsList.SelectedItem = alert;
+        }
+    }
+
+    private async void CreatePolicyFromAlert_Click(object sender, RoutedEventArgs e)
+    {
+        ArcaneAlertRecord? alert = (sender as MenuFlyoutItem)?.CommandParameter as ArcaneAlertRecord ??
+            (sender as FrameworkElement)?.DataContext as ArcaneAlertRecord ??
+            contextMenuAlert ??
+            AlertsList.SelectedItem as ArcaneAlertRecord;
+        if (alert == null)
+        {
+            TableSummaryText.Text = "Select an alert row before creating a policy.";
+            return;
+        }
+
+        AlertsList.SelectedItem = alert;
+
+        PolicyWizardResult result = await PolicyWizard.ShowAsync(XamlRoot, alert);
+        if (result.Saved)
+        {
+            TableSummaryText.Text = "Saved policy " + result.Id + ". " + result.Status;
+        }
+    }
+
     private void SortHeader_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement element || element.Tag is not string column)
@@ -135,6 +172,7 @@ public sealed partial class AlertsPage : Page
         RuleColumnResizeHandle.ResizeDelta += ColumnResizeHandle_ResizeDelta;
         CategoryColumnResizeHandle.ResizeDelta += ColumnResizeHandle_ResizeDelta;
         ScoreColumnResizeHandle.ResizeDelta += ColumnResizeHandle_ResizeDelta;
+        NotificationColumnResizeHandle.ResizeDelta += ColumnResizeHandle_ResizeDelta;
         CountryColumnResizeHandle.ResizeDelta += ColumnResizeHandle_ResizeDelta;
         ProcessColumnResizeHandle.ResizeDelta += ColumnResizeHandle_ResizeDelta;
         CompanyColumnResizeHandle.ResizeDelta += ColumnResizeHandle_ResizeDelta;
@@ -154,7 +192,7 @@ public sealed partial class AlertsPage : Page
     private void AlertDetailsResizeHandle_ResizeDelta(object? sender, ResizeDeltaEventArgs e)
     {
         double nextHeight = AlertDetailsRow.Height.Value - e.VerticalChange;
-        nextHeight = Math.Max(140, Math.Min(520, nextHeight));
+        nextHeight = Math.Max(MinAlertDetailsHeight, Math.Min(MaxAlertDetailsHeight, nextHeight));
         AlertDetailsRow.Height = new GridLength(nextHeight);
         SaveViewSettings();
     }
@@ -304,6 +342,7 @@ public sealed partial class AlertsPage : Page
             "Score" => sortAscending ? source.OrderBy(alert => alert.Score) : source.OrderByDescending(alert => alert.Score),
             "Rule" => sortAscending ? source.OrderBy(alert => alert.RuleId) : source.OrderByDescending(alert => alert.RuleId),
             "Category" => sortAscending ? source.OrderBy(alert => alert.Category) : source.OrderByDescending(alert => alert.Category),
+            "Notification" => sortAscending ? source.OrderBy(alert => alert.ExternalNotificationStatusLabel) : source.OrderByDescending(alert => alert.ExternalNotificationStatusLabel),
             "Country" => sortAscending ? source.OrderBy(alert => alert.Country) : source.OrderByDescending(alert => alert.Country),
             "Process" => sortAscending ? source.OrderBy(alert => alert.Process) : source.OrderByDescending(alert => alert.Process),
             "Company" => sortAscending ? source.OrderBy(alert => alert.Company) : source.OrderByDescending(alert => alert.Company),
@@ -372,6 +411,8 @@ public sealed partial class AlertsPage : Page
             Contains(alert.RemoteIp, search) ||
             Contains(alert.Country, search) ||
             Contains(alert.Company, search) ||
+            Contains(alert.ExternalNotificationStatusLabel, search) ||
+            Contains(alert.ExternalNotificationReason, search) ||
             Contains(alert.PolicyContext, search) ||
             Contains(alert.Entity, search) ||
             Contains(alert.Body, search);
@@ -386,12 +427,14 @@ public sealed partial class AlertsPage : Page
     {
         if (alert == null)
         {
+            CreatePolicyFromSelectedAlertButton.IsEnabled = false;
             SelectedAlertHintText.Text = "No selection";
             SelectedAlertMetadataText.Text = "No alerts match the current filters.";
             SelectedAlertEvidenceText.Text = "";
             return;
         }
 
+        CreatePolicyFromSelectedAlertButton.IsEnabled = true;
         SelectedAlertHintText.Text = alert.RuleId + " score " + alert.Score;
         SelectedAlertMetadataText.Text = BuildSelectedAlertMetadataText(alert);
         SelectedAlertEvidenceText.Text = BuildSelectedAlertEvidenceText(alert);
@@ -403,6 +446,7 @@ public sealed partial class AlertsPage : Page
         RuleSortIndicator.Text = "";
         CategorySortIndicator.Text = "";
         ScoreSortIndicator.Text = "";
+        NotificationSortIndicator.Text = "";
         CountrySortIndicator.Text = "";
         ProcessSortIndicator.Text = "";
         CompanySortIndicator.Text = "";
@@ -419,6 +463,9 @@ public sealed partial class AlertsPage : Page
                 break;
             case "Score":
                 ScoreSortIndicator.Text = indicator;
+                break;
+            case "Notification":
+                NotificationSortIndicator.Text = indicator;
                 break;
             case "Country":
                 CountrySortIndicator.Text = indicator;
@@ -457,6 +504,11 @@ public sealed partial class AlertsPage : Page
             "Category=" + alert.Category + Environment.NewLine +
             "Severity=" + alert.Severity + Environment.NewLine +
             "Score=" + alert.Score + Environment.NewLine +
+            "Notification=" + alert.ExternalNotificationStatusLabel + Environment.NewLine +
+            "NotificationStatus=" + alert.ExternalNotificationStatus + Environment.NewLine +
+            "NotificationSent=" + alert.ExternalNotificationSent + Environment.NewLine +
+            "NotificationProvider=" + alert.ExternalNotificationProvider + Environment.NewLine +
+            "NotificationReason=" + alert.ExternalNotificationReason + Environment.NewLine +
             "Title=" + alert.Title + Environment.NewLine +
             "Process=" + alert.Process + Environment.NewLine +
             "RemoteIp=" + alert.RemoteIp + Environment.NewLine +
@@ -487,8 +539,8 @@ public sealed partial class AlertsPage : Page
         ExternalCandidatesBox.IsChecked = settings.AlertExternalThresholdOnly;
         sortColumn = String.IsNullOrWhiteSpace(settings.AlertSortColumn) ? "Time" : settings.AlertSortColumn;
         sortAscending = settings.AlertSortAscending;
-        double height = settings.AlertDetailsHeight;
-        if (height >= 140 && height <= 520)
+        double height = Math.Max(MinAlertDetailsHeight, Math.Min(MaxAlertDetailsHeight, settings.AlertDetailsHeight));
+        if (height >= MinAlertDetailsHeight && height <= MaxAlertDetailsHeight)
         {
             AlertDetailsRow.Height = new GridLength(height);
         }
@@ -531,7 +583,7 @@ public sealed partial class AlertsPage : Page
     private static string BuildCsv(IReadOnlyList<ArcaneAlertRecord> rows)
     {
         StringBuilder builder = new StringBuilder();
-        builder.AppendLine("SystemTime,UTC,Rule,Category,Severity,Score,Process,RemoteIp,Country,Company,Title,MaintenanceContext,ExternalSuppressed,ExternalForced,PolicyContext");
+        builder.AppendLine("SystemTime,UTC,Rule,Category,Severity,Score,Notification,NotificationStatus,NotificationSent,NotificationProvider,Process,RemoteIp,Country,Company,Title,MaintenanceContext,ExternalSuppressed,ExternalForced,PolicyContext");
         foreach (ArcaneAlertRecord row in rows)
         {
             builder.AppendLine(String.Join(",", new[]
@@ -542,6 +594,10 @@ public sealed partial class AlertsPage : Page
                 Csv(row.Category),
                 Csv(row.Severity),
                 Csv(row.Score.ToString(CultureInfo.InvariantCulture)),
+                Csv(row.ExternalNotificationStatusLabel),
+                Csv(row.ExternalNotificationStatus),
+                Csv(row.ExternalNotificationSent.ToString()),
+                Csv(row.ExternalNotificationProvider),
                 Csv(row.Process),
                 Csv(row.RemoteIp),
                 Csv(row.Country),

@@ -52,6 +52,7 @@ namespace ArcaneEDR
             snapshot.TotalPollFailures = state.PollFailures;
             snapshot.ExternalSendFailures = state.ExternalSendFailures;
             snapshot.LastCleanStopUtc = state.LastCleanStopUtc;
+            snapshot.HostIdentity = HostIdentity.Current();
             snapshot.BaselineLearningMode = config.BaselineLearningMode;
             snapshot.ScheduledLocalTime = DailySummarySchedule.Describe(config);
             snapshot.Alerts.AddRange(LoadAlerts(snapshot.WindowStartUtc));
@@ -156,6 +157,7 @@ namespace ArcaneEDR
             root["window_end_utc"] = UtcTimestamp.Format(snapshot.GeneratedUtc);
             root["generated_system_time"] = FormatSystemLocalTime(snapshot.GeneratedUtc);
             root["window_system_time"] = FormatSystemLocalTime(snapshot.WindowStartUtc) + " to " + FormatSystemLocalTime(snapshot.GeneratedUtc);
+            root["host_identity"] = BuildHostIdentityObject(snapshot.HostIdentity);
             root["scheduled_local_time"] = snapshot.ScheduledLocalTime;
             root["run_id"] = snapshot.RunId;
             root["assessment"] = snapshot.Assessment;
@@ -184,6 +186,8 @@ namespace ArcaneEDR
             builder.AppendLine("| Determination | " + TableCell(BuildOperatorVerdict(snapshot, metrics)) + " |");
             builder.AppendLine("| Compromise assessment | " + TableCell(BuildCompromiseAssessment(snapshot, metrics)) + " |");
             builder.AppendLine("| Confidence | " + TableCell(BuildConfidence(snapshot)) + " |");
+            builder.AppendLine("| Local machine | " + TableCell(HostMachineText(snapshot.HostIdentity)) + " |");
+            builder.AppendLine("| Local IP addresses | " + TableCell(HostIpText(snapshot.HostIdentity)) + " |");
             builder.AppendLine("| Analyzed window (system time) | " + TableCell(FormatSystemLocalTime(snapshot.WindowStartUtc) + " to " + FormatSystemLocalTime(snapshot.GeneratedUtc)) + " |");
             builder.AppendLine("| Generated (system time) | " + TableCell(FormatSystemLocalTime(snapshot.GeneratedUtc)) + " |");
             builder.AppendLine("| Basis | " + TableCell(BuildVerdictReason(snapshot, metrics)) + " |");
@@ -759,6 +763,40 @@ namespace ArcaneEDR
             return result;
         }
 
+        private static Dictionary<string, object> BuildHostIdentityObject(HostIdentitySnapshot host)
+        {
+            Dictionary<string, object> result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            if (host == null)
+            {
+                result["machine_name"] = "";
+                result["dns_host_name"] = "";
+                result["local_ip_addresses"] = new List<string>();
+                return result;
+            }
+
+            result["machine_name"] = host.MachineName;
+            result["dns_host_name"] = host.DnsHostName;
+            result["local_ip_addresses"] = new List<string>(host.LocalIpAddresses);
+            return result;
+        }
+
+        private static string HostMachineText(HostIdentitySnapshot host)
+        {
+            if (host == null) return "unknown";
+            if (!String.IsNullOrWhiteSpace(host.DnsHostName) &&
+                !host.DnsHostName.Equals(host.DisplayName, StringComparison.OrdinalIgnoreCase))
+            {
+                return host.DisplayName + " (" + host.DnsHostName + ")";
+            }
+
+            return host.DisplayName;
+        }
+
+        private static string HostIpText(HostIdentitySnapshot host)
+        {
+            return host == null ? "unavailable" : host.LocalIpAddressSummary;
+        }
+
         private static List<Dictionary<string, object>> BuildBucketObjects(List<DailyReportBucket> buckets, int limit)
         {
             List<Dictionary<string, object>> result = new List<Dictionary<string, object>>();
@@ -1224,6 +1262,7 @@ namespace ArcaneEDR
         public long TotalPollFailures;
         public long ExternalSendFailures;
         public DateTime? LastCleanStopUtc;
+        public HostIdentitySnapshot HostIdentity;
         public bool BaselineLearningMode;
         public string ScheduledLocalTime;
         public string Assessment;

@@ -15,7 +15,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid ColumnSpacing="12">
+        <Grid ColumnSpacing="10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -68,8 +68,8 @@
             Grid.Row="1"
             IsOpen="True"
             Severity="Informational"
-            Title="JSONL evidence"
-            Message="Policy decisions tune alerting and response gates while local alert evidence remains in JSONL." />
+            Title="One policy list"
+            Message="Add or edit one policy entry at a time. Order is shown consistently for every row; saves create a backup and validation shows any blockers." />
 
         <TabView x:Name="PolicyTabs" Grid.Row="2">
             <TabViewItem Header="Entries" IsClosable="False">
@@ -78,7 +78,6 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
-                        <RowDefinition Height="220" />
                     </Grid.RowDefinitions>
 
                     <Grid ColumnSpacing="10">
@@ -96,7 +95,7 @@
                         </Border>
                         <Border Grid.Column="1" Style="{StaticResource SectionCardStyle}">
                             <StackPanel>
-                                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Rules" />
+                                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Policy entries" />
                                 <TextBlock x:Name="PolicyRuleCountText" FontSize="20" FontWeight="SemiBold" />
                             </StackPanel>
                         </Border>
@@ -114,79 +113,488 @@
                         </Border>
                     </Grid>
 
-                    <Grid Grid.Row="1" ColumnSpacing="10">
+                    <Grid Grid.Row="1" ColumnSpacing="10" RowSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="190" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <ComboBox
                             x:Name="PolicyScopeFilterBox"
-                            Header="Scope"
+                            Header="Type"
                             SelectedIndex="0"
-                            SelectionChanged="PolicyFilter_Changed" />
+                            SelectionChanged="PolicyFilter_Changed"
+                            ToolTipService.ToolTip="Filter the list by policy type. This does not change policy behavior." />
                         <TextBox
                             x:Name="PolicySearchBox"
                             Grid.Column="1"
                             Header="Search"
                             PlaceholderText="id, action, owner, reason, match, country, process"
-                            TextChanged="PolicySearchBox_TextChanged" />
+                            TextChanged="PolicySearchBox_TextChanged"
+                            ToolTipService.ToolTip="Searches visible policy text only. It does not edit or disable policy entries." />
+                        <CheckBox
+                            x:Name="PolicyHideDisabledBox"
+                            Grid.Column="2"
+                            VerticalAlignment="Bottom"
+                            Checked="PolicyFilter_Changed"
+                            Content="Hide disabled"
+                            IsChecked="True"
+                            ToolTipService.ToolTip="Hide disabled policy entries in this list only."
+                            Unchecked="PolicyFilter_Changed" />
+                        <Button
+                            x:Name="AddPolicyButton"
+                            Grid.Column="3"
+                            VerticalAlignment="Bottom"
+                            AutomationProperties.Name="Add policy"
+                            Click="AddPolicy_Click"
+                            ToolTipService.ToolTip="Open the guided policy wizard. The new entry is not applied until you save.">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon FontSize="15" Glyph="&#xE710;" />
+                                <TextBlock Text="Add policy" />
+                            </StackPanel>
+                        </Button>
+                        <Button
+                            x:Name="MoveHigherButton"
+                            Grid.Column="4"
+                            VerticalAlignment="Bottom"
+                            AutomationProperties.Name="Move policy up"
+                            Click="MoveHigher_Click"
+                            ToolTipService.ToolTip="Move selected policy up within its type">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon FontSize="15" Glyph="&#xE74A;" />
+                                <TextBlock Text="Move up" />
+                            </StackPanel>
+                        </Button>
+                        <Button
+                            x:Name="MoveLowerButton"
+                            Grid.Column="5"
+                            VerticalAlignment="Bottom"
+                            AutomationProperties.Name="Move policy down"
+                            Click="MoveLower_Click"
+                            ToolTipService.ToolTip="Move selected policy down within its type">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon FontSize="15" Glyph="&#xE74B;" />
+                                <TextBlock Text="Move down" />
+                            </StackPanel>
+                        </Button>
                     </Grid>
 
-                    <ListView
-                        x:Name="PolicyEntriesList"
-                        Grid.Row="2"
-                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                        ScrollViewer.HorizontalScrollMode="Disabled"
-                        ScrollViewer.IsHorizontalRailEnabled="False"
-                        ScrollViewer.IsHorizontalScrollChainingEnabled="False"
-                        ScrollViewer.IsScrollInertiaEnabled="False"
-                        ScrollViewer.IsVerticalScrollChainingEnabled="False"
-                        ScrollViewer.VerticalScrollBarVisibility="Auto"
-                        ScrollViewer.VerticalScrollMode="Enabled"
-                        ScrollViewer.ZoomMode="Disabled"
-                        SelectionChanged="PolicyEntriesList_SelectionChanged">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Padding="8,7" ColumnSpacing="10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="150" />
-                                        <ColumnDefinition Width="270" />
-                                        <ColumnDefinition Width="84" />
-                                        <ColumnDefinition Width="120" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Scope}" TextTrimming="CharacterEllipsis" />
-                                    <StackPanel Grid.Column="1" Spacing="2">
-                                        <TextBlock FontWeight="SemiBold" Text="{Binding Id}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Owner}" TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                    <TextBlock Grid.Column="2" Text="{Binding EnabledDisplay}" TextTrimming="CharacterEllipsis" />
-                                    <StackPanel Grid.Column="3" Spacing="2">
-                                        <TextBlock Text="{Binding Action}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Score}" TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="4" Spacing="2">
-                                        <TextBlock Text="{Binding Reason}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding MatchSummary}" TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
+                    <Grid Grid.Row="2" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.05*" />
+                            <ColumnDefinition Width="1.2*" />
+                        </Grid.ColumnDefinitions>
 
-                    <Border Grid.Row="3" Style="{StaticResource ConsolePanelStyle}">
-                        <Grid RowSpacing="8">
+                        <Grid RowSpacing="6">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
-                            <TextBlock x:Name="SelectedPolicyTitleText" FontWeight="SemiBold" Text="Select a policy entry" />
-                            <TextBlock
-                                x:Name="SelectedPolicyDetailText"
+
+                            <Grid Padding="8,0" ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="250" />
+                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button
+                                    x:Name="SortOrderButton"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Left"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Click="SortOrder_Click"
+                                    ToolTipService.ToolTip="Sort by display order. Move up/down changes saved file order within a policy type.">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock FontWeight="SemiBold" Text="Order" />
+                                        <TextBlock x:Name="SortOrderIndicator" />
+                                    </StackPanel>
+                                </Button>
+                                <Button
+                                    x:Name="SortTypeButton"
+                                    Grid.Column="1"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Left"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Click="SortType_Click"
+                                    ToolTipService.ToolTip="Sort by policy type. This is only a list view sort.">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock FontWeight="SemiBold" Text="Type" />
+                                        <TextBlock x:Name="SortTypeIndicator" />
+                                    </StackPanel>
+                                </Button>
+                                <Button
+                                    x:Name="SortPolicyButton"
+                                    Grid.Column="2"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Left"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Click="SortPolicy_Click"
+                                    ToolTipService.ToolTip="Sort by policy id or setting key.">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock FontWeight="SemiBold" Text="Policy" />
+                                        <TextBlock x:Name="SortPolicyIndicator" />
+                                    </StackPanel>
+                                </Button>
+                                <Button
+                                    x:Name="SortEnabledButton"
+                                    Grid.Column="3"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Left"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Click="SortEnabled_Click"
+                                    ToolTipService.ToolTip="Sort by enabled state.">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock FontWeight="SemiBold" Text="Enabled" />
+                                        <TextBlock x:Name="SortEnabledIndicator" />
+                                    </StackPanel>
+                                </Button>
+                                <Button
+                                    x:Name="SortActionButton"
+                                    Grid.Column="4"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Left"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Click="SortAction_Click"
+                                    ToolTipService.ToolTip="Sort by action.">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock FontWeight="SemiBold" Text="Action" />
+                                        <TextBlock x:Name="SortActionIndicator" />
+                                    </StackPanel>
+                                </Button>
+                                <Button
+                                    x:Name="SortSummaryButton"
+                                    Grid.Column="5"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Left"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Click="SortSummary_Click"
+                                    ToolTipService.ToolTip="Sort by reason and match summary.">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock FontWeight="SemiBold" Text="Summary" />
+                                        <TextBlock x:Name="SortSummaryIndicator" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+
+                            <ListView
+                                x:Name="PolicyEntriesList"
                                 Grid.Row="1"
-                                Style="{StaticResource ConsoleTextStyle}" />
+                                ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                ScrollViewer.HorizontalScrollMode="Disabled"
+                                ScrollViewer.IsHorizontalRailEnabled="False"
+                                ScrollViewer.IsHorizontalScrollChainingEnabled="False"
+                                ScrollViewer.IsScrollInertiaEnabled="False"
+                                ScrollViewer.IsVerticalScrollChainingEnabled="False"
+                                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                ScrollViewer.VerticalScrollMode="Enabled"
+                                ScrollViewer.ZoomMode="Disabled"
+                                SelectionChanged="PolicyEntriesList_SelectionChanged">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Padding="8,7" ColumnSpacing="10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="70" />
+                                                <ColumnDefinition Width="150" />
+                                                <ColumnDefinition Width="250" />
+                                                <ColumnDefinition Width="96" />
+                                                <ColumnDefinition Width="130" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock
+                                                FontWeight="SemiBold"
+                                                Text="{Binding PriorityDisplay}"
+                                                TextTrimming="CharacterEllipsis" />
+                                            <TextBlock
+                                                Grid.Column="1"
+                                                Text="{Binding TypeDisplay}"
+                                                TextTrimming="CharacterEllipsis" />
+                                            <StackPanel Grid.Column="2" Spacing="2">
+                                                <TextBlock FontWeight="SemiBold" Text="{Binding Id}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Owner}" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="3" Text="{Binding EnabledDisplay}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="4" Text="{Binding Action}" TextTrimming="CharacterEllipsis" />
+                                            <StackPanel Grid.Column="5" Spacing="2">
+                                                <TextBlock Text="{Binding Reason}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding MatchSummary}" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
                         </Grid>
-                    </Border>
+
+                        <Border Grid.Column="1" Style="{StaticResource SectionCardStyle}">
+                            <Grid RowSpacing="10">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock x:Name="PolicyEditorTitleText" FontWeight="SemiBold" Text="Select a policy entry" />
+                                        <TextBlock
+                                            x:Name="PolicyEditorModeText"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Text="Read and edit policy entries" />
+                                    </StackPanel>
+                                    <Button
+                                        x:Name="FormatMatchButton"
+                                        Grid.Column="1"
+                                        AutomationProperties.Name="Format match JSON"
+                                        Click="FormatMatch_Click"
+                                        ToolTipService.ToolTip="Pretty-print the match/value JSON in the current editor. This does not save.">
+                                        <FontIcon FontSize="15" Glyph="&#xE8A5;" />
+                                    </Button>
+                                    <Button
+                                        x:Name="SavePolicyEntryButton"
+                                        Grid.Column="2"
+                                        AutomationProperties.Name="Save selected policy"
+                                        Click="SavePolicyEntry_Click"
+                                        ToolTipService.ToolTip="Save this policy entry, reload the policy list, and run validation. A backup is created first.">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon FontSize="15" Glyph="&#xE74E;" />
+                                            <TextBlock Text="Save" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button
+                                        x:Name="DeletePolicyEntryButton"
+                                        Grid.Column="3"
+                                        AutomationProperties.Name="Delete selected policy"
+                                        Click="DeletePolicyEntry_Click"
+                                        ToolTipService.ToolTip="Delete the selected policy entry after confirmation. Local evidence already logged is not deleted.">
+                                        <FontIcon FontSize="15" Glyph="&#xE74D;" />
+                                    </Button>
+                                </Grid>
+
+                                <ScrollViewer
+                                    Grid.Row="1"
+                                    controls:PageScrollBehavior.UseReliableWheel="True"
+                                    Style="{StaticResource PageScrollViewerStyle}">
+                                    <StackPanel
+                                        x:Name="PolicyEditorScrollContent"
+                                        Margin="0,0,26,0"
+                                        Spacing="10">
+                                        <Grid ColumnSpacing="10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="112" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <ComboBox
+                                                x:Name="PolicyEditorScopeBox"
+                                                Header="Policy type"
+                                                SelectionChanged="PolicyEditorScope_Changed"
+                                                ToolTipService.ToolTip="Shows what this entry controls. Existing entries keep their type locked so they cannot be accidentally moved between policy sections." />
+                                            <TextBox
+                                                x:Name="PolicyEditorPriorityText"
+                                                Grid.Column="1"
+                                                Header="Order"
+                                                IsReadOnly="True"
+                                                ToolTipService.ToolTip="Display order in the unified list. Move up/down changes file order within this policy type." />
+                                            <Button
+                                                x:Name="EditorMoveHigherButton"
+                                                Grid.Column="2"
+                                                VerticalAlignment="Bottom"
+                                                AutomationProperties.Name="Move selected policy up"
+                                                Click="MoveHigher_Click"
+                                                ToolTipService.ToolTip="Move this saved entry earlier within its policy type. Save new entries before moving.">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <FontIcon FontSize="15" Glyph="&#xE74A;" />
+                                                    <TextBlock Text="Up" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button
+                                                x:Name="EditorMoveLowerButton"
+                                                Grid.Column="3"
+                                                VerticalAlignment="Bottom"
+                                                AutomationProperties.Name="Move selected policy down"
+                                                Click="MoveLower_Click"
+                                                ToolTipService.ToolTip="Move this saved entry later within its policy type. Save new entries before moving.">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <FontIcon FontSize="15" Glyph="&#xE74B;" />
+                                                    <TextBlock Text="Down" />
+                                                </StackPanel>
+                                            </Button>
+                                        </Grid>
+
+                                        <TextBlock
+                                            x:Name="PolicyOrderHintText"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            TextWrapping="Wrap" />
+
+                                        <Grid ColumnSpacing="10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="150" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox
+                                                x:Name="PolicyEditorIdBox"
+                                                Header="Id / key"
+                                                PlaceholderText="unique-policy-id"
+                                                ToolTipService.ToolTip="Stable identifier for this entry. For list/map policy entries, this is the JSON key." />
+                                            <ToggleSwitch
+                                                x:Name="PolicyEditorEnabledSwitch"
+                                                Grid.Column="1"
+                                                Header="Enabled"
+                                                IsOn="True"
+                                                ToolTipService.ToolTip="Enable or disable this rule-type policy entry. JSON list/map entries are considered enabled when present." />
+                                        </Grid>
+
+                                        <StackPanel x:Name="RuleEditorPanel" Spacing="10">
+                                            <Grid
+                                                x:Name="DetectionMetadataPanel"
+                                                ColumnSpacing="10">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="120" />
+                                                    <ColumnDefinition Width="120" />
+                                                </Grid.ColumnDefinitions>
+                                                <ComboBox
+                                                    x:Name="PolicyEditorActionBox"
+                                                    Header="Action"
+                                                    SelectionChanged="PolicyEditorAction_Changed"
+                                                    ToolTipService.ToolTip="What Arcane should do when this policy matches. Available actions depend on policy type." />
+                                                <TextBox
+                                                    x:Name="PolicyEditorScoreBox"
+                                                    Grid.Column="1"
+                                                    Header="Score"
+                                                    MaxLength="3"
+                                                    PlaceholderText="90"
+                                                    VerticalAlignment="Top"
+                                                    ToolTipService.ToolTip="Optional absolute 0-100 score. Used only by actions that produce or set scored alert context." />
+                                                <TextBox
+                                                    x:Name="PolicyEditorScoreDeltaBox"
+                                                    Grid.Column="2"
+                                                    Header="Delta"
+                                                    MaxLength="3"
+                                                    PlaceholderText="10"
+                                                    VerticalAlignment="Top"
+                                                    ToolTipService.ToolTip="Optional amount to raise or lower an alert score. Used only by raise_score and lower_score alert tuning actions." />
+                                            </Grid>
+
+                                            <TextBlock
+                                                x:Name="PolicyScoreHintText"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                TextWrapping="Wrap" />
+
+                                            <Grid ColumnSpacing="10">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="280" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox
+                                                x:Name="PolicyEditorOwnerBox"
+                                                Header="Owner"
+                                                PlaceholderText="local-operator"
+                                                ToolTipService.ToolTip="Optional owner or reviewer for alert tuning entries." />
+                                            <TextBox
+                                                x:Name="PolicyEditorTagBox"
+                                                Grid.Column="1"
+                                                Header="Tag"
+                                                PlaceholderText="maintenance"
+                                                ToolTipService.ToolTip="Optional tag added to policy context when this alert tuning entry applies." />
+                                            <Grid
+                                                Grid.Column="2"
+                                                ColumnSpacing="8"
+                                                ToolTipService.ToolTip="Optional UTC expiration for temporary alert tuning. Leave blank for no expiration.">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="96" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <CalendarDatePicker
+                                                    x:Name="PolicyEditorExpiresDatePicker"
+                                                    Header="Expires UTC date"
+                                                    DateChanged="PolicyEditorExpirationDate_Changed"
+                                                    PlaceholderText="No expiration" />
+                                                <TimePicker
+                                                    x:Name="PolicyEditorExpiresTimePicker"
+                                                    Grid.Column="1"
+                                                    Header="UTC time"
+                                                    ClockIdentifier="24HourClock"
+                                                    TimeChanged="PolicyEditorExpirationTime_Changed"
+                                                    ToolTipService.ToolTip="UTC time for the selected expiration date." />
+                                                <Button
+                                                    x:Name="PolicyEditorClearExpiresButton"
+                                                    Grid.Column="2"
+                                                    VerticalAlignment="Bottom"
+                                                    AutomationProperties.Name="Clear policy expiration"
+                                                    Click="ClearEditorExpiration_Click"
+                                                    ToolTipService.ToolTip="Clear expiration so this policy does not expire.">
+                                                    <FontIcon FontSize="14" Glyph="&#xE711;" />
+                                                </Button>
+                                            </Grid>
+                                            </Grid>
+
+                                            <TextBox
+                                                x:Name="PolicyEditorReasonBox"
+                                                Header="Reason"
+                                                AcceptsReturn="True"
+                                                MinHeight="64"
+                                                TextWrapping="Wrap"
+                                                ToolTipService.ToolTip="Plain-English reason shown in audits and useful later when reviewing why this policy exists." />
+
+                                            <TextBox
+                                                x:Name="PolicyEditorMatchJsonBox"
+                                                Header="Match JSON"
+                                                AcceptsReturn="True"
+                                                FontFamily="Consolas"
+                                                MinHeight="170"
+                                                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                TextWrapping="NoWrap"
+                                                ToolTipService.ToolTip="JSON object with the fields that must match before this rule applies. Use Format to pretty-print before saving." />
+                                        </StackPanel>
+
+                                        <StackPanel x:Name="SettingEditorPanel" Spacing="10">
+                                            <TextBox
+                                                x:Name="PolicyEditorSettingValueBox"
+                                                Header="Value JSON"
+                                                AcceptsReturn="True"
+                                                FontFamily="Consolas"
+                                                MinHeight="240"
+                                                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                TextWrapping="NoWrap"
+                                                ToolTipService.ToolTip="JSON value for list/map policy entries. Usually an array or object; use Format before saving." />
+                                        </StackPanel>
+
+                                        <Border Style="{StaticResource ConsolePanelStyle}">
+                                            <TextBlock x:Name="SelectedPolicyDetailText" Style="{StaticResource ConsoleTextStyle}" />
+                                        </Border>
+                                    </StackPanel>
+                                </ScrollViewer>
+
+                                <TextBlock
+                                    x:Name="PolicyEditorStatusText"
+                                    Grid.Row="2"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="No policy changes pending."
+                                    TextWrapping="Wrap" />
+                            </Grid>
+                        </Border>
+                    </Grid>
                 </Grid>
             </TabViewItem>
 

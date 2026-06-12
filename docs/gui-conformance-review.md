@@ -118,6 +118,9 @@ accessibility/responsive sweep.
   Advanced Keys covers the rest, and the GUI now has metadata for type, risk,
   restart, and privacy notes. A future fully generated form could remove the
   remaining manual Guided wiring.
+- Policy coupling: the Policy tab now provides structured CRUD, sort/filter,
+  move up/down ordering, hide-disabled filtering, and guided policy creation.
+  Raw Policy JSON remains an intentional advanced escape hatch.
 - Notification-area implementation: the tray icon uses `Shell_NotifyIcon` and
   sets version 4 behavior, but it does not yet use a stable GUID identity or
   `LoadIconMetric` for optimal high-DPI icon selection.
@@ -147,6 +150,8 @@ accessibility/responsive sweep.
   publish/restart, uninstall service, test alert, test AI, and clearing
   Arcane-managed firewall rules.
 - Added more tooltips and accessible names to high-use and icon-only buttons.
+- Added a structured Policy tab with a shared policy scope catalog and a single
+  Add policy wizard used by both blank policies and alert-derived drafts.
 
 ## Recommended Next GUI Work
 

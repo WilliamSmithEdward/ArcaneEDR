@@ -17,6 +17,7 @@ internal sealed class GuiUserSettings
     public string AlertSortColumn { get; set; } = "Time";
     public bool AlertSortAscending { get; set; }
     public double AlertDetailsHeight { get; set; } = 260;
+    public bool PolicyHideDisabled { get; set; } = true;
 }
 
 internal static class GuiStartupSettings
@@ -25,8 +26,6 @@ internal static class GuiStartupSettings
     private const string RunValueName = "Arcane EDR GUI";
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string SettingsFileName = "ArcaneEDR.Gui.settings.json";
-
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public static GuiUserSettings Load()
     {
@@ -51,7 +50,7 @@ internal static class GuiStartupSettings
     public static void SaveAndApply(GuiUserSettings settings)
     {
         Directory.CreateDirectory(SettingsDirectory());
-        File.WriteAllText(SettingsPath(), JsonSerializer.Serialize(settings, JsonOptions));
+        File.WriteAllText(SettingsPath(), GuiJson.SerializeIndented(settings));
         ApplyStartupRegistration(settings);
     }
 

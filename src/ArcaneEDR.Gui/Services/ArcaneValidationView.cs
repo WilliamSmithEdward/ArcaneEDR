@@ -199,10 +199,7 @@ internal static class ArcaneValidationView
 
         try
         {
-            return JsonSerializer.Deserialize<ArcaneValidationReport>(trimmed, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
+            return JsonSerializer.Deserialize<ArcaneValidationReport>(trimmed, GuiJson.CaseInsensitiveOptions);
         }
         catch
         {

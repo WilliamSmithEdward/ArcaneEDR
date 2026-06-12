@@ -91,5 +91,11 @@ Assert-True ($responseJson.schema -eq "arcane.response_firewall.v1") "Response f
 
 $dailyPreview = Invoke-Arcane @("--preview-daily-report")
 Assert-Contains $dailyPreview "Determination" "Daily report preview"
+Assert-Contains $dailyPreview "Local machine" "Daily report host machine"
+Assert-Contains $dailyPreview "Local IP addresses" "Daily report host IPs"
+
+$dailyPreviewJson = (Invoke-Arcane @("--preview-daily-report", "--json") | Out-String).Trim() | ConvertFrom-Json
+Assert-True (-not [System.String]::IsNullOrWhiteSpace($dailyPreviewJson.host_identity.machine_name)) "Daily report JSON host machine"
+Assert-True ($null -ne $dailyPreviewJson.host_identity.local_ip_addresses) "Daily report JSON host IPs"
 
 Write-Host "Fixture tests passed."

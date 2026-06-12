@@ -64,9 +64,12 @@
             </Grid>
 
             <StackPanel Spacing="8">
-                <TextBlock FontWeight="SemiBold" Text="Report output" />
+                <TextBlock FontWeight="SemiBold" Text="Report preview" />
                 <Border MinHeight="560" Style="{StaticResource ConsolePanelStyle}">
-                    <TextBlock x:Name="ReportOutputText" Style="{StaticResource ConsoleTextStyle}" />
+                    <TextBlock
+                        x:Name="ReportOutputText"
+                        IsTextSelectionEnabled="True"
+                        TextWrapping="Wrap" />
                 </Border>
             </StackPanel>
         </StackPanel>

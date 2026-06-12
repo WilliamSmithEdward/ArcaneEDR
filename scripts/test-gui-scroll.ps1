@@ -141,7 +141,6 @@ $readOnlyOutputNames = @(
     "RecentAlertsText",
     "PathText",
     "ValidationText",
-    "ReportOutputText",
     "MaintenanceOutputText",
     "PolicyOutputText",
     "AboutOutputText",
@@ -150,5 +149,9 @@ $readOnlyOutputNames = @(
 foreach ($name in $readOnlyOutputNames) {
     Assert-Contains $pageText "TextBlock x:Name=`"$name`" Style=`"{StaticResource ConsoleTextStyle}`"" "$name output pane"
 }
+
+Assert-Contains $pageText 'x:Name="ReportOutputText"' "Report output pane"
+Assert-Contains $pageText 'IsTextSelectionEnabled="True"' "Report output selectable text"
+Assert-Contains $pageText 'TextWrapping="Wrap"' "Report output wrapped text"
 
 Write-Host "GUI scroll oracle passed."

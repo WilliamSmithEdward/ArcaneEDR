@@ -130,10 +130,7 @@ internal static class ArcaneStateReader
 
         try
         {
-            HealthJson? json = JsonSerializer.Deserialize<HealthJson>(trimmed, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
+            HealthJson? json = JsonSerializer.Deserialize<HealthJson>(trimmed, GuiJson.CaseInsensitiveOptions);
             if (json == null) return null;
 
             return new ArcaneHealthSnapshot

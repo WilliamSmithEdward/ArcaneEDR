@@ -1,7 +1,8 @@
 param(
     [string]$Configuration = "Release",
     [string]$RuntimeIdentifier = "win-x64",
-    [string]$OutputPath = ""
+    [string]$OutputPath = "",
+    [switch]$NoClean
 )
 
 $ErrorActionPreference = "Stop"
@@ -13,6 +14,7 @@ if (!(Test-Path $dotnet)) {
 }
 
 $project = Join-Path $root "src\ArcaneEDR.Gui\ArcaneEDR.Gui.csproj"
+$projectDirectory = Split-Path -Parent $project
 $targetFramework = $null
 foreach ($line in Get-Content -Path $project) {
     if ($line -match '<TargetFramework>([^<]+)</TargetFramework>') {
@@ -29,6 +31,21 @@ if ([System.String]::IsNullOrWhiteSpace($OutputPath)) {
 }
 elseif (![System.IO.Path]::IsPathRooted($OutputPath)) {
     $OutputPath = Join-Path $root $OutputPath
+}
+
+if (!$NoClean) {
+    $projectDirectoryFullPath = [System.IO.Path]::GetFullPath($projectDirectory)
+    foreach ($childName in @("bin", "obj")) {
+        $cleanTarget = Join-Path $projectDirectory $childName
+        if (!(Test-Path -LiteralPath $cleanTarget)) { continue }
+
+        $cleanTargetFullPath = [System.IO.Path]::GetFullPath($cleanTarget)
+        if (!$cleanTargetFullPath.StartsWith($projectDirectoryFullPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to clean path outside GUI project directory: $cleanTargetFullPath"
+        }
+
+        Remove-Item -LiteralPath $cleanTargetFullPath -Recurse -Force
+    }
 }
 
 & $dotnet build $project `
@@ -51,17 +68,24 @@ $outputFullPath = [System.IO.Path]::GetFullPath($OutputPath)
 $buildOutputFullPath = [System.IO.Path]::GetFullPath($buildOutput)
 if (!$outputFullPath.Equals($buildOutputFullPath, [System.StringComparison]::OrdinalIgnoreCase)) {
     if (Test-Path -LiteralPath $OutputPath) {
-        Remove-Item -LiteralPath $OutputPath -Recurse -Force
+        $parent = Split-Path -Parent $outputFullPath
+        if ([string]::IsNullOrWhiteSpace($parent) -or $outputFullPath.TrimEnd('\') -eq [System.IO.Path]::GetPathRoot($outputFullPath).TrimEnd('\')) {
+            throw "Refusing to clean unsafe GUI output path: $outputFullPath"
+        }
+
+        Remove-Item -LiteralPath $outputFullPath -Recurse -Force
     }
-    New-Item -ItemType Directory -Force -Path $OutputPath | Out-Null
-    Copy-Item -Path (Join-Path $buildOutput "*") -Destination $OutputPath -Recurse -Force
+    New-Item -ItemType Directory -Force -Path $outputFullPath | Out-Null
+    Copy-Item -Path (Join-Path $buildOutput "*") -Destination $outputFullPath -Recurse -Force
 }
 
 $assetSource = Join-Path $root "src\ArcaneEDR.Gui\Assets"
-$assetDestination = Join-Path $OutputPath "Assets"
+$assetDestination = Join-Path $outputFullPath "Assets"
 if (Test-Path $assetSource) {
     New-Item -ItemType Directory -Force -Path $assetDestination | Out-Null
     Copy-Item -Path (Join-Path $assetSource "*") -Destination $assetDestination -Force
 }
 
-Write-Host "Built self-contained GUI to $OutputPath"
+& (Join-Path $PSScriptRoot "test-gui-payload.ps1") -Path $outputFullPath
+
+Write-Host "Built self-contained GUI to $outputFullPath"

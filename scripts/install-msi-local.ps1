@@ -336,6 +336,9 @@ if (!(Test-Path -LiteralPath $exe)) {
     throw "MSI completed but service executable was not found: $exe"
 }
 
+$guiPayload = Join-Path $InstallFolder "gui"
+& (Join-Path $PSScriptRoot "test-gui-payload.ps1") -Path $guiPayload
+
 New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
 Write-InstalledRuntimeConfig -InstallFolder $InstallFolder -DataRoot $dataRoot
 Write-InstalledDeploymentConfig -InstallFolder $InstallFolder -DestinationRoot $programFiles

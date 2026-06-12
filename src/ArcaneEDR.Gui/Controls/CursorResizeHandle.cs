@@ -36,6 +36,11 @@ public sealed class CursorResizeHandle : Control
     protected override void OnPointerPressed(PointerRoutedEventArgs e)
     {
         base.OnPointerPressed(e);
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
         isDragging = true;
         pointerId = e.Pointer.PointerId;
         lastPosition = GetStablePointerPosition(e);
