@@ -346,55 +346,70 @@ namespace ArcaneEDR
 
         private void ApplyIpApi(IPAddress address, RemoteEndpointEnrichment enrichment)
         {
-            if (address == null || enrichment == null) return;
-            if (String.IsNullOrWhiteSpace(config.RemoteEndpointIpApiUrlTemplate)) return;
-
-            try
-            {
-                string body = ReadHttpBody(config.RemoteEndpointIpApiUrlTemplate, address, "application/json");
-                ParseIpApi(body, enrichment);
-                enrichment.IpApiResponseReceived = true;
-                enrichment.Source = AppendSource(enrichment.Source, "ip-api");
-            }
-            catch (Exception ex)
-            {
-                WarnOnce("ip-api-failed", "Remote endpoint ip-api.com geolocation failed; continuing without that provider context: " + ex.Message);
-            }
+            ApplyHttpProvider(
+                address,
+                enrichment,
+                config.RemoteEndpointIpApiUrlTemplate,
+                "application/json",
+                "ip-api",
+                "ip-api-failed",
+                "Remote endpoint ip-api.com geolocation failed; continuing without that provider context: ",
+                ParseIpApi,
+                delegate(RemoteEndpointEnrichment current) { current.IpApiResponseReceived = true; });
         }
 
         private void ApplyIpWhois(IPAddress address, RemoteEndpointEnrichment enrichment)
         {
-            if (address == null || enrichment == null) return;
-            if (String.IsNullOrWhiteSpace(config.RemoteEndpointIpWhoisUrlTemplate)) return;
-
-            try
-            {
-                string body = ReadHttpBody(config.RemoteEndpointIpWhoisUrlTemplate, address, "application/json");
-                ParseIpWhois(body, enrichment);
-                enrichment.IpWhoisResponseReceived = true;
-                enrichment.Source = AppendSource(enrichment.Source, "ipwhois");
-            }
-            catch (Exception ex)
-            {
-                WarnOnce("ipwhois-failed", "Remote endpoint ipwhois.io geolocation failed; continuing without that provider context: " + ex.Message);
-            }
+            ApplyHttpProvider(
+                address,
+                enrichment,
+                config.RemoteEndpointIpWhoisUrlTemplate,
+                "application/json",
+                "ipwhois",
+                "ipwhois-failed",
+                "Remote endpoint ipwhois.io geolocation failed; continuing without that provider context: ",
+                ParseIpWhois,
+                delegate(RemoteEndpointEnrichment current) { current.IpWhoisResponseReceived = true; });
         }
 
         private void ApplyRdap(IPAddress address, RemoteEndpointEnrichment enrichment)
         {
+            ApplyHttpProvider(
+                address,
+                enrichment,
+                config.RemoteEndpointRdapUrlTemplate,
+                "application/rdap+json,application/json",
+                "rdap",
+                "rdap-failed",
+                "Remote endpoint RDAP enrichment failed; continuing without owner context: ",
+                ParseRdap,
+                delegate(RemoteEndpointEnrichment current) { current.RdapResponseReceived = true; });
+        }
+
+        private void ApplyHttpProvider(
+            IPAddress address,
+            RemoteEndpointEnrichment enrichment,
+            string urlTemplate,
+            string accept,
+            string source,
+            string warningKey,
+            string warningPrefix,
+            Action<string, RemoteEndpointEnrichment> parse,
+            Action<RemoteEndpointEnrichment> markResponseReceived)
+        {
             if (address == null || enrichment == null) return;
-            if (String.IsNullOrWhiteSpace(config.RemoteEndpointRdapUrlTemplate)) return;
+            if (String.IsNullOrWhiteSpace(urlTemplate)) return;
 
             try
             {
-                string body = ReadHttpBody(config.RemoteEndpointRdapUrlTemplate, address, "application/rdap+json,application/json");
-                ParseRdap(body, enrichment);
-                enrichment.RdapResponseReceived = true;
-                enrichment.Source = AppendSource(enrichment.Source, "rdap");
+                string body = ReadHttpBody(urlTemplate, address, accept);
+                parse(body, enrichment);
+                markResponseReceived(enrichment);
+                enrichment.Source = AppendSource(enrichment.Source, source);
             }
             catch (Exception ex)
             {
-                WarnOnce("rdap-failed", "Remote endpoint RDAP enrichment failed; continuing without owner context: " + ex.Message);
+                WarnOnce(warningKey, warningPrefix + ex.Message);
             }
         }
 
@@ -419,8 +434,7 @@ namespace ArcaneEDR
         {
             if (String.IsNullOrWhiteSpace(body) || enrichment == null) return;
 
-            JavaScriptSerializer serializer = new JavaScriptSerializer();
-            Dictionary<string, object> root = serializer.DeserializeObject(body) as Dictionary<string, object>;
+            Dictionary<string, object> root = DeserializeJsonMap(body);
             if (root == null) return;
 
             if (!ReadString(root, "status").Equals("success", StringComparison.OrdinalIgnoreCase))
@@ -446,8 +460,7 @@ namespace ArcaneEDR
         {
             if (String.IsNullOrWhiteSpace(body) || enrichment == null) return;
 
-            JavaScriptSerializer serializer = new JavaScriptSerializer();
-            Dictionary<string, object> root = serializer.DeserializeObject(body) as Dictionary<string, object>;
+            Dictionary<string, object> root = DeserializeJsonMap(body);
             if (root == null) return;
 
             if (!ReadBool(root, "success"))
@@ -473,8 +486,7 @@ namespace ArcaneEDR
         {
             if (String.IsNullOrWhiteSpace(body) || enrichment == null) return;
 
-            JavaScriptSerializer serializer = new JavaScriptSerializer();
-            Dictionary<string, object> root = serializer.DeserializeObject(body) as Dictionary<string, object>;
+            Dictionary<string, object> root = DeserializeJsonMap(body);
             if (root == null) return;
 
             string name = ReadString(root, "name");
@@ -496,6 +508,14 @@ namespace ArcaneEDR
                     enrichment.CountrySource = "rdap";
                 }
             }
+        }
+
+        private static Dictionary<string, object> DeserializeJsonMap(string body)
+        {
+            if (String.IsNullOrWhiteSpace(body)) return null;
+
+            JavaScriptSerializer serializer = new JavaScriptSerializer();
+            return serializer.DeserializeObject(body) as Dictionary<string, object>;
         }
 
         private string LookupCountryBlock(IPAddress address)

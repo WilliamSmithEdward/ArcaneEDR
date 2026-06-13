@@ -91,25 +91,41 @@
                 <Border Style="{StaticResource SectionCardStyle}">
                     <StackPanel Spacing="4">
                         <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Service" />
-                        <TextBlock x:Name="ServiceStateText" FontSize="22" FontWeight="SemiBold" Text="Unknown" />
+                        <TextBlock
+                            x:Name="ServiceStateText"
+                            Style="{StaticResource MetricValueTextStyle}"
+                            Text="Unknown"
+                            ToolTipService.ToolTip="{Binding Text, ElementName=ServiceStateText}" />
                     </StackPanel>
                 </Border>
                 <Border Grid.Column="1" Style="{StaticResource SectionCardStyle}">
                     <StackPanel Spacing="4">
                         <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Polls" />
-                        <TextBlock x:Name="PollCountText" FontSize="22" FontWeight="SemiBold" Text="0" />
+                        <TextBlock
+                            x:Name="PollCountText"
+                            Style="{StaticResource MetricValueTextStyle}"
+                            Text="0"
+                            ToolTipService.ToolTip="{Binding Text, ElementName=PollCountText}" />
                     </StackPanel>
                 </Border>
                 <Border Grid.Column="2" Style="{StaticResource SectionCardStyle}">
                     <StackPanel Spacing="4">
                         <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Alerts" />
-                        <TextBlock x:Name="AlertCountText" FontSize="22" FontWeight="SemiBold" Text="0" />
+                        <TextBlock
+                            x:Name="AlertCountText"
+                            Style="{StaticResource MetricValueTextStyle}"
+                            Text="0"
+                            ToolTipService.ToolTip="{Binding Text, ElementName=AlertCountText}" />
                     </StackPanel>
                 </Border>
                 <Border Grid.Column="3" Style="{StaticResource SectionCardStyle}">
                     <StackPanel Spacing="4">
                         <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Failures" />
-                        <TextBlock x:Name="FailureCountText" FontSize="22" FontWeight="SemiBold" Text="0" />
+                        <TextBlock
+                            x:Name="FailureCountText"
+                            Style="{StaticResource MetricValueTextStyle}"
+                            Text="0"
+                            ToolTipService.ToolTip="{Binding Text, ElementName=FailureCountText}" />
                     </StackPanel>
                 </Border>
             </Grid>

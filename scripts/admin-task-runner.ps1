@@ -3,8 +3,7 @@ param(
     [ValidateSet("PublishRestart", "InstallService", "UninstallService", "InstallSysmon", "ValidateAdmin")]
     [string]$TaskName,
 
-    [Parameter(Mandatory = $true)]
-    [string]$SourceRoot,
+    [string]$SourceRoot = "",
 
     [Parameter(Mandatory = $true)]
     [string]$PublishedRoot,
@@ -15,10 +14,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Test-IsAdministrator {
-    $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
+. (Join-Path $PSScriptRoot "arcane-script-common.ps1")
 
 function Write-TaskLog {
     param([string]$Message)
@@ -28,37 +24,17 @@ function Write-TaskLog {
     Add-Content -LiteralPath $script:LogPath -Value $line -Encoding UTF8
 }
 
-function Get-ConfigValue {
-    param(
-        [string]$Path,
-        [string]$Name,
-        [string]$Default
-    )
+function Test-SourceBuildAvailable {
+    if ([string]::IsNullOrWhiteSpace($SourceRoot)) { return $false }
 
-    if (Test-Path -LiteralPath $Path) {
-        foreach ($rawLine in Get-Content -LiteralPath $Path) {
-            $line = $rawLine.Trim()
-            if ($line.Length -eq 0 -or $line.StartsWith("#")) { continue }
-            $equals = $line.IndexOf("=")
-            if ($equals -le 0) { continue }
-            $key = $line.Substring(0, $equals).Trim()
-            if ($key.Equals($Name, [System.StringComparison]::OrdinalIgnoreCase)) {
-                return $line.Substring($equals + 1).Trim()
-            }
-        }
-    }
-
-    return $Default
-}
-
-function Resolve-ConfigPath {
-    param(
-        [string]$Primary,
-        [string]$Example
-    )
-
-    if (Test-Path -LiteralPath $Primary) { return $Primary }
-    return $Example
+    $buildScript = Join-Path (Join-Path $SourceRoot "scripts") "build.ps1"
+    $guiBuildScript = Join-Path (Join-Path $SourceRoot "scripts") "build-gui.ps1"
+    $serviceSource = Join-Path (Join-Path $SourceRoot "src") "VersionInfo.cs"
+    $guiProject = Join-Path (Join-Path $SourceRoot "src\ArcaneEDR.Gui") "ArcaneEDR.Gui.csproj"
+    return (Test-Path -LiteralPath $buildScript) -and
+        (Test-Path -LiteralPath $guiBuildScript) -and
+        (Test-Path -LiteralPath $serviceSource) -and
+        (Test-Path -LiteralPath $guiProject)
 }
 
 function Get-RuntimeConfigPath {
@@ -85,6 +61,10 @@ function Get-ServiceName {
 }
 
 function Invoke-ArcaneBuild {
+    if (!(Test-SourceBuildAvailable)) {
+        throw "Source build files were not found under '$SourceRoot'. Register source-driven admin tasks from a repo checkout, or use installed-only admin tasks for service maintenance."
+    }
+
     $deploymentConfig = Get-DeploymentConfigPath -Root $SourceRoot
     $executableName = Get-ConfigValue -Path $deploymentConfig -Name "ExecutableName" -Default "ArcaneEDR.exe"
     $srcRoot = Join-Path $SourceRoot "src"
@@ -131,30 +111,6 @@ function Invoke-ArcaneBuild {
     }
 
     return $out
-}
-
-function Copy-IfExists {
-    param(
-        [string]$Source,
-        [string]$Destination
-    )
-
-    if (Test-Path -LiteralPath $Source) {
-        Copy-Item -LiteralPath $Source -Destination $Destination -Force
-    }
-}
-
-function Copy-DirectoryContentsIfExists {
-    param(
-        [string]$Source,
-        [string]$Destination
-    )
-
-    if (Test-Path -LiteralPath $Source) {
-        New-Item -ItemType Directory -Force -Path $Destination | Out-Null
-        Copy-Item -Path (Join-Path $Source "*") -Destination $Destination -Recurse -Force
-        Write-TaskLog "Copied directory contents: $Source -> $Destination"
-    }
 }
 
 function Stop-ArcaneGuiIfRunning {
@@ -207,6 +163,18 @@ function Stop-ArcaneGuiIfRunning {
 }
 
 function Publish-Arcane {
+    if (!(Test-SourceBuildAvailable)) {
+        $deploymentConfig = Get-DeploymentConfigPath -Root $PublishedRoot
+        $executableName = Get-ConfigValue -Path $deploymentConfig -Name "ExecutableName" -Default "ArcaneEDR.exe"
+        $exe = Join-Path (Join-Path $PublishedRoot "bin") $executableName
+        if (!(Test-Path -LiteralPath $exe)) {
+            throw "Installed Arcane executable not found at '$exe'."
+        }
+
+        Write-TaskLog "Source build files are not registered; using installed payload only."
+        return
+    }
+
     $deploymentConfig = Get-DeploymentConfigPath -Root $SourceRoot
     $executableName = Get-ConfigValue -Path $deploymentConfig -Name "ExecutableName" -Default "ArcaneEDR.exe"
     $builtExe = Invoke-ArcaneBuild
@@ -237,6 +205,7 @@ function Publish-Arcane {
         Copy-Item -LiteralPath $sourceConfig -Destination (Join-Path $config "ArcaneEDR.example.config") -Force
         Write-TaskLog "Preserved existing config: $destinationConfig"
     }
+    Clear-StaleAgentWorkspaceRoot -Path $destinationConfig -SourceRoot $SourceRoot -Logger { param($Message) Write-TaskLog $Message }
 
     $destinationDeploymentConfig = Join-Path $config "Deployment.config"
     if (!(Test-Path -LiteralPath $destinationDeploymentConfig)) {
@@ -250,7 +219,7 @@ function Publish-Arcane {
     Copy-IfExists -Source (Join-Path $SourceRoot "config\custom-rules.json") -Destination $config
     Copy-IfExists -Source (Join-Path $SourceRoot "config\arcane-policy.example.json") -Destination $config
     Copy-IfExists -Source (Join-Path $SourceRoot "config\arcane-policy.json") -Destination $config
-    Copy-DirectoryContentsIfExists -Source (Join-Path $SourceRoot "config\country-ip-blocks") -Destination (Join-Path $config "country-ip-blocks")
+    Copy-DirectoryContentsIfExists -Source (Join-Path $SourceRoot "config\country-ip-blocks") -Destination (Join-Path $config "country-ip-blocks") -Logger { param($Message) Write-TaskLog $Message }
     Copy-IfExists -Source (Join-Path $SourceRoot "README.md") -Destination $PublishedRoot
     Copy-IfExists -Source (Join-Path $SourceRoot "ROADMAP.md") -Destination $PublishedRoot
     Copy-IfExists -Source (Join-Path $SourceRoot "LICENSE") -Destination $PublishedRoot
@@ -385,6 +354,12 @@ try {
     if (!(Test-IsAdministrator)) {
         throw "Admin task runner is not elevated."
     }
+
+    if ([string]::IsNullOrWhiteSpace($SourceRoot)) {
+        $SourceRoot = $PublishedRoot
+    }
+    $SourceRoot = [System.IO.Path]::GetFullPath($SourceRoot)
+    $PublishedRoot = [System.IO.Path]::GetFullPath($PublishedRoot)
 
     Write-TaskLog "START $TaskName SourceRoot=$SourceRoot PublishedRoot=$PublishedRoot"
     switch ($TaskName) {

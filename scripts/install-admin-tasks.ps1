@@ -1,54 +1,18 @@
 param(
     [string]$SourceRoot = "",
     [string]$PublishedRoot = "",
-    [string]$LogDirectory = "C:\Security\AdminTasks",
+    [string]$LogDirectory = "",
     [string]$TaskPath = "\ArcaneEDR\",
-    [string]$RunAsUser = ""
+    [string]$RunAsUser = "",
+    [switch]$InstalledOnly
 )
 
 $ErrorActionPreference = "Stop"
 
-function Test-IsAdministrator {
-    $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
+. (Join-Path $PSScriptRoot "arcane-script-common.ps1")
 
-function Get-ConfigValue {
-    param(
-        [string]$Path,
-        [string]$Name,
-        [string]$Default
-    )
-
-    if (Test-Path -LiteralPath $Path) {
-        foreach ($rawLine in Get-Content -LiteralPath $Path) {
-            $line = $rawLine.Trim()
-            if ($line.Length -eq 0 -or $line.StartsWith("#")) { continue }
-            $equals = $line.IndexOf("=")
-            if ($equals -le 0) { continue }
-            $key = $line.Substring(0, $equals).Trim()
-            if ($key.Equals($Name, [System.StringComparison]::OrdinalIgnoreCase)) {
-                return $line.Substring($equals + 1).Trim()
-            }
-        }
-    }
-
-    return $Default
-}
-
-function Resolve-ConfigPath {
-    param(
-        [string]$Primary,
-        [string]$Example
-    )
-
-    if (Test-Path -LiteralPath $Primary) { return $Primary }
-    return $Example
-}
-
-function Quote-Arg {
-    param([string]$Value)
-    return '"' + $Value.Replace('"', '\"') + '"'
+if ([string]::IsNullOrWhiteSpace($LogDirectory)) {
+    $LogDirectory = Join-Path $env:ProgramData "ArcaneEDR\AdminTasks"
 }
 
 if (!(Test-IsAdministrator)) {
@@ -57,20 +21,23 @@ if (!(Test-IsAdministrator)) {
 
 $scriptRoot = $PSScriptRoot
 $repoRoot = Split-Path -Parent $scriptRoot
-if ([string]::IsNullOrWhiteSpace($SourceRoot)) {
+if ([string]::IsNullOrWhiteSpace($SourceRoot) -and !$InstalledOnly) {
     $SourceRoot = $repoRoot
 }
-$SourceRoot = [System.IO.Path]::GetFullPath($SourceRoot)
 
 $deploymentConfig = Resolve-ConfigPath `
-    -Primary (Join-Path $SourceRoot "config\Deployment.config") `
-    -Example (Join-Path $SourceRoot "config\Deployment.example.config")
+    -Primary (Join-Path $repoRoot "config\Deployment.config") `
+    -Example (Join-Path $repoRoot "config\Deployment.example.config")
 if ([string]::IsNullOrWhiteSpace($PublishedRoot)) {
     $applicationName = Get-ConfigValue -Path $deploymentConfig -Name "ApplicationName" -Default "ArcaneEDR"
     $destinationRoot = Get-ConfigValue -Path $deploymentConfig -Name "DestinationRoot" -Default (Join-Path $env:ProgramData "ArcaneEDR")
     $PublishedRoot = Join-Path $destinationRoot $applicationName
 }
 $PublishedRoot = [System.IO.Path]::GetFullPath($PublishedRoot)
+if ($InstalledOnly -or [string]::IsNullOrWhiteSpace($SourceRoot)) {
+    $SourceRoot = $PublishedRoot
+}
+$SourceRoot = [System.IO.Path]::GetFullPath($SourceRoot)
 
 if ([string]::IsNullOrWhiteSpace($RunAsUser)) {
     $RunAsUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
@@ -79,9 +46,12 @@ if ([string]::IsNullOrWhiteSpace($RunAsUser)) {
 $protectedRoot = Join-Path $env:ProgramData "ArcaneEDR\AdminTasks"
 $runnerSource = Join-Path $scriptRoot "admin-task-runner.ps1"
 $runnerDestination = Join-Path $protectedRoot "admin-task-runner.ps1"
+$commonSource = Join-Path $scriptRoot "arcane-script-common.ps1"
+$commonDestination = Join-Path $protectedRoot "arcane-script-common.ps1"
 
 New-Item -ItemType Directory -Force -Path $protectedRoot, $LogDirectory | Out-Null
 Copy-Item -LiteralPath $runnerSource -Destination $runnerDestination -Force
+Copy-Item -LiteralPath $commonSource -Destination $commonDestination -Force
 
 icacls $protectedRoot /inheritance:r /grant:r "Administrators:(OI)(CI)F" "SYSTEM:(OI)(CI)F" "Users:(OI)(CI)RX" | Out-Host
 icacls $LogDirectory /inheritance:r /grant:r "Administrators:(OI)(CI)M" "SYSTEM:(OI)(CI)M" "Users:(OI)(CI)RX" | Out-Host

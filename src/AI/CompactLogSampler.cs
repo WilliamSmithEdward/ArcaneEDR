@@ -295,7 +295,7 @@ namespace ArcaneEDR
 
         private static string SanitizeContextNonDomainValue(string value)
         {
-            return SanitizeRedactedText(value, false, false);
+            return SensitiveTextRedactor.RedactForAiPayload(value, false, false);
         }
 
         private static List<string> ReadWhy(IDictionary parsed)
@@ -485,37 +485,7 @@ namespace ArcaneEDR
 
         private static string SanitizeText(string value)
         {
-            return SanitizeRedactedText(value, true, true);
-        }
-
-        private static string SanitizeRedactedText(string value, bool redactDomains, bool redactCommandFields)
-        {
-            if (String.IsNullOrWhiteSpace(value)) return "";
-
-            string result = value;
-            result = Regex.Replace(result, "(?i)bearer\\s+[A-Za-z0-9._\\-+/=]{8,}", "Bearer [redacted-secret]");
-            result = Regex.Replace(result, "(?i)(api[_-]?key|apikey|token|secret|password|passwd|pwd|authorization|client_secret|access_token|refresh_token)\\s*[:=]\\s*[^\\s,;\\}\\]]+", "$1=[redacted-secret]");
-            result = Regex.Replace(result, "[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{10,}", "[redacted-jwt]");
-            result = Regex.Replace(result, "[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}", "[redacted-email]");
-            result = Regex.Replace(result, "(?i)https?://[^\\s\"'<>]+", "[redacted-url]");
-            if (redactDomains)
-            {
-                result = Regex.Replace(result, "(?i)\\b(?:[a-z0-9](?:[a-z0-9\\-]{0,61}[a-z0-9])?\\.)+[a-z]{2,}\\b", "[redacted-domain]");
-            }
-
-            result = Regex.Replace(result, "\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b", "[redacted-ip]");
-            result = Regex.Replace(result, "(?i)\\b[0-9a-f]{64}\\b", "[redacted-sha256]");
-            result = Regex.Replace(result, "(?i)C:\\\\Users\\\\[^\\\\\\s\"']+", "C:\\Users\\[redacted-user]");
-            result = Regex.Replace(result, "(?i)[A-Z]:\\\\[^\\s|,\"']+", "[redacted-path]");
-            result = Regex.Replace(result, "\\\\\\\\[^\\s|,\"']+", "[redacted-unc-path]");
-            result = Regex.Replace(result, "(?i)(user|subject|target)=([^\\s|,]+)", "$1=[redacted-account]");
-            if (redactCommandFields)
-            {
-                result = Regex.Replace(result, "(?i)(command_line|parent_command_line|script_block|decodedpreview)=([^|]+)", "$1=[redacted]");
-            }
-
-            result = Regex.Replace(result, "[A-Za-z0-9+/]{80,}={0,2}", "[redacted-encoded-data]");
-            return result.Trim();
+            return SensitiveTextRedactor.RedactForAiPayload(value, true, true);
         }
 
         private static string TrimForSummary(string value, int maxChars)

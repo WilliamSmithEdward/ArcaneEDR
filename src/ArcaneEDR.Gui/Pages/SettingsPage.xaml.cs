@@ -4,9 +4,6 @@
 using Microsoft.UI.Xaml.Controls;
 using ArcaneEDR_Gui.Services;
 
-// To learn more about WinUI, the WinUI project structure,
-// and more about our project templates, see: http://aka.ms/winui-project-info.
-
 namespace ArcaneEDR_Gui.Pages;
 
 public sealed partial class SettingsPage : Page
@@ -48,11 +45,10 @@ public sealed partial class SettingsPage : Page
 
         try
         {
-            GuiStartupSettings.SaveAndApply(new GuiUserSettings
-            {
-                StartOnWindowsLogin = StartOnLoginSwitch.IsOn,
-                StartMinimizedOnWindowsLogin = StartMinimizedSwitch.IsOn
-            });
+            GuiUserSettings settings = GuiStartupSettings.Load();
+            settings.StartOnWindowsLogin = StartOnLoginSwitch.IsOn;
+            settings.StartMinimizedOnWindowsLogin = StartMinimizedSwitch.IsOn;
+            GuiStartupSettings.SaveAndApply(settings);
             StartupStatusText.Text = GuiStartupSettings.BuildStatusText();
         }
         catch (System.Exception ex)

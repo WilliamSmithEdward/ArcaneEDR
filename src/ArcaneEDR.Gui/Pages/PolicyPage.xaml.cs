@@ -119,11 +119,6 @@ public sealed partial class PolicyPage : Page
         ChangePolicySort("action");
     }
 
-    private void SortSummary_Click(object sender, RoutedEventArgs e)
-    {
-        ChangePolicySort("summary");
-    }
-
     private void PolicyEntriesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (fillingEditor) return;
@@ -251,7 +246,13 @@ public sealed partial class PolicyPage : Page
         policy = ArcanePolicyStore.Load();
         PolicyPathText.Text = policy.Path;
         PolicyLoadStatusText.Text = policy.LoadStatus;
-        PolicyRuleCountText.Text = policy.SummaryText;
+        int enabledCount = policy.Entries.Count(entry => entry.Enabled);
+        PolicyRuleCountText.Text = policy.Entries.Count.ToString(CultureInfo.InvariantCulture) +
+            " total / " +
+            enabledCount.ToString(CultureInfo.InvariantCulture) +
+            " enabled";
+        ToolTipService.SetToolTip(PolicyRuleCountText, policy.SummaryText);
+        ToolTipService.SetToolTip(PolicyCountryCountText, "Allowed remote country entries in the unified policy.");
         PolicyCountryCountText.Text = AllowedCountryCount(policy).ToString(CultureInfo.InvariantCulture);
         PolicyRawText.Text = String.IsNullOrWhiteSpace(policy.RawJson) ? policy.LoadStatus : policy.RawJson;
 
@@ -366,7 +367,7 @@ public sealed partial class PolicyPage : Page
 
         GuiUserSettings settings = GuiStartupSettings.Load();
         settings.PolicyHideDisabled = PolicyHideDisabledBox.IsChecked == true;
-        GuiStartupSettings.SaveAndApply(settings);
+        GuiStartupSettings.Save(settings);
     }
 
     private void ShowSelectedPolicyEntry(ArcanePolicyEntry? entry)
@@ -397,6 +398,7 @@ public sealed partial class PolicyPage : Page
             PolicyEditorReasonBox.Text = entry.Reason;
             PolicyEditorMatchJsonBox.Text = String.IsNullOrWhiteSpace(entry.MatchJson) ? "{}" : entry.MatchJson;
             PolicyEditorSettingValueBox.Text = String.IsNullOrWhiteSpace(entry.ValueJson) ? "[]" : entry.ValueJson;
+            UpdateSettingEditorMetadata(entry.Scope, entry.Id);
             SelectedPolicyDetailText.Text = entry.DetailText;
             PolicyEditorStatusText.Text = "Order is " + entry.PriorityDisplay + ". Move up/down changes file order within this policy type.";
         }
@@ -428,6 +430,7 @@ public sealed partial class PolicyPage : Page
             PolicyEditorReasonBox.Text = "";
             PolicyEditorMatchJsonBox.Text = "{}";
             PolicyEditorSettingValueBox.Text = "[]";
+            UpdateSettingEditorMetadata("Allowlist", "");
             SelectedPolicyDetailText.Text = "";
             PolicyOrderHintText.Text = "";
             PolicyEditorStatusText.Text = "No policy changes pending.";
@@ -488,6 +491,7 @@ public sealed partial class PolicyPage : Page
 
         string scope = EditorScope();
         bool isRule = ArcanePolicyStore.IsRuleScope(scope);
+        string action = EditorAction();
         return new ArcanePolicyEditRequest
         {
             Scope = scope,
@@ -498,9 +502,9 @@ public sealed partial class PolicyPage : Page
             OriginalId = selectedEntry.Id,
             Id = PolicyEditorIdBox.Text.Trim(),
             Enabled = PolicyEditorEnabledSwitch.IsOn,
-            Action = EditorAction(),
-            Score = PolicyEditorScoreBox.Text.Trim(),
-            ScoreDelta = PolicyEditorScoreDeltaBox.Text.Trim(),
+            Action = action,
+            Score = PolicyScopeCatalog.IsScoreRelevant(scope, action) ? PolicyEditorScoreBox.Text.Trim() : "",
+            ScoreDelta = PolicyScopeCatalog.IsDeltaRelevant(scope, action) ? PolicyEditorScoreDeltaBox.Text.Trim() : "",
             Owner = PolicyEditorOwnerBox.Text.Trim(),
             Tag = PolicyEditorTagBox.Text.Trim(),
             ExpiresUtc = FormatEditorExpirationUtc(),
@@ -577,7 +581,27 @@ public sealed partial class PolicyPage : Page
         PolicyEditorExpiresTimePicker.IsEnabled = hasSelection && isDetection && PolicyEditorExpiresDatePicker.Date.HasValue;
         PolicyEditorClearExpiresButton.IsEnabled = hasSelection && isDetection && PolicyEditorExpiresDatePicker.Date.HasValue;
         PolicyOrderHintText.Text = OrderHintText(scope);
+        UpdateSettingEditorMetadata(scope, selectedEntry?.Id ?? "");
         UpdateActionDependentFields(scope);
+    }
+
+    private void UpdateSettingEditorMetadata(string scope, string key)
+    {
+        if (ArcanePolicyStore.IsRuleScope(scope))
+        {
+            PolicyEditorSettingHelpText.Text = "";
+            PolicyEditorSettingValueBox.Header = "Value JSON";
+            PolicyEditorSettingValueBox.PlaceholderText = "";
+            ToolTipService.SetToolTip(PolicyEditorSettingValueBox, "JSON value for list/map policy entries. Usually an array or object; use Format before saving.");
+            return;
+        }
+
+        PolicySettingChoice choice = PolicyScopeCatalog.SelectedSettingChoice(scope, key);
+        string kind = choice.ValueKind.Equals("map-list", StringComparison.OrdinalIgnoreCase) ? "map JSON" : "values JSON";
+        PolicyEditorSettingHelpText.Text = choice.Help + " The exact JSON remains visible below for review and formatting.";
+        PolicyEditorSettingValueBox.Header = choice.Label + " " + kind;
+        PolicyEditorSettingValueBox.PlaceholderText = choice.ValuesPlaceholder;
+        ToolTipService.SetToolTip(PolicyEditorSettingValueBox, choice.Help + " Use Format to pretty-print before saving.");
     }
 
     private void SetEditorExpiration(string expiresUtc)
@@ -650,6 +674,18 @@ public sealed partial class PolicyPage : Page
 
         PolicyEditorScoreBox.IsEnabled = scoreRelevant;
         PolicyEditorScoreDeltaBox.IsEnabled = deltaRelevant;
+        PolicyEditorScoreBox.PlaceholderText = scoreRelevant ? "0-100" : "-";
+        PolicyEditorScoreDeltaBox.PlaceholderText = deltaRelevant ? "+/-" : "-";
+        if (!scoreRelevant)
+        {
+            PolicyEditorScoreBox.Text = "";
+        }
+
+        if (!deltaRelevant)
+        {
+            PolicyEditorScoreDeltaBox.Text = "";
+        }
+
         PolicyScoreHintText.Text = isRule ? PolicyScopeCatalog.ScoreHintText(scope, action) : "";
 
         ToolTipService.SetToolTip(PolicyEditorActionBox, PolicyScopeCatalog.ActionHelpText(scope, action));
@@ -762,12 +798,6 @@ public sealed partial class PolicyPage : Page
                 ? rows.OrderBy(entry => entry.Action, StringComparer.OrdinalIgnoreCase)
                 : rows.OrderByDescending(entry => entry.Action, StringComparer.OrdinalIgnoreCase);
         }
-        else if (policySortKey.Equals("summary", StringComparison.OrdinalIgnoreCase))
-        {
-            ordered = policySortAscending
-                ? rows.OrderBy(entry => entry.Reason, StringComparer.OrdinalIgnoreCase).ThenBy(entry => entry.MatchSummary, StringComparer.OrdinalIgnoreCase)
-                : rows.OrderByDescending(entry => entry.Reason, StringComparer.OrdinalIgnoreCase).ThenByDescending(entry => entry.MatchSummary, StringComparer.OrdinalIgnoreCase);
-        }
         else
         {
             ordered = policySortAscending
@@ -788,7 +818,6 @@ public sealed partial class PolicyPage : Page
         SortPolicyIndicator.Text = SortIndicator("policy");
         SortEnabledIndicator.Text = SortIndicator("enabled");
         SortActionIndicator.Text = SortIndicator("action");
-        SortSummaryIndicator.Text = SortIndicator("summary");
     }
 
     private string SortIndicator(string key)

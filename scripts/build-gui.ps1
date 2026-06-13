@@ -8,6 +8,24 @@ param(
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot "arcane-script-common.ps1")
+
+function Clear-StaleInstallAgentWorkspaceRoot {
+    param([string]$GuiOutputPath)
+
+    if (!((Split-Path -Leaf $GuiOutputPath).Equals("gui", [System.StringComparison]::OrdinalIgnoreCase))) {
+        return
+    }
+
+    $installRoot = Split-Path -Parent $GuiOutputPath
+    if ([string]::IsNullOrWhiteSpace($installRoot)) { return }
+
+    $configPath = Join-Path (Join-Path $installRoot "config") "ArcaneEDR.config"
+    if (!(Test-Path -LiteralPath $configPath)) { return }
+
+    Clear-StaleAgentWorkspaceRoot -Path $configPath -SourceRoot $root
+}
+
 $dotnet = Join-Path $env:ProgramFiles "dotnet\dotnet.exe"
 if (!(Test-Path $dotnet)) {
     $dotnet = "dotnet"
@@ -87,5 +105,6 @@ if (Test-Path $assetSource) {
 }
 
 & (Join-Path $PSScriptRoot "test-gui-payload.ps1") -Path $outputFullPath
+Clear-StaleInstallAgentWorkspaceRoot -GuiOutputPath $outputFullPath
 
 Write-Host "Built self-contained GUI to $outputFullPath"

@@ -1,6 +1,6 @@
 # Arcane EDR GUI Conformance Review
 
-Review date: 2026-06-11
+Review date: 2026-06-13
 
 Scope: `src/ArcaneEDR.Gui`, including shell navigation, overview, alerts, policy,
 reports, configuration, maintenance, settings, about, and the notification-area
@@ -91,6 +91,10 @@ accessibility/responsive sweep.
 - Configuration guided controls include field-level tooltips for dangerous or
   privacy-sensitive settings, and Advanced Keys uses metadata for type, risk,
   restart requirement, and privacy notes.
+- Policy wizard and policy setting editor choices are driven by the shared
+  policy scope catalog. The GUI policy oracle now verifies catalog setting keys
+  against `config\arcane-policy.example.json` and verifies that default/example
+  match fields are represented in the wizard catalog.
 
 ### Partially Conforms
 
@@ -120,7 +124,9 @@ accessibility/responsive sweep.
   remaining manual Guided wiring.
 - Policy coupling: the Policy tab now provides structured CRUD, sort/filter,
   move up/down ordering, hide-disabled filtering, and guided policy creation.
-  Raw Policy JSON remains an intentional advanced escape hatch.
+  Policy type labels, actions, setting choices, match-field choices, help text,
+  and alert-derived defaults are catalog-driven. Raw Policy JSON remains an
+  intentional advanced escape hatch for exact review and uncommon edits.
 - Notification-area implementation: the tray icon uses `Shell_NotifyIcon` and
   sets version 4 behavior, but it does not yet use a stable GUID identity or
   `LoadIconMetric` for optimal high-DPI icon selection.
@@ -152,6 +158,23 @@ accessibility/responsive sweep.
 - Added more tooltips and accessible names to high-use and icon-only buttons.
 - Added a structured Policy tab with a shared policy scope catalog and a single
   Add policy wizard used by both blank policies and alert-derived drafts.
+- Consolidated policy wizard setting choices, category/country dropdowns, and
+  match-field definitions into `PolicyScopeCatalog`, and added test coverage to
+  prevent drift from the repo example policy file.
+- Performed a second visual polish pass against generated screenshots:
+  constrained the navigation pane, balanced Alerts table/detail vertical space,
+  made Maintenance action buttons stretch in a four-column grid, removed report
+  markdown underline artifacts, and tuned the Policy list/editor split so policy
+  ids remain readable at the default 1680x1050 window size.
+- Split ordinary GUI view-preference saves from Windows login startup
+  registration so filtering, sorting, or launching a development artifact cannot
+  accidentally replace the user's startup command.
+- Performed a third consistency pass against generated screenshots: removed
+  nonfunctional TabView add-tab affordances, simplified the Policy table to one
+  visible sortable five-column model, added full-context hover text to
+  ellipsized Policy/Alerts/Configuration values, made Policy summary metrics
+  concise, and centralized metric typography so Overview and Policy cards use
+  the same visual weight.
 
 ## Recommended Next GUI Work
 

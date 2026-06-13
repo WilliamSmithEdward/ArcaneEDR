@@ -5,18 +5,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Get-VersionFromSource {
-    param([string]$Root)
-
-    $versionFile = Join-Path $Root "src\VersionInfo.cs"
-    foreach ($line in Get-Content -Path $versionFile) {
-        if ($line -match 'public const string Version = "([^"]+)"') {
-            return $Matches[1]
-        }
-    }
-
-    throw "Could not read version from $versionFile."
-}
+. (Join-Path $PSScriptRoot "arcane-script-common.ps1")
 
 function Copy-Tree {
     param(
@@ -27,41 +16,6 @@ function Copy-Tree {
     if (!(Test-Path $Source)) { return }
     New-Item -ItemType Directory -Force -Path $Destination | Out-Null
     Copy-Item -Path (Join-Path $Source "*") -Destination $Destination -Recurse -Force
-}
-
-function Set-ConfigValue {
-    param(
-        [string]$Path,
-        [string]$Name,
-        [string]$Value
-    )
-
-    $lines = @()
-    $found = $false
-    if (Test-Path -LiteralPath $Path) {
-        foreach ($rawLine in Get-Content -LiteralPath $Path) {
-            $line = $rawLine.Trim()
-            if ($line.Length -gt 0 -and !$line.StartsWith("#")) {
-                $equals = $line.IndexOf("=")
-                if ($equals -gt 0) {
-                    $key = $line.Substring(0, $equals).Trim()
-                    if ($key.Equals($Name, [System.StringComparison]::OrdinalIgnoreCase)) {
-                        $lines += ($Name + "=" + $Value)
-                        $found = $true
-                        continue
-                    }
-                }
-            }
-
-            $lines += $rawLine
-        }
-    }
-
-    if (!$found) {
-        $lines += ($Name + "=" + $Value)
-    }
-
-    $lines | Set-Content -LiteralPath $Path -Encoding ASCII
 }
 
 function ConvertTo-XmlAttribute {

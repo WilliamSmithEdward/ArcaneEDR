@@ -554,14 +554,7 @@ namespace ArcaneEDR
 
         private static string RedactSensitiveText(string value)
         {
-            if (String.IsNullOrWhiteSpace(value)) return "";
-            string result = value;
-            result = Regex.Replace(result, @"[A-Z]:\\[^\s\|,;]+", "<redacted-path>", RegexOptions.IgnoreCase);
-            result = Regex.Replace(result, @"https?://[^\s\|,;]+", "<redacted-url>", RegexOptions.IgnoreCase);
-            result = Regex.Replace(result, @"[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}", "<redacted-email>", RegexOptions.IgnoreCase);
-            result = Regex.Replace(result, @"\b(?:\d{1,3}\.){3}\d{1,3}\b", "<redacted-ip>");
-            result = Regex.Replace(result, @"(?i)(api[_-]?key|secret|password|token)=\S+", "$1=<redacted>");
-            return result;
+            return SensitiveTextRedactor.RedactForSupportBundle(value);
         }
 
         private static string RedactPath(string value)

@@ -141,12 +141,20 @@ Good defaults:
 - Wrap long text by default.
 - Use `TextTrimming` in dense table columns.
 - Constrain fixed-format panels with stable min/max sizes.
+- Set an explicit `NavigationView.OpenPaneLength`; the default can feel too
+  wide on high-DPI displays and starve dense operator pages.
+- Keep master/detail panes honest at the default window size. If a detail pane
+  can be resized, cap its saved height so it cannot hide the primary table on
+  the next launch.
 - Keep page sections unframed where possible; use cards for repeated items,
   modal content, or genuinely bounded panels.
 - Avoid nested cards.
 - Use native controls such as `NavigationView`, `TabView`, `ListView`,
   `ComboBox`, `CheckBox`, `ToggleSwitch`, and `InfoBar` instead of custom
   control lookalikes.
+- Do not let ordinary view-state saves reapply OS integration. Persisting sort,
+  filter, or split-pane preferences should not rewrite Windows startup
+  registration, especially when running development artifacts from `artifacts\`.
 
 ## Icons And Branding
 
@@ -213,6 +221,23 @@ Manual GUI checks still matter. Automated UI inspection may not expose every
 WinUI visual tree or scroll state from a non-interactive shell, so confirm
 real pointer/trackpad behavior in the running installed GUI.
 
+If a `TextBlock` can ellipsize, give the operator the full value somewhere
+nearby, usually with `ToolTipService.ToolTip` bound to the same value. This is
+especially important in dense security tables where rule ids, companies,
+paths, policy keys, and generated summaries are intentionally truncated for
+scan speed.
+
+Fixed `TabView` sections should set `IsAddTabButtonVisible="False"`. The
+default add-tab affordance looks like a real command even when the page does
+not implement custom tabs, and it makes otherwise stable operator pages feel
+unfinished.
+
+Do not force a wide `ContentDialog` by setting oversized child `MinWidth`
+values. WinUI can clip the content rather than expanding the dialog in all
+contexts. Keep dialog content dialog-safe, use scroll gutters for vertical
+overflow, and move full context into hover/help instead of making the modal too
+wide.
+
 Prefer structured CLI output for GUI bindings. Human console text is useful for
 operators, but GUI code should consume `--json` outputs for validation, health,
 alert volume, agent activity, incidents, response firewall state, policy
@@ -227,8 +252,11 @@ and timestamps one level lower.
 For complex configuration surfaces, keep operator-facing choices in one
 catalog or metadata model. Arcane's Policy tab uses a shared policy scope
 catalog for entry type labels, file sections, default actions, sort order, and
-wizard/editor dropdowns. Avoid parallel hard-coded lists in XAML, page code,
-and store code; they drift quickly and make "unified" models feel fragmented.
+setting/match-field wizard metadata. Avoid parallel hard-coded lists in XAML,
+page code, and store code; they drift quickly and make "unified" models feel
+fragmented. When repo defaults are part of the product contract, add an oracle
+that compares GUI metadata to the shipped example config so policy keys and
+default/example match fields cannot silently fall out of sync.
 
 ## Upgrade Discipline
 

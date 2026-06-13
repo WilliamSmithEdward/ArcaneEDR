@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Net;
-using System.Web.Script.Serialization;
 
 namespace ArcaneEDR
 {
@@ -57,10 +56,12 @@ namespace ArcaneEDR
 
             try
             {
-                string json = File.ReadAllText(path);
-                JavaScriptSerializer serializer = new JavaScriptSerializer();
-                object parsed = serializer.DeserializeObject(json);
-                IList entries = EntriesFromRoot(parsed, policy);
+                object parsed = PolicyJsonReader.DeserializeFile(path);
+                IList entries = PolicyJsonReader.ReadEntriesFromUnifiedRoot(
+                    parsed,
+                    new[] { "remote_endpoint_policies", "remoteEndpointPolicies", "policies", "rules" },
+                    policy.Warnings,
+                    "Remote endpoint policy root");
                 if (entries == null)
                 {
                     policy.Errors.Add("Remote endpoint policy file must contain a JSON array or an object with a policies array.");
@@ -91,42 +92,6 @@ namespace ArcaneEDR
             }
 
             return policy;
-        }
-
-        private static IList EntriesFromRoot(object parsed, RemoteEndpointPolicy policy)
-        {
-            IList direct = parsed as IList;
-            if (direct != null) return direct;
-
-            IDictionary root = parsed as IDictionary;
-            if (root == null) return null;
-
-            foreach (DictionaryEntry entry in root)
-            {
-                string key = PolicyJsonReader.Key(entry.Key);
-                if (!key.Equals("policies", StringComparison.OrdinalIgnoreCase) &&
-                    !key.Equals("rules", StringComparison.OrdinalIgnoreCase) &&
-                    !key.Equals("remote_endpoint_policies", StringComparison.OrdinalIgnoreCase) &&
-                    !key.Equals("remoteEndpointPolicies", StringComparison.OrdinalIgnoreCase) &&
-                    !key.Equals("detection_policies", StringComparison.OrdinalIgnoreCase) &&
-                    !key.Equals("detectionPolicies", StringComparison.OrdinalIgnoreCase) &&
-                    !key.Equals("allowlists", StringComparison.OrdinalIgnoreCase) &&
-                    !key.Equals("blocklists", StringComparison.OrdinalIgnoreCase) &&
-                    !key.Equals("response_policy", StringComparison.OrdinalIgnoreCase) &&
-                    !key.Equals("responsePolicy", StringComparison.OrdinalIgnoreCase) &&
-                    !key.Equals("schema", StringComparison.OrdinalIgnoreCase) &&
-                    !key.Equals("version", StringComparison.OrdinalIgnoreCase) &&
-                    !key.Equals("description", StringComparison.OrdinalIgnoreCase))
-                {
-                    policy.Warnings.Add("Remote endpoint policy root contains an unknown field: " + key);
-                }
-            }
-
-            object policies = PolicyJsonReader.Value(root, "remote_endpoint_policies");
-            if (policies == null) policies = PolicyJsonReader.Value(root, "remoteEndpointPolicies");
-            if (policies == null) policies = PolicyJsonReader.Value(root, "policies");
-            if (policies == null) policies = PolicyJsonReader.Value(root, "rules");
-            return policies as IList;
         }
 
         private static RemoteEndpointPolicyRule ParseRule(IDictionary map, int index, RemoteEndpointPolicy policy)
@@ -256,19 +221,12 @@ namespace ArcaneEDR
         {
             get
             {
-                if (HasScore) return ClampScore(Score);
+                if (HasScore) return AlertScore.Clamp(Score);
                 if (Action.Equals("block", StringComparison.OrdinalIgnoreCase)) return 95;
                 if (Action.Equals("critical", StringComparison.OrdinalIgnoreCase)) return 90;
                 if (Action.Equals("observe", StringComparison.OrdinalIgnoreCase)) return 10;
                 return 0;
             }
-        }
-
-        private static int ClampScore(int score)
-        {
-            if (score < 0) return 0;
-            if (score > 100) return 100;
-            return score;
         }
     }
 

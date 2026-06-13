@@ -59,7 +59,7 @@
             </Button>
         </Grid>
 
-        <TabView Grid.Row="1">
+        <TabView Grid.Row="1" IsAddTabButtonVisible="False">
             <TabViewItem Header="Guided" IsClosable="False">
                 <ScrollViewer
                     controls:PageScrollBehavior.UseReliableWheel="True"
@@ -221,6 +221,11 @@
                         ScrollViewer.VerticalScrollBarVisibility="Auto"
                         ScrollViewer.VerticalScrollMode="Enabled"
                         ScrollViewer.ZoomMode="Disabled">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </ListView.ItemContainerStyle>
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Grid Padding="8,6" ColumnSpacing="10">
@@ -231,9 +236,9 @@
                                         <ColumnDefinition Width="2*" />
                                         <ColumnDefinition Width="2*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Source}" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Grid.Column="1" Text="{Binding Category}" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Grid.Column="2" Text="{Binding Key}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding Source}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding Source}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Category}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding Category}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Key}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{Binding Key}" />
                                     <TextBox Grid.Column="3" Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     <TextBlock Grid.Column="4" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding HelpText}" TextWrapping="Wrap" />
                                 </Grid>

@@ -151,10 +151,11 @@
                 Grid.Column="4"
                 Header="Search"
                 PlaceholderText="rule, process, company, country, remote IP"
-                TextChanged="SearchBox_TextChanged" />
+                TextChanged="SearchBox_TextChanged"
+                ToolTipService.ToolTip="Searches the visible alert table by rule, process, company, country, remote IP, title, and policy context." />
         </Grid>
 
-        <TabView Grid.Row="2">
+        <TabView Grid.Row="2" IsAddTabButtonVisible="False">
             <TabViewItem Header="Table" IsClosable="False">
                 <Grid RowSpacing="8">
                     <Grid.RowDefinitions>
@@ -163,8 +164,8 @@
                         <RowDefinition Height="8" />
                         <RowDefinition
                             x:Name="AlertDetailsRow"
-                            Height="260"
-                            MinHeight="140" />
+                            Height="180"
+                            MinHeight="100" />
                     </Grid.RowDefinitions>
 
                     <TextBlock x:Name="TableSummaryText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
@@ -394,10 +395,11 @@
                                                     Width="{Binding Time, Source={StaticResource AlertColumnWidths}}"
                                                     FontFamily="Consolas"
                                                     Style="{StaticResource AlertCellTextStyle}"
-                                                    Text="{Binding SystemTimeDisplay}" />
-                                                <TextBlock Width="{Binding Rule, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding RuleId}" />
-                                                <TextBlock Width="{Binding Category, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Category}" />
-                                                <TextBlock Width="{Binding Score, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Score}" />
+                                                    Text="{Binding SystemTimeDisplay}"
+                                                    ToolTipService.ToolTip="{Binding SystemTimeDisplay}" />
+                                                <TextBlock Width="{Binding Rule, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding RuleId}" ToolTipService.ToolTip="{Binding RuleId}" />
+                                                <TextBlock Width="{Binding Category, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Category}" ToolTipService.ToolTip="{Binding Category}" />
+                                                <TextBlock Width="{Binding Score, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Score}" ToolTipService.ToolTip="{Binding Score}" />
                                                 <TextBlock
                                                     Width="{Binding Notification, Source={StaticResource AlertColumnWidths}}"
                                                     FontFamily="Segoe MDL2 Assets"
@@ -406,10 +408,10 @@
                                                     Style="{StaticResource AlertCellTextStyle}"
                                                     Text="{Binding ExternalNotificationGlyph}"
                                                     ToolTipService.ToolTip="{Binding ExternalNotificationDisplay}" />
-                                                <TextBlock Width="{Binding Country, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Country}" />
-                                                <TextBlock Width="{Binding Process, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Process}" />
-                                                <TextBlock Width="{Binding Company, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Company}" />
-                                                <TextBlock Width="{Binding Title, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Title}" />
+                                                <TextBlock Width="{Binding Country, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Country}" ToolTipService.ToolTip="{Binding Country}" />
+                                                <TextBlock Width="{Binding Process, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Process}" ToolTipService.ToolTip="{Binding Process}" />
+                                                <TextBlock Width="{Binding Company, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Company}" ToolTipService.ToolTip="{Binding Company}" />
+                                                <TextBlock Width="{Binding Title, Source={StaticResource AlertColumnWidths}}" Style="{StaticResource AlertCellTextStyle}" Text="{Binding Title}" ToolTipService.ToolTip="{Binding Title}" />
                                             </StackPanel>
                                         </DataTemplate>
                                     </ListView.ItemTemplate>
@@ -498,6 +500,7 @@
                                     Grid.Column="2"
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                     Text="Select an alert"
+                                    ToolTipService.ToolTip="{Binding Text, ElementName=SelectedAlertHintText}"
                                     TextTrimming="CharacterEllipsis" />
                             </Grid>
                             <ScrollViewer

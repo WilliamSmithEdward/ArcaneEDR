@@ -64,19 +64,6 @@ internal sealed class PolicyWizardFieldChoice
     }
 }
 
-internal sealed class PolicySettingChoice
-{
-    public string Scope { get; set; } = "";
-    public string Key { get; set; } = "";
-    public string Label { get; set; } = "";
-    public string Help { get; set; } = "";
-    public string ValueKind { get; set; } = "list";
-    public string MapKeyHeader { get; set; } = "Key";
-    public string MapKeyPlaceholder { get; set; } = "";
-    public string ValuesHeader { get; set; } = "Values";
-    public string ValuesPlaceholder { get; set; } = "one value per line";
-}
-
 internal static class PolicyWizard
 {
     public static async Task<PolicyWizardResult> ShowAsync(XamlRoot xamlRoot, ArcaneAlertRecord? alert)
@@ -87,8 +74,8 @@ internal static class PolicyWizard
         ComboBox typeBox = PolicyTypeBox(DefaultScope(alert));
         ComboBox actionBox = new ComboBox { Header = "Action", MinWidth = 220 };
         TextBox idBox = new TextBox { Header = "Id / key", Text = DefaultId(alert, ComboValue(typeBox, "Remote endpoint")) };
-        TextBox scoreBox = new TextBox { Header = "Score", PlaceholderText = "90", Width = 120, MaxLength = 3, VerticalAlignment = VerticalAlignment.Top };
-        TextBox deltaBox = new TextBox { Header = "Delta", PlaceholderText = "10", Width = 120, MaxLength = 3, VerticalAlignment = VerticalAlignment.Top };
+        TextBox scoreBox = new TextBox { Header = "Score", PlaceholderText = "90", MinWidth = 118, MaxWidth = 136, MaxLength = 3, VerticalAlignment = VerticalAlignment.Top };
+        TextBox deltaBox = new TextBox { Header = "Delta", PlaceholderText = "10", MinWidth = 118, MaxWidth = 136, MaxLength = 3, VerticalAlignment = VerticalAlignment.Top };
         TextBox ownerBox = new TextBox { Header = "Owner", Text = "local-operator" };
         TextBox tagBox = new TextBox { Header = "Tag", PlaceholderText = "maintenance" };
         CalendarDatePicker expiresDatePicker = new CalendarDatePicker
@@ -112,6 +99,13 @@ internal static class PolicyWizard
             Content = new FontIcon { FontSize = 14, Glyph = "\uE711" },
             IsEnabled = false
         };
+        ToolTipService.SetToolTip(typeBox, PolicyScopeCatalog.ScopeHelpText(ComboValue(typeBox, "Remote endpoint")));
+        ToolTipService.SetToolTip(actionBox, "What Arcane should do when this policy matches. Available actions depend on policy type.");
+        ToolTipService.SetToolTip(idBox, "Stable identifier for this policy entry. Keep it short, descriptive, and unique.");
+        ToolTipService.SetToolTip(scoreBox, "Optional 0-100 score. Only used by actions that set scored alert context.");
+        ToolTipService.SetToolTip(deltaBox, "Optional amount to raise or lower an existing alert score. Only used by raise/lower actions.");
+        ToolTipService.SetToolTip(ownerBox, "Optional owner or reviewer for alert tuning entries.");
+        ToolTipService.SetToolTip(tagBox, "Optional tag added to policy context when this alert tuning entry applies.");
         ToolTipService.SetToolTip(clearExpiresButton, "Clear expiration so this policy does not expire.");
         ComboBox settingKeyBox = new ComboBox { Header = "Policy list", MinWidth = 260 };
         TextBox settingMapKeyBox = new TextBox { Header = "Map key" };
@@ -211,19 +205,16 @@ internal static class PolicyWizard
             choicePanel.Children.Add(row);
         }
 
-        Grid top = new Grid { ColumnSpacing = 10 };
-        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
-        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
+        Grid top = new Grid { ColumnSpacing = 12 };
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         Grid.SetColumn(actionBox, 1);
-        Grid.SetColumn(idBox, 2);
         top.Children.Add(typeBox);
         top.Children.Add(actionBox);
-        top.Children.Add(idBox);
 
-        Grid scoreGrid = new Grid { ColumnSpacing = 10 };
-        scoreGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
-        scoreGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+        Grid scoreGrid = new Grid { ColumnSpacing = 12 };
+        scoreGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        scoreGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         scoreGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         Grid.SetColumn(deltaBox, 1);
         Grid.SetColumn(hintText, 2);
@@ -231,15 +222,15 @@ internal static class PolicyWizard
         scoreGrid.Children.Add(deltaBox);
         scoreGrid.Children.Add(hintText);
 
-        StackPanel policyMetadataPanel = new StackPanel { Spacing = 10 };
-        Grid ownerGrid = new Grid { ColumnSpacing = 10 };
+        StackPanel policyMetadataPanel = new StackPanel { Spacing = 12 };
+        Grid ownerGrid = new Grid { ColumnSpacing = 12 };
         ownerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         ownerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         Grid.SetColumn(tagBox, 1);
         ownerGrid.Children.Add(ownerBox);
         ownerGrid.Children.Add(tagBox);
 
-        Grid expirationGrid = new Grid { ColumnSpacing = 10 };
+        Grid expirationGrid = new Grid { ColumnSpacing = 12 };
         expirationGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(260) });
         expirationGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
         expirationGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -262,9 +253,6 @@ internal static class PolicyWizard
         policyMetadataPanel.Children.Add(ownerGrid);
         policyMetadataPanel.Children.Add(expirationGrid);
 
-        rulePanel.Children.Add(scoreGrid);
-        rulePanel.Children.Add(policyMetadataPanel);
-        rulePanel.Children.Add(reasonBox);
         rulePanel.Children.Add(new TextBlock
         {
             Text = alert == null ? "Choose one or more match fields, then enter the value to match." : "Choose one or more metadata fields from the alert. Edit values before saving if the match should be broader or narrower.",
@@ -272,6 +260,9 @@ internal static class PolicyWizard
             Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
         });
         rulePanel.Children.Add(choicePanel);
+        rulePanel.Children.Add(scoreGrid);
+        rulePanel.Children.Add(policyMetadataPanel);
+        rulePanel.Children.Add(reasonBox);
 
         settingPanel.Children.Add(new TextBlock
         {
@@ -287,8 +278,8 @@ internal static class PolicyWizard
         StackPanel body = new StackPanel
         {
             Spacing = 12,
-            MaxWidth = 860,
-            Margin = new Thickness(0, 0, 36, 0)
+            MaxWidth = 640,
+            Margin = new Thickness(0, 0, 30, 0)
         };
         body.Children.Add(new TextBlock
         {
@@ -298,6 +289,7 @@ internal static class PolicyWizard
             TextWrapping = TextWrapping.Wrap
         });
         body.Children.Add(top);
+        body.Children.Add(idBox);
         body.Children.Add(statusText);
         body.Children.Add(rulePanel);
         body.Children.Add(settingPanel);
@@ -330,7 +322,7 @@ internal static class PolicyWizard
         {
             string scope = ComboValue(typeBox, "Remote endpoint");
             string previous = ComboValue(settingKeyBox, "");
-            List<PolicySettingChoice> settingChoices = SettingChoicesForScope(scope)
+            List<PolicySettingChoice> settingChoices = PolicyScopeCatalog.SettingChoicesForScope(scope)
                 .OrderBy(choice => choice.Label, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -342,7 +334,7 @@ internal static class PolicyWizard
                 settingKeyBox.Items.Add(item);
             }
 
-            string desired = resetChoice ? DefaultSettingKey(scope, alert) : previous;
+            string desired = resetChoice ? PolicyScopeCatalog.DefaultSettingKeyForScope(scope, alert) : previous;
             string fallback = settingChoices.Count == 0 ? "" : settingChoices[0].Key;
             SelectComboValue(settingKeyBox, desired, fallback);
         }
@@ -350,7 +342,7 @@ internal static class PolicyWizard
         void updateSettingFields(bool resetDefaults)
         {
             string scope = ComboValue(typeBox, "Remote endpoint");
-            PolicySettingChoice choice = SelectedSettingChoice(scope, ComboValue(settingKeyBox, ""));
+            PolicySettingChoice choice = PolicyScopeCatalog.SelectedSettingChoice(scope, ComboValue(settingKeyBox, ""));
             bool isMap = choice.ValueKind.Equals("map-list", StringComparison.OrdinalIgnoreCase);
             settingMapKeyBox.Visibility = isMap ? Visibility.Visible : Visibility.Collapsed;
             settingMapKeyBox.Header = choice.MapKeyHeader;
@@ -364,8 +356,8 @@ internal static class PolicyWizard
 
             if (resetDefaults)
             {
-                settingMapKeyBox.Text = DefaultSettingMapKey(choice, alert);
-                settingValuesBox.Text = String.Join(Environment.NewLine, DefaultSettingValues(choice, alert));
+                settingMapKeyBox.Text = PolicyScopeCatalog.DefaultSettingMapKey(choice, alert);
+                settingValuesBox.Text = String.Join(Environment.NewLine, PolicyScopeCatalog.DefaultSettingValues(choice, alert));
             }
 
             idBox.Text = choice.Key;
@@ -378,6 +370,8 @@ internal static class PolicyWizard
             string action = ComboValue(actionBox, ArcanePolicyStore.DefaultActionForScope(scope));
             bool isRule = ArcanePolicyStore.IsRuleScope(scope);
             bool isDetection = scope.Equals("Detection", StringComparison.OrdinalIgnoreCase);
+            bool scoreRelevant = PolicyScopeCatalog.IsScoreRelevant(scope, action);
+            bool deltaRelevant = PolicyScopeCatalog.IsDeltaRelevant(scope, action);
             ToolTipService.SetToolTip(typeBox, PolicyScopeCatalog.ScopeHelpText(scope));
             ToolTipService.SetToolTip(actionBox, PolicyScopeCatalog.ActionHelpText(scope, action));
             ToolTipService.SetToolTip(scoreBox, PolicyScopeCatalog.ScoreToolTipText(scope, action));
@@ -390,10 +384,12 @@ internal static class PolicyWizard
             policyMetadataPanel.Visibility = isDetection ? Visibility.Visible : Visibility.Collapsed;
             expiresTimePicker.IsEnabled = isDetection && expiresDatePicker.Date.HasValue;
             clearExpiresButton.IsEnabled = isDetection && expiresDatePicker.Date.HasValue;
-            scoreBox.IsEnabled = PolicyScopeCatalog.IsScoreRelevant(scope, action);
-            deltaBox.IsEnabled = PolicyScopeCatalog.IsDeltaRelevant(scope, action);
+            scoreBox.IsEnabled = scoreRelevant;
+            deltaBox.IsEnabled = deltaRelevant;
+            scoreBox.PlaceholderText = scoreRelevant ? "0-100" : "-";
+            deltaBox.PlaceholderText = deltaRelevant ? "+/-" : "-";
             hintText.Text = PolicyScopeCatalog.ScoreHintText(scope, action);
-            valueJsonBox.Text = isRule ? "[]" : DefaultValueJson(scope);
+            valueJsonBox.Text = isRule ? "[]" : PolicyScopeCatalog.DefaultValueJsonForScope(scope);
 
             foreach (Grid row in choicePanel.Children.OfType<Grid>())
             {
@@ -410,8 +406,20 @@ internal static class PolicyWizard
             if (resetDefaults)
             {
                 idBox.Text = DefaultId(alert, scope);
-                scoreBox.Text = PolicyScopeCatalog.DefaultScoreForAction(scope, action);
-                deltaBox.Text = PolicyScopeCatalog.DefaultDeltaForAction(scope, action);
+                scoreBox.Text = scoreRelevant ? PolicyScopeCatalog.DefaultScoreForAction(scope, action) : "";
+                deltaBox.Text = deltaRelevant ? PolicyScopeCatalog.DefaultDeltaForAction(scope, action) : "";
+            }
+            else
+            {
+                if (!scoreRelevant)
+                {
+                    scoreBox.Text = "";
+                }
+
+                if (!deltaRelevant)
+                {
+                    deltaBox.Text = "";
+                }
             }
 
             if (!isRule)
@@ -649,8 +657,8 @@ internal static class PolicyWizard
             Id = FirstNonEmpty(id.Trim(), DefaultId(null, scope)),
             Enabled = true,
             Action = action,
-            Score = score.Trim(),
-            ScoreDelta = delta.Trim(),
+            Score = PolicyScopeCatalog.IsScoreRelevant(scope, action) ? score.Trim() : "",
+            ScoreDelta = PolicyScopeCatalog.IsDeltaRelevant(scope, action) ? delta.Trim() : "",
             Owner = owner.Trim(),
             Tag = tag.Trim(),
             ExpiresUtc = expires.Trim(),
@@ -681,10 +689,20 @@ internal static class PolicyWizard
             ["match"] = JsonSerializer.Deserialize<Dictionary<string, string>>(BuildMatchJson(scope, choices)) ?? new Dictionary<string, string>()
         };
 
-        if (Int32.TryParse(score.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedScore)) rule["score"] = parsedScore;
+        if (PolicyScopeCatalog.IsScoreRelevant(scope, action) &&
+            Int32.TryParse(score.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedScore))
+        {
+            rule["score"] = parsedScore;
+        }
+
         if (scope.Equals("Detection", StringComparison.OrdinalIgnoreCase))
         {
-            if (Int32.TryParse(delta.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedDelta)) rule["score_delta"] = parsedDelta;
+            if (PolicyScopeCatalog.IsDeltaRelevant(scope, action) &&
+                Int32.TryParse(delta.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedDelta))
+            {
+                rule["score_delta"] = parsedDelta;
+            }
+
             if (!String.IsNullOrWhiteSpace(owner)) rule["owner"] = owner.Trim();
             if (!String.IsNullOrWhiteSpace(tag)) rule["tag"] = tag.Trim();
             if (!String.IsNullOrWhiteSpace(expires)) rule["expires_utc"] = expires.Trim();
@@ -732,47 +750,62 @@ internal static class PolicyWizard
     private static List<PolicyWizardFieldChoice> BuildChoices(ArcaneAlertRecord? alert)
     {
         List<PolicyWizardFieldChoice> choices = new List<PolicyWizardFieldChoice>();
-        string domain = FirstNonEmpty(alert?.MetadataValue("registrable_domain"), alert?.MetadataValue("resolved_domain"), alert?.MetadataValue("sni_hostname"), alert?.MetadataValue("rdns"));
+        foreach (PolicyMatchFieldDefinition definition in PolicyScopeCatalog.MatchFieldDefinitions.OrderBy(definition => definition.Label, StringComparer.OrdinalIgnoreCase))
+        {
+            string initialValue = InitialValueForSource(alert, definition.InitialValueSource);
+            AddChoice(
+                choices,
+                definition,
+                initialValue,
+                OptionsWithInitial(initialValue, PolicyScopeCatalog.OptionsForSource(definition.OptionsSource)));
+        }
 
-        AddChoice(choices, "Rule ID", "", "rule_id", alert?.RuleId, "Match the alert rule id.");
-        AddChoice(choices, "Category", "", "category", alert?.Category, "Match the alert category.", OptionsWithInitial(alert?.Category, KnownCategories()));
-        AddChoice(choices, "Process name", "process_name", "process_name", alert?.Process, "Match the process name from the alert.");
-        AddChoice(choices, "Process path prefix", "", "path_prefix", alert?.MetadataValue("process_path"), "Match the executable path prefix. Edit a full path to the stable parent folder when possible.");
-        AddChoice(choices, "Signer", "", "signer", alert?.MetadataValue("signer"), "Match the signer subject from the alert. Leave blank for unsigned files.");
-        AddChoice(choices, "Remote IP / CIDR", "remote_ip", "ip_cidr", alert?.RemoteIp, "Match this exact remote IP, or edit to a CIDR range.");
-        AddChoice(choices, "Remote port", "port", "port", alert?.MetadataValue("remote_port"), "Match the remote port. Enter any TCP/UDP port number.");
-        AddChoice(choices, "Company / owner", "remote_identity", "", alert?.Company, "Match provider identity text such as owner, ASN org, or ASN.");
-        AddChoice(choices, "Owner", "owner", "", alert?.MetadataValue("remote_owner"), "Match the enriched remote owner.");
-        AddChoice(choices, "ASN org", "asn_org", "", alert?.MetadataValue("asn_org"), "Match the enriched ASN organization.");
-        AddChoice(choices, "ASN", "asn", "", alert?.MetadataValue("asn"), "Match the remote ASN.");
-        AddChoice(choices, "Country", "country", "", alert?.Country, "Match the remote country. Use carefully because country-only matches can be broad.", OptionsWithInitial(alert?.Country, KnownCountryCodes()));
-        AddChoice(choices, "Domain", "registrable_domain", "destination_domain", domain, "Match destination domain context.");
-        AddChoice(choices, "Resolved domain", "resolved_domain", "", alert?.MetadataValue("resolved_domain"), "Match the resolved destination domain.");
-        AddChoice(choices, "SNI hostname", "sni_hostname", "", alert?.MetadataValue("sni_hostname"), "Match the TLS SNI hostname.");
-        AddChoice(choices, "Text contains", "text_contains", "text_contains", alert?.Title, "Match policy text. Prefer stronger structured fields when possible.");
         return choices;
     }
 
     private static void AddChoice(
         List<PolicyWizardFieldChoice> choices,
-        string label,
-        string networkField,
-        string detectionField,
+        PolicyMatchFieldDefinition definition,
         string? value,
-        string help,
         IReadOnlyList<string>? options = null)
     {
         choices.Add(new PolicyWizardFieldChoice
         {
-            Label = label,
-            NetworkField = networkField,
-            DetectionField = detectionField,
+            Label = definition.Label,
+            NetworkField = definition.NetworkField,
+            DetectionField = definition.DetectionField,
             InitialValue = value ?? "",
             Options = options ?? Array.Empty<string>(),
-            DefaultNetwork = false,
-            DefaultDetection = false,
-            Help = help
+            DefaultNetwork = definition.DefaultNetwork,
+            DefaultDetection = definition.DefaultDetection,
+            Help = definition.Help
         });
+    }
+
+    private static string InitialValueForSource(ArcaneAlertRecord? alert, string source)
+    {
+        if (alert == null || String.IsNullOrWhiteSpace(source))
+        {
+            return "";
+        }
+
+        if (source.StartsWith("metadata:", StringComparison.OrdinalIgnoreCase))
+        {
+            return alert.MetadataValue(source.Substring("metadata:".Length));
+        }
+
+        return source switch
+        {
+            "category" => alert.Category,
+            "company" => alert.Company,
+            "country" => alert.Country,
+            "domain" => FirstNonEmpty(alert.MetadataValue("registrable_domain"), alert.MetadataValue("resolved_domain"), alert.MetadataValue("sni_hostname"), alert.MetadataValue("rdns")),
+            "process" => alert.Process,
+            "remote_ip" => alert.RemoteIp,
+            "rule_id" => alert.RuleId,
+            "title" => alert.Title,
+            _ => ""
+        };
     }
 
     private static IReadOnlyList<string> OptionsWithInitial(string? initial, IReadOnlyList<string> options)
@@ -792,153 +825,6 @@ internal static class PolicyWizard
         }
 
         return values;
-    }
-
-    private static IReadOnlyList<string> KnownCategories()
-    {
-        return new[] { "Agent", "AI", "Auth", "Baseline", "File", "Health", "Network", "PowerShell", "Registry", "Response", "Sysmon" };
-    }
-
-    private static IReadOnlyList<string> KnownCountryCodes()
-    {
-        return new[] { "US", "CA", "GB", "IE", "DE", "NL", "FR", "SE", "CH", "AU", "NZ", "JP", "SG" };
-    }
-
-    private static IReadOnlyList<PolicySettingChoice> SettingChoicesForScope(string scope)
-    {
-        if (scope.Equals("Allowlist", StringComparison.OrdinalIgnoreCase))
-        {
-            return new[]
-            {
-                ListChoice(scope, "allowed_dns_resolvers", "Allowed DNS resolvers", "DNS resolver IP addresses that are expected on this workstation.", "DNS resolver IPs"),
-                ListChoice(scope, "allowed_listening_ports", "Allowed listening ports", "Inbound/listening local ports expected on this workstation.", "ports or ranges"),
-                ListChoice(scope, "allowed_outbound_ports", "Allowed outbound ports", "Outbound remote ports expected on this workstation.", "ports"),
-                ListChoice(scope, "allowed_remote_countries", "Allowed remote countries", "Remote country codes that should not escalate on country alone.", "country codes"),
-                MapListChoice(scope, "process_allowed_outbound_ports", "Process allowed outbound ports", "Per-process outbound port allowlist. Use this when only one process should be allowed to use a port.", "Process name", "example.exe", "ports"),
-                ListChoice(scope, "trusted_persistence_name_prefixes", "Trusted persistence name prefixes", "Startup/task/service name prefixes that are expected local persistence context.", "prefixes"),
-                ListChoice(scope, "trusted_persistence_path_indicators", "Trusted persistence path indicators", "Path fragments that indicate expected persistence locations.", "path fragments"),
-                ListChoice(scope, "trusted_persistence_signer_subjects", "Trusted persistence signer subjects", "Signer subject text that indicates expected persistence publishers.", "signer subject text"),
-                ListChoice(scope, "trusted_processes", "Trusted processes", "Process names commonly expected on this workstation.", "process names")
-            };
-        }
-
-        if (scope.Equals("Blocklist", StringComparison.OrdinalIgnoreCase))
-        {
-            return new[]
-            {
-                ListChoice(scope, "blocked_domains", "Blocked domains", "Domains or domain patterns that should be treated as bad context.", "domains"),
-                ListChoice(scope, "blocked_hashes", "Blocked hashes", "SHA-256 hashes that should be treated as bad context.", "SHA-256 hashes")
-            };
-        }
-
-        if (scope.Equals("Response", StringComparison.OrdinalIgnoreCase))
-        {
-            return new[]
-            {
-                ListChoice(scope, "allowed_categories", "Allowed response categories", "Detection categories allowed to perform active response when response mode permits it.", "categories"),
-                ListChoice(scope, "allowed_rule_ids", "Allowed response rule IDs", "Rule IDs allowed to perform active response when response mode permits it.", "rule IDs"),
-                ListChoice(scope, "blocked_categories", "Blocked response categories", "Detection categories blocked from active response.", "categories"),
-                ListChoice(scope, "blocked_rule_ids", "Blocked response rule IDs", "Rule IDs blocked from active response.", "rule IDs"),
-                ListChoice(scope, "protected_process_names", "Protected process names", "Processes that active response must not terminate.", "process names")
-            };
-        }
-
-        return Array.Empty<PolicySettingChoice>();
-    }
-
-    private static PolicySettingChoice ListChoice(string scope, string key, string label, string help, string valueName)
-    {
-        return new PolicySettingChoice
-        {
-            Scope = scope,
-            Key = key,
-            Label = label,
-            Help = help + " Enter one or more " + valueName + ", one per line.",
-            ValuesHeader = valueName,
-            ValuesPlaceholder = "one " + valueName.TrimEnd('s') + " per line"
-        };
-    }
-
-    private static PolicySettingChoice MapListChoice(string scope, string key, string label, string help, string mapKeyHeader, string mapKeyPlaceholder, string valueName)
-    {
-        return new PolicySettingChoice
-        {
-            Scope = scope,
-            Key = key,
-            Label = label,
-            Help = help + " Enter the map key and one or more " + valueName + ", one per line.",
-            ValueKind = "map-list",
-            MapKeyHeader = mapKeyHeader,
-            MapKeyPlaceholder = mapKeyPlaceholder,
-            ValuesHeader = valueName,
-            ValuesPlaceholder = "one " + valueName.TrimEnd('s') + " per line"
-        };
-    }
-
-    private static PolicySettingChoice SelectedSettingChoice(string scope, string key)
-    {
-        IReadOnlyList<PolicySettingChoice> choices = SettingChoicesForScope(scope);
-        return choices.FirstOrDefault(choice => choice.Key.Equals(key, StringComparison.OrdinalIgnoreCase)) ??
-            choices.OrderBy(choice => choice.Label, StringComparer.OrdinalIgnoreCase).FirstOrDefault() ??
-            ListChoice(scope, DefaultId(null, scope), "Values", "Policy values.", "values");
-    }
-
-    private static string DefaultSettingKey(string scope, ArcaneAlertRecord? alert)
-    {
-        if (scope.Equals("Allowlist", StringComparison.OrdinalIgnoreCase))
-        {
-            if (!String.IsNullOrWhiteSpace(alert?.Country)) return "allowed_remote_countries";
-            if (!String.IsNullOrWhiteSpace(alert?.Process)) return "trusted_processes";
-            return "allowed_remote_countries";
-        }
-
-        if (scope.Equals("Blocklist", StringComparison.OrdinalIgnoreCase))
-        {
-            if (!String.IsNullOrWhiteSpace(alert?.MetadataValue("sha256"))) return "blocked_hashes";
-            return "blocked_domains";
-        }
-
-        if (scope.Equals("Response", StringComparison.OrdinalIgnoreCase))
-        {
-            if (!String.IsNullOrWhiteSpace(alert?.RuleId)) return "blocked_rule_ids";
-            return "blocked_categories";
-        }
-
-        return "";
-    }
-
-    private static string DefaultSettingMapKey(PolicySettingChoice choice, ArcaneAlertRecord? alert)
-    {
-        if (choice.Key.Equals("process_allowed_outbound_ports", StringComparison.OrdinalIgnoreCase))
-        {
-            return alert?.Process ?? "";
-        }
-
-        return "";
-    }
-
-    private static IReadOnlyList<string> DefaultSettingValues(PolicySettingChoice choice, ArcaneAlertRecord? alert)
-    {
-        string domain = FirstNonEmpty(alert?.MetadataValue("registrable_domain"), alert?.MetadataValue("resolved_domain"), alert?.MetadataValue("sni_hostname"), alert?.MetadataValue("rdns"));
-        string value = choice.Key switch
-        {
-            "allowed_dns_resolvers" => alert?.RemoteIp ?? "",
-            "allowed_listening_ports" => alert?.MetadataValue("remote_port") ?? "",
-            "allowed_outbound_ports" => alert?.MetadataValue("remote_port") ?? "",
-            "allowed_remote_countries" => alert?.Country ?? "",
-            "process_allowed_outbound_ports" => alert?.MetadataValue("remote_port") ?? "",
-            "trusted_processes" => alert?.Process ?? "",
-            "blocked_domains" => domain,
-            "blocked_hashes" => alert?.MetadataValue("sha256") ?? "",
-            "allowed_categories" => alert?.Category ?? "",
-            "allowed_rule_ids" => alert?.RuleId ?? "",
-            "blocked_categories" => alert?.Category ?? "",
-            "blocked_rule_ids" => alert?.RuleId ?? "",
-            "protected_process_names" => alert?.Process ?? "",
-            _ => ""
-        };
-
-        return String.IsNullOrWhiteSpace(value) ? Array.Empty<string>() : new[] { value };
     }
 
     private static string BuildSettingValueJson(PolicySettingChoice choice, string mapKey, string valuesText)
@@ -1049,14 +935,6 @@ internal static class PolicyWizard
         }
 
         return "Created from alert " + alert.RuleId + " at " + alert.SystemTimeDisplay + ". Review match fields and keep this entry as narrow as practical.";
-    }
-
-    private static string DefaultValueJson(string scope)
-    {
-        if (scope.Equals("Response", StringComparison.OrdinalIgnoreCase)) return "[]";
-        if (scope.Equals("Allowlist", StringComparison.OrdinalIgnoreCase)) return "[]";
-        if (scope.Equals("Blocklist", StringComparison.OrdinalIgnoreCase)) return "[]";
-        return "[]";
     }
 
     private static void SelectComboValue(ComboBox combo, string desired, string fallback)

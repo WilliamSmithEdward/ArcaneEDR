@@ -316,8 +316,7 @@ namespace ArcaneEDR
 
         public void SetScore(int score)
         {
-            if (score < 0) score = 0;
-            if (score > 100) score = 100;
+            score = AlertScore.Clamp(score);
             Score = score;
             Severity = AlertSeverity.FromScore(score);
         }

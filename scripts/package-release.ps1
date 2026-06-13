@@ -5,41 +5,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Get-VersionFromSource {
-    param([string]$Root)
-
-    $versionFile = Join-Path $Root "src\VersionInfo.cs"
-    foreach ($line in Get-Content -Path $versionFile) {
-        if ($line -match 'public const string Version = "([^"]+)"') {
-            return $Matches[1]
-        }
-    }
-
-    throw "Could not read version from $versionFile."
-}
-
-function Get-ConfigValue {
-    param(
-        [string]$Path,
-        [string]$Name,
-        [string]$Default
-    )
-
-    if (Test-Path $Path) {
-        foreach ($rawLine in Get-Content -Path $Path) {
-            $line = $rawLine.Trim()
-            if ($line.Length -eq 0 -or $line.StartsWith("#")) { continue }
-            $equals = $line.IndexOf("=")
-            if ($equals -le 0) { continue }
-            $key = $line.Substring(0, $equals).Trim()
-            if ($key.Equals($Name, [System.StringComparison]::OrdinalIgnoreCase)) {
-                return $line.Substring($equals + 1).Trim()
-            }
-        }
-    }
-
-    return $Default
-}
+. (Join-Path $PSScriptRoot "arcane-script-common.ps1")
 
 $root = Split-Path -Parent $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($Version)) {

@@ -533,7 +533,7 @@ namespace ArcaneEDR
             finding.Detected = true;
             finding.Term = term;
             finding.CommandFamily = AgentAdminCommandFamily(term);
-            finding.Score = ClampScore(config.AgentAdminCommandMinimumScore);
+            finding.Score = AlertScore.Clamp(config.AgentAdminCommandMinimumScore);
             return finding;
         }
 
@@ -569,7 +569,7 @@ namespace ArcaneEDR
             finding.Detected = true;
             finding.Term = term;
             finding.CommandFamily = AgentSecretReferenceFamily(term);
-            finding.Score = ClampScore(config.AgentSecretReferenceMinimumScore);
+            finding.Score = AlertScore.Clamp(config.AgentSecretReferenceMinimumScore);
             return finding;
         }
 
@@ -592,7 +592,7 @@ namespace ArcaneEDR
             finding.Detected = true;
             finding.Term = term;
             finding.CommandFamily = AgentSupplyChainFamily(term);
-            finding.Score = ClampScore(config.AgentSupplyChainMinimumScore);
+            finding.Score = AlertScore.Clamp(config.AgentSupplyChainMinimumScore);
             return finding;
         }
 
@@ -727,13 +727,6 @@ namespace ArcaneEDR
             }
 
             return false;
-        }
-
-        private static int ClampScore(int score)
-        {
-            if (score < 0) return 0;
-            if (score > 100) return 100;
-            return score;
         }
 
         private static string SafeReason(string value)
@@ -954,7 +947,7 @@ namespace ArcaneEDR
                 Alert alert = Alert.FromProcessEvent(
                     "RESPONSE-PROCESS-RESPAWN",
                     "Process relaunched after Arcane response termination",
-                    ClampScore(config.ResponseProcessRespawnMinimumScore),
+                    AlertScore.Clamp(config.ResponseProcessRespawnMinimumScore),
                     "Arcane previously terminated process=" + SafeReason(matched.ProcessName) +
                         " response_id=" + SafeReason(matched.ResponseId) +
                         " trigger_rule=" + SafeReason(matched.TriggerRuleId) +

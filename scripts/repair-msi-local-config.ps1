@@ -8,10 +8,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Test-IsAdministrator {
-    $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
+. (Join-Path $PSScriptRoot "arcane-script-common.ps1")
 
 function Read-ConfigMap {
     param([string]$Path)
@@ -32,36 +29,6 @@ function Read-ConfigMap {
     }
 
     return $map
-}
-
-function Set-ConfigLine {
-    param(
-        [System.Collections.Generic.List[string]]$Lines,
-        [string]$Name,
-        [string]$Value
-    )
-
-    $pattern = "^\s*" + [System.Text.RegularExpressions.Regex]::Escape($Name) + "\s*="
-    for ($i = 0; $i -lt $Lines.Count; $i++) {
-        if ($Lines[$i] -match $pattern) {
-            $Lines[$i] = "$Name=$Value"
-            return
-        }
-    }
-
-    $Lines.Add("$Name=$Value")
-}
-
-function Copy-DirectoryContents {
-    param(
-        [string]$Source,
-        [string]$Destination
-    )
-
-    if (!(Test-Path -LiteralPath $Source)) { return $false }
-    New-Item -ItemType Directory -Force -Path $Destination | Out-Null
-    Copy-Item -Path (Join-Path $Source "*") -Destination $Destination -Recurse -Force
-    return $true
 }
 
 if (!(Test-IsAdministrator)) {
@@ -138,6 +105,7 @@ foreach ($legacyKey in $legacyAiKeys.Keys) {
 $programDataRoot = Join-Path $env:ProgramData "Arcane EDR"
 Set-ConfigLine -Lines $lines -Name "LogDirectory" -Value $programDataRoot
 Set-ConfigLine -Lines $lines -Name "PolicyFile" -Value "arcane-policy.json"
+Set-ConfigLine -Lines $lines -Name "AgentWorkspaceRoots" -Value ""
 Set-ConfigLine -Lines $lines -Name "AgentPublishRoots" -Value ($InstallRoot.TrimEnd("\") + "\")
 
 $sourcePolicy = Join-Path $SourceRoot "config\arcane-policy.json"
@@ -163,7 +131,8 @@ if (!(Test-Path -LiteralPath $sourceLocalConfig)) {
     Set-Content -LiteralPath $sourceLocalConfig -Value $lines -Encoding ASCII
 }
 
-Copy-Item -LiteralPath $sourcePolicy -Destination (Join-Path $installConfigDirectory "arcane-policy.json") -Force
+$destinationPolicy = Join-Path $installConfigDirectory "arcane-policy.json"
+$copiedPolicy = Copy-FileIfDifferent -Source $sourcePolicy -Destination $destinationPolicy
 $copiedCountryBlocks = Copy-DirectoryContents -Source $sourceCountryBlocks -Destination (Join-Path $installConfigDirectory "country-ip-blocks")
 
 $exe = Join-Path $InstallRoot "bin\ArcaneEDR.exe"
@@ -174,7 +143,11 @@ if (!(Test-Path -LiteralPath $exe)) {
 Write-Host "Backed up installed config to $backup"
 Write-Host "Overlay source: $overlayConfig"
 Write-Host "Installed config repaired: $installConfig"
-Write-Host "Installed policy copied: $(Join-Path $installConfigDirectory "arcane-policy.json")"
+if ($copiedPolicy) {
+    Write-Host "Installed policy available: $destinationPolicy"
+} else {
+    Write-Host "Policy source not found; skipped copy."
+}
 if ($copiedCountryBlocks) {
     Write-Host "Country blocks copied to installed config directory."
 } else {
@@ -191,7 +164,7 @@ if ($RegisterAdminTasks) {
     if (!(Test-Path -LiteralPath $installTasks)) {
         throw "Admin task installer not found at '$installTasks'."
     }
-    & $installTasks -SourceRoot $SourceRoot -PublishedRoot $InstallRoot
+    & $installTasks -InstalledOnly -SourceRoot $InstallRoot -PublishedRoot $InstallRoot
 }
 
 if (!$NoRestart) {

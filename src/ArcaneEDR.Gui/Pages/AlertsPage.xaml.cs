@@ -29,8 +29,8 @@ public sealed partial class AlertsPage : Page
     private CancellationTokenSource? refreshCancellation;
     private int refreshGeneration;
     private ArcaneAlertRecord? contextMenuAlert;
-    private const double MinAlertDetailsHeight = 140;
-    private const double MaxAlertDetailsHeight = 360;
+    private const double MinAlertDetailsHeight = 100;
+    private const double MaxAlertDetailsHeight = 200;
 
     public AlertsPage()
     {
@@ -561,7 +561,7 @@ public sealed partial class AlertsPage : Page
         settings.AlertSortColumn = sortColumn;
         settings.AlertSortAscending = sortAscending;
         settings.AlertDetailsHeight = AlertDetailsRow.Height.Value;
-        GuiStartupSettings.SaveAndApply(settings);
+        GuiStartupSettings.Save(settings);
     }
 
     private static void SetCombo(ComboBox comboBox, string value, string fallback)

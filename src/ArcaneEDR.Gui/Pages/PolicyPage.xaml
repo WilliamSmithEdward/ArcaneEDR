@@ -71,7 +71,7 @@
             Title="One policy list"
             Message="Add or edit one policy entry at a time. Order is shown consistently for every row; saves create a backup and validation shows any blockers." />
 
-        <TabView x:Name="PolicyTabs" Grid.Row="2">
+        <TabView x:Name="PolicyTabs" Grid.Row="2" IsAddTabButtonVisible="False">
             <TabViewItem Header="Entries" IsClosable="False">
                 <Grid RowSpacing="10">
                     <Grid.RowDefinitions>
@@ -90,25 +90,31 @@
                         <Border Style="{StaticResource SectionCardStyle}">
                             <StackPanel>
                                 <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Policy file" />
-                                <TextBlock x:Name="PolicyPathText" TextTrimming="CharacterEllipsis" />
+                                <TextBlock
+                                    x:Name="PolicyPathText"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTipService.ToolTip="{Binding Text, ElementName=PolicyPathText}" />
                             </StackPanel>
                         </Border>
                         <Border Grid.Column="1" Style="{StaticResource SectionCardStyle}">
                             <StackPanel>
                                 <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Policy entries" />
-                                <TextBlock x:Name="PolicyRuleCountText" FontSize="20" FontWeight="SemiBold" />
+                                <TextBlock x:Name="PolicyRuleCountText" Style="{StaticResource MetricValueTextStyle}" />
                             </StackPanel>
                         </Border>
                         <Border Grid.Column="2" Style="{StaticResource SectionCardStyle}">
                             <StackPanel>
                                 <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Allowlist countries" />
-                                <TextBlock x:Name="PolicyCountryCountText" FontSize="20" FontWeight="SemiBold" />
+                                <TextBlock x:Name="PolicyCountryCountText" Style="{StaticResource MetricValueTextStyle}" />
                             </StackPanel>
                         </Border>
                         <Border Grid.Column="3" Style="{StaticResource SectionCardStyle}">
                             <StackPanel>
                                 <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Status" />
-                                <TextBlock x:Name="PolicyLoadStatusText" TextTrimming="CharacterEllipsis" />
+                                <TextBlock
+                                    x:Name="PolicyLoadStatusText"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTipService.ToolTip="{Binding Text, ElementName=PolicyLoadStatusText}" />
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -159,33 +165,29 @@
                         <Button
                             x:Name="MoveHigherButton"
                             Grid.Column="4"
+                            Width="44"
                             VerticalAlignment="Bottom"
                             AutomationProperties.Name="Move policy up"
                             Click="MoveHigher_Click"
                             ToolTipService.ToolTip="Move selected policy up within its type">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon FontSize="15" Glyph="&#xE74A;" />
-                                <TextBlock Text="Move up" />
-                            </StackPanel>
+                            <FontIcon FontSize="15" Glyph="&#xE74A;" />
                         </Button>
                         <Button
                             x:Name="MoveLowerButton"
                             Grid.Column="5"
+                            Width="44"
                             VerticalAlignment="Bottom"
                             AutomationProperties.Name="Move policy down"
                             Click="MoveLower_Click"
                             ToolTipService.ToolTip="Move selected policy down within its type">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon FontSize="15" Glyph="&#xE74B;" />
-                                <TextBlock Text="Move down" />
-                            </StackPanel>
+                            <FontIcon FontSize="15" Glyph="&#xE74B;" />
                         </Button>
                     </Grid>
 
                     <Grid Grid.Row="2" ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="1.05*" />
-                            <ColumnDefinition Width="1.2*" />
+                            <ColumnDefinition Width="1.35*" />
+                            <ColumnDefinition Width="1*" />
                         </Grid.ColumnDefinitions>
 
                         <Grid RowSpacing="6">
@@ -196,12 +198,11 @@
 
                             <Grid Padding="8,0" ColumnSpacing="10">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="70" />
-                                    <ColumnDefinition Width="150" />
-                                    <ColumnDefinition Width="250" />
-                                    <ColumnDefinition Width="96" />
-                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="52" />
+                                    <ColumnDefinition Width="108" />
                                     <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="78" />
+                                    <ColumnDefinition Width="92" />
                                 </Grid.ColumnDefinitions>
                                 <Button
                                     x:Name="SortOrderButton"
@@ -272,20 +273,6 @@
                                         <TextBlock x:Name="SortActionIndicator" />
                                     </StackPanel>
                                 </Button>
-                                <Button
-                                    x:Name="SortSummaryButton"
-                                    Grid.Column="5"
-                                    HorizontalAlignment="Stretch"
-                                    HorizontalContentAlignment="Left"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Click="SortSummary_Click"
-                                    ToolTipService.ToolTip="Sort by reason and match summary.">
-                                    <StackPanel Orientation="Horizontal" Spacing="4">
-                                        <TextBlock FontWeight="SemiBold" Text="Summary" />
-                                        <TextBlock x:Name="SortSummaryIndicator" />
-                                    </StackPanel>
-                                </Button>
                             </Grid>
 
                             <ListView
@@ -301,35 +288,53 @@
                                 ScrollViewer.VerticalScrollMode="Enabled"
                                 ScrollViewer.ZoomMode="Disabled"
                                 SelectionChanged="PolicyEntriesList_SelectionChanged">
+                                <ListView.ItemContainerStyle>
+                                    <Style TargetType="ListViewItem">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    </Style>
+                                </ListView.ItemContainerStyle>
                                 <ListView.ItemTemplate>
                                     <DataTemplate>
                                         <Grid Padding="8,7" ColumnSpacing="10">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="70" />
-                                                <ColumnDefinition Width="150" />
-                                                <ColumnDefinition Width="250" />
-                                                <ColumnDefinition Width="96" />
-                                                <ColumnDefinition Width="130" />
+                                                <ColumnDefinition Width="52" />
+                                                <ColumnDefinition Width="108" />
                                                 <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="78" />
+                                                <ColumnDefinition Width="92" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock
                                                 FontWeight="SemiBold"
                                                 Text="{Binding PriorityDisplay}"
+                                                ToolTipService.ToolTip="{Binding PriorityDisplay}"
                                                 TextTrimming="CharacterEllipsis" />
                                             <TextBlock
                                                 Grid.Column="1"
                                                 Text="{Binding TypeDisplay}"
+                                                ToolTipService.ToolTip="{Binding TypeDisplay}"
                                                 TextTrimming="CharacterEllipsis" />
                                             <StackPanel Grid.Column="2" Spacing="2">
-                                                <TextBlock FontWeight="SemiBold" Text="{Binding Id}" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Owner}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock
+                                                    FontWeight="SemiBold"
+                                                    Text="{Binding Id}"
+                                                    ToolTipService.ToolTip="{Binding Id}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                                <TextBlock
+                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                    Text="{Binding MatchSummary}"
+                                                    ToolTipService.ToolTip="{Binding MatchSummary}"
+                                                    TextTrimming="CharacterEllipsis" />
                                             </StackPanel>
-                                            <TextBlock Grid.Column="3" Text="{Binding EnabledDisplay}" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Grid.Column="4" Text="{Binding Action}" TextTrimming="CharacterEllipsis" />
-                                            <StackPanel Grid.Column="5" Spacing="2">
-                                                <TextBlock Text="{Binding Reason}" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding MatchSummary}" TextTrimming="CharacterEllipsis" />
-                                            </StackPanel>
+                                            <TextBlock
+                                                Grid.Column="3"
+                                                Text="{Binding EnabledDisplay}"
+                                                ToolTipService.ToolTip="{Binding EnabledDisplay}"
+                                                TextTrimming="CharacterEllipsis" />
+                                            <TextBlock
+                                                Grid.Column="4"
+                                                Text="{Binding Action}"
+                                                ToolTipService.ToolTip="{Binding Action}"
+                                                TextTrimming="CharacterEllipsis" />
                                         </Grid>
                                     </DataTemplate>
                                 </ListView.ItemTemplate>
@@ -352,11 +357,18 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock x:Name="PolicyEditorTitleText" FontWeight="SemiBold" Text="Select a policy entry" />
+                                        <TextBlock
+                                            x:Name="PolicyEditorTitleText"
+                                            FontWeight="SemiBold"
+                                            Text="Select a policy entry"
+                                            TextTrimming="CharacterEllipsis"
+                                            ToolTipService.ToolTip="{Binding Text, ElementName=PolicyEditorTitleText}" />
                                         <TextBlock
                                             x:Name="PolicyEditorModeText"
                                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                            Text="Read and edit policy entries" />
+                                            Text="Read and edit policy entries"
+                                            TextTrimming="CharacterEllipsis"
+                                            ToolTipService.ToolTip="{Binding Text, ElementName=PolicyEditorModeText}" />
                                     </StackPanel>
                                     <Button
                                         x:Name="FormatMatchButton"
@@ -395,16 +407,19 @@
                                         x:Name="PolicyEditorScrollContent"
                                         Margin="0,0,26,0"
                                         Spacing="10">
-                                        <Grid ColumnSpacing="10">
+                                        <Grid ColumnSpacing="10" RowSpacing="8">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="112" />
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="96" />
                                             </Grid.ColumnDefinitions>
                                             <ComboBox
                                                 x:Name="PolicyEditorScopeBox"
                                                 Header="Policy type"
+                                                MinWidth="220"
                                                 SelectionChanged="PolicyEditorScope_Changed"
                                                 ToolTipService.ToolTip="Shows what this entry controls. Existing entries keep their type locked so they cannot be accidentally moved between policy sections." />
                                             <TextBox
@@ -413,30 +428,33 @@
                                                 Header="Order"
                                                 IsReadOnly="True"
                                                 ToolTipService.ToolTip="Display order in the unified list. Move up/down changes file order within this policy type." />
-                                            <Button
-                                                x:Name="EditorMoveHigherButton"
-                                                Grid.Column="2"
-                                                VerticalAlignment="Bottom"
-                                                AutomationProperties.Name="Move selected policy up"
-                                                Click="MoveHigher_Click"
-                                                ToolTipService.ToolTip="Move this saved entry earlier within its policy type. Save new entries before moving.">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon FontSize="15" Glyph="&#xE74A;" />
-                                                    <TextBlock Text="Up" />
-                                                </StackPanel>
-                                            </Button>
-                                            <Button
-                                                x:Name="EditorMoveLowerButton"
-                                                Grid.Column="3"
-                                                VerticalAlignment="Bottom"
-                                                AutomationProperties.Name="Move selected policy down"
-                                                Click="MoveLower_Click"
-                                                ToolTipService.ToolTip="Move this saved entry later within its policy type. Save new entries before moving.">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon FontSize="15" Glyph="&#xE74B;" />
-                                                    <TextBlock Text="Down" />
-                                                </StackPanel>
-                                            </Button>
+                                            <StackPanel
+                                                Grid.Row="1"
+                                                Grid.ColumnSpan="2"
+                                                HorizontalAlignment="Right"
+                                                Orientation="Horizontal"
+                                                Spacing="8">
+                                                <Button
+                                                    x:Name="EditorMoveHigherButton"
+                                                    AutomationProperties.Name="Move selected policy up"
+                                                    Click="MoveHigher_Click"
+                                                    ToolTipService.ToolTip="Move this saved entry earlier within its policy type. Save new entries before moving.">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <FontIcon FontSize="15" Glyph="&#xE74A;" />
+                                                        <TextBlock Text="Up" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button
+                                                    x:Name="EditorMoveLowerButton"
+                                                    AutomationProperties.Name="Move selected policy down"
+                                                    Click="MoveLower_Click"
+                                                    ToolTipService.ToolTip="Move this saved entry later within its policy type. Save new entries before moving.">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <FontIcon FontSize="15" Glyph="&#xE74B;" />
+                                                        <TextBlock Text="Down" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </StackPanel>
                                         </Grid>
 
                                         <TextBlock
@@ -447,7 +465,7 @@
                                         <Grid ColumnSpacing="10">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="150" />
+                                                <ColumnDefinition Width="132" />
                                             </Grid.ColumnDefinitions>
                                             <TextBox
                                                 x:Name="PolicyEditorIdBox"
@@ -468,8 +486,8 @@
                                                 ColumnSpacing="10">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="120" />
-                                                    <ColumnDefinition Width="120" />
+                                                    <ColumnDefinition Width="112" />
+                                                    <ColumnDefinition Width="112" />
                                                 </Grid.ColumnDefinitions>
                                                 <ComboBox
                                                     x:Name="PolicyEditorActionBox"
@@ -503,7 +521,7 @@
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="280" />
+                                                    <ColumnDefinition Width="256" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBox
                                                 x:Name="PolicyEditorOwnerBox"
@@ -522,7 +540,7 @@
                                                 ToolTipService.ToolTip="Optional UTC expiration for temporary alert tuning. Leave blank for no expiration.">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="96" />
+                                                    <ColumnDefinition Width="88" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <CalendarDatePicker
@@ -569,6 +587,10 @@
                                         </StackPanel>
 
                                         <StackPanel x:Name="SettingEditorPanel" Spacing="10">
+                                            <TextBlock
+                                                x:Name="PolicyEditorSettingHelpText"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                TextWrapping="Wrap" />
                                             <TextBox
                                                 x:Name="PolicyEditorSettingValueBox"
                                                 Header="Value JSON"

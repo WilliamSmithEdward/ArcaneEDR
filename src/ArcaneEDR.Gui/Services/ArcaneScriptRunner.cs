@@ -45,13 +45,27 @@ internal static class ArcaneScriptRunner
 
         StringBuilder stdout = new StringBuilder();
         StringBuilder stderr = new StringBuilder();
+        object stdoutGate = new object();
+        object stderrGate = new object();
         process.OutputDataReceived += (_, eventArgs) =>
         {
-            if (eventArgs.Data != null) stdout.AppendLine(eventArgs.Data);
+            if (eventArgs.Data != null)
+            {
+                lock (stdoutGate)
+                {
+                    stdout.AppendLine(eventArgs.Data);
+                }
+            }
         };
         process.ErrorDataReceived += (_, eventArgs) =>
         {
-            if (eventArgs.Data != null) stderr.AppendLine(eventArgs.Data);
+            if (eventArgs.Data != null)
+            {
+                lock (stderrGate)
+                {
+                    stderr.AppendLine(eventArgs.Data);
+                }
+            }
         };
 
         try
@@ -67,18 +81,18 @@ internal static class ArcaneScriptRunner
                 return new ArcaneCommandResult
                 {
                     ExitCode = process.ExitCode,
-                    StandardOutput = stdout.ToString(),
-                    StandardError = stderr.ToString()
+                    StandardOutput = ReadBuffer(stdout, stdoutGate),
+                    StandardError = ReadBuffer(stderr, stderrGate)
                 };
             }
             catch (OperationCanceledException)
             {
-                TryKill(process);
+                string killError = TryKill(process);
                 return new ArcaneCommandResult
                 {
                     ExitCode = 124,
-                    StandardOutput = stdout.ToString(),
-                    StandardError = stderr.ToString(),
+                    StandardOutput = ReadBuffer(stdout, stdoutGate),
+                    StandardError = AppendError(ReadBuffer(stderr, stderrGate), killError),
                     TimedOut = true
                 };
             }
@@ -110,14 +124,31 @@ internal static class ArcaneScriptRunner
         });
     }
 
-    private static void TryKill(Process process)
+    private static string TryKill(Process process)
     {
         try
         {
             if (!process.HasExited) process.Kill(true);
+            return "";
         }
-        catch
+        catch (Exception ex)
         {
+            return "Failed to stop timed-out script process: " + ex.Message;
         }
+    }
+
+    private static string ReadBuffer(StringBuilder buffer, object gate)
+    {
+        lock (gate)
+        {
+            return buffer.ToString();
+        }
+    }
+
+    private static string AppendError(string existing, string addition)
+    {
+        if (String.IsNullOrWhiteSpace(addition)) return existing;
+        if (String.IsNullOrWhiteSpace(existing)) return addition + Environment.NewLine;
+        return existing.TrimEnd() + Environment.NewLine + addition + Environment.NewLine;
     }
 }

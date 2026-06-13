@@ -5,38 +5,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Get-ConfigValue {
-    param(
-        [string]$Path,
-        [string]$Name,
-        [string]$Default
-    )
-
-    if (Test-Path $Path) {
-        foreach ($rawLine in Get-Content -Path $Path) {
-            $line = $rawLine.Trim()
-            if ($line.Length -eq 0 -or $line.StartsWith("#")) { continue }
-            $equals = $line.IndexOf("=")
-            if ($equals -le 0) { continue }
-            $key = $line.Substring(0, $equals).Trim()
-            if ($key.Equals($Name, [System.StringComparison]::OrdinalIgnoreCase)) {
-                return $line.Substring($equals + 1).Trim()
-            }
-        }
-    }
-
-    return $Default
-}
-
-function Resolve-ConfigPath {
-    param(
-        [string]$Primary,
-        [string]$Example
-    )
-
-    if (Test-Path $Primary) { return $Primary }
-    return $Example
-}
+. (Join-Path $PSScriptRoot "arcane-script-common.ps1")
 
 $root = Split-Path -Parent $PSScriptRoot
 $runtimeConfig = Resolve-ConfigPath `
@@ -56,8 +25,7 @@ if ([string]::IsNullOrWhiteSpace($DisplayName)) {
 $description = Get-ConfigValue -Path $runtimeConfig -Name "ServiceDescription" -Default "Monitors host, process, persistence, PowerShell, Sysmon, and network activity for suspicious behavior on unattended agent workstations."
 $logDir = Get-ConfigValue -Path $runtimeConfig -Name "LogDirectory" -Default (Join-Path $env:ProgramData "ArcaneEDR\logs")
 
-$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-if (!$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+if (!(Test-IsAdministrator)) {
     throw "Run this script from an elevated PowerShell session."
 }
 

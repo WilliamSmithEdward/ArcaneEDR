@@ -62,15 +62,15 @@ namespace ArcaneEDR
                 {
                     result.TimedOut = true;
                     try { process.Kill(); }
-                    catch { }
+                    catch (Exception ex) { AppendError(stderr, stderrGate, "Failed to kill timed-out process: " + ex.Message); }
                     try { process.WaitForExit(5000); }
-                    catch { }
+                    catch (Exception ex) { AppendError(stderr, stderrGate, "Failed while waiting after timeout: " + ex.Message); }
                 }
 
                 if (process.HasExited)
                 {
                     try { process.WaitForExit(); }
-                    catch { }
+                    catch (Exception ex) { AppendError(stderr, stderrGate, "Failed while completing process output read: " + ex.Message); }
                     result.ExitCode = process.ExitCode;
                 }
             }
@@ -86,6 +86,14 @@ namespace ArcaneEDR
             }
 
             return result;
+        }
+
+        private static void AppendError(StringBuilder stderr, object stderrGate, string message)
+        {
+            lock (stderrGate)
+            {
+                stderr.AppendLine(message);
+            }
         }
     }
 }

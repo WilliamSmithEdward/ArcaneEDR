@@ -16,6 +16,7 @@
             ExpandedModeThresholdWidth="980"
             IsBackButtonVisible="Collapsed"
             IsPaneToggleButtonVisible="False"
+            OpenPaneLength="260"
             PaneDisplayMode="Auto"
             SelectionChanged="NavView_SelectionChanged">
             <NavigationView.PaneHeader>
@@ -42,12 +43,14 @@
                             FontWeight="SemiBold"
                             MaxLines="1"
                             Text="Arcane EDR"
+                            ToolTipService.ToolTip="Arcane EDR"
                             TextTrimming="CharacterEllipsis" />
                         <TextBlock
                             FontSize="12"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                             MaxLines="1"
                             Text="Local operator console"
+                            ToolTipService.ToolTip="Local operator console"
                             TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Grid>

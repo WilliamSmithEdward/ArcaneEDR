@@ -16,7 +16,7 @@ internal sealed class GuiUserSettings
     public bool AlertExternalThresholdOnly { get; set; }
     public string AlertSortColumn { get; set; } = "Time";
     public bool AlertSortAscending { get; set; }
-    public double AlertDetailsHeight { get; set; } = 260;
+    public double AlertDetailsHeight { get; set; } = 180;
     public bool PolicyHideDisabled { get; set; } = true;
 }
 
@@ -49,15 +49,28 @@ internal static class GuiStartupSettings
 
     public static void SaveAndApply(GuiUserSettings settings)
     {
+        Save(settings);
+        ApplyStartupRegistration(settings);
+    }
+
+    public static void Save(GuiUserSettings settings)
+    {
         Directory.CreateDirectory(SettingsDirectory());
         File.WriteAllText(SettingsPath(), GuiJson.SerializeIndented(settings));
-        ApplyStartupRegistration(settings);
     }
 
     public static GuiUserSettings LoadSaveAndApply()
     {
         GuiUserSettings settings = Load();
-        SaveAndApply(settings);
+        if (ShouldApplyStartupRegistrationForCurrentProcess())
+        {
+            SaveAndApply(settings);
+        }
+        else
+        {
+            Save(settings);
+        }
+
         return settings;
     }
 
@@ -134,6 +147,26 @@ internal static class GuiStartupSettings
         }
 
         return "\"" + executable + "\" " + StartupArgument;
+    }
+
+    private static bool ShouldApplyStartupRegistrationForCurrentProcess()
+    {
+        string executable = Environment.ProcessPath ?? "";
+        if (String.IsNullOrWhiteSpace(executable))
+        {
+            return true;
+        }
+
+        string normalized = Path.GetFullPath(executable).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string programFilesRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            "Arcane EDR").TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (normalized.StartsWith(programFilesRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private static bool ContainsStartupArgument(string? launchArguments)

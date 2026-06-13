@@ -181,7 +181,7 @@ public sealed partial class ReportsPage : Page
     {
         AppendBlank(rendered);
         rendered.AppendLine(title);
-        rendered.AppendLine(new String('=', Math.Min(Math.Max(title.Length, 3), 72)));
+        AppendBlank(rendered);
     }
 
     private static void AppendBlank(StringBuilder rendered)

@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
 
 namespace ArcaneEDR
@@ -1358,17 +1357,7 @@ namespace ArcaneEDR
 
         private static string SanitizeText(string value)
         {
-            if (String.IsNullOrWhiteSpace(value)) return "";
-            string result = value;
-            result = Regex.Replace(result, "(?i)(api[_-]?key|apikey|token|secret|password|passwd|pwd|authorization|client_secret|access_token|refresh_token)\\s*[:=]\\s*[^\\s,;\\}\\]]+", "$1=[redacted-secret]");
-            result = Regex.Replace(result, "[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}", "[redacted-email]");
-            result = Regex.Replace(result, "(?i)https?://[^\\s\"'<>]+", "[redacted-url]");
-            result = Regex.Replace(result, "(?i)\\b(?:[a-z0-9](?:[a-z0-9\\-]{0,61}[a-z0-9])?\\.)+[a-z]{2,}\\b", "[redacted-domain]");
-            result = Regex.Replace(result, "\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b", "[redacted-ip]");
-            result = Regex.Replace(result, "(?i)[A-Z]:\\\\[^\\s|,\"']+", "[redacted-path]");
-            result = Regex.Replace(result, "(?i)(user|subject|target)=([^\\s|,]+)", "$1=[redacted-account]");
-            result = Regex.Replace(result, "(?i)(command_line|parent_command_line|script_block|decodedpreview)=([^|]+)", "$1=[redacted]");
-            return result.Trim();
+            return SensitiveTextRedactor.RedactForDailyReport(value);
         }
 
         private static string FormatSystemLocalTime(DateTime timestampUtc)

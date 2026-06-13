@@ -125,8 +125,8 @@ After service install or publish, confirm health:
 
 ```powershell
 sc.exe query ArcaneEDR
-Get-Content C:\Security\ArcaneServiceHealth.state
-C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --alert-volume --last 10m
+Get-Content "$env:ProgramData\Arcane EDR\ArcaneServiceHealth.state"
+& "C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe" --alert-volume --last 10m
 ```
 
 For a user who does not want a service yet, help them run console mode or a
@@ -171,11 +171,11 @@ When analyzing logs or alerts, start with the local tools before drawing a
 conclusion:
 
 ```powershell
-C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --alert-volume --last 1h
-C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --alert-volume --last 24h
-Get-Content C:\Security\ArcaneAlerts.jsonl -Tail 20
-Get-Content C:\Security\ArcaneEDR.log -Tail 60
-Get-Content C:\Security\ArcaneServiceHealth.state
+& "C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe" --alert-volume --last 1h
+& "C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe" --alert-volume --last 24h
+Get-Content "$env:ProgramData\Arcane EDR\ArcaneAlerts.jsonl" -Tail 20
+Get-Content "$env:ProgramData\Arcane EDR\ArcaneEDR.log" -Tail 60
+Get-Content "$env:ProgramData\Arcane EDR\ArcaneServiceHealth.state"
 ```
 
 Separate current behavior from stale context. A one-hour or compact AI
@@ -224,11 +224,11 @@ On a new machine, learn the local context:
 Then inspect baseline evidence:
 
 ```powershell
-C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --alert-volume --last 10m
-C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --alert-volume --last 1h
-C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --alert-volume --last 24h
-Get-Content C:\Security\ArcaneAlerts.jsonl -Tail 40
-C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --agent-activity --last 24h
+& "C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe" --alert-volume --last 10m
+& "C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe" --alert-volume --last 1h
+& "C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe" --alert-volume --last 24h
+Get-Content "$env:ProgramData\Arcane EDR\ArcaneAlerts.jsonl" -Tail 40
+& "C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe" --agent-activity --last 24h
 ```
 
 Use the `baseline_off_external` and
@@ -276,16 +276,16 @@ operator wants local evidence preserved. Start from
 run:
 
 ```powershell
-C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --policy-preview --last 24h
+& "C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe" --policy-preview --last 24h
 ```
 
 When a proposed rule needs review before matching telemetry exists, preview a
 sample rule or redacted sample alert JSON:
 
 ```powershell
-C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --policy-preview --sample-rule NET-BEACON-TIMING-LOW-RISK --sample-process codex.exe --sample-score 55
-C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --policy-preview --sample-rule NET-EGRESS-PORT-MISUSE --sample-process ssh.exe --sample-ip 192.168.1.50 --sample-port 22 --sample-user operator
-C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --policy-preview --sample-alert .\sample-alert.json
+& "C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe" --policy-preview --sample-rule NET-BEACON-TIMING-LOW-RISK --sample-process codex.exe --sample-score 55
+& "C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe" --policy-preview --sample-rule NET-EGRESS-PORT-MISUSE --sample-process ssh.exe --sample-ip 192.168.1.50 --sample-port 22 --sample-user operator
+& "C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe" --policy-preview --sample-alert .\sample-alert.json
 ```
 
 Sample preview options can express process, parent process, user, destination
@@ -421,7 +421,7 @@ For live deployment checks, when explicitly requested:
 .\scripts\run-admin-task.cmd PublishRestart
 .\scripts\run-admin-task.cmd ValidateAdmin
 sc.exe query ArcaneEDR
-C:\Applications\ArcaneEDR\bin\ArcaneEDR.exe --alert-volume --last 10m
+& "C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe" --alert-volume --last 10m
 ```
 
 When working in Git:

@@ -111,7 +111,7 @@ The script:
 - writes installed `Deployment.config` to point at `C:\Program Files`
 - lets MSI own the service, GUI, Start menu shortcut, repair, upgrade, and
   uninstall path
-- writes a verbose MSI log under `C:\Security\AdminTasks`
+- writes a verbose MSI log under `%ProgramData%\ArcaneEDR\AdminTasks`
 - verifies the Windows service points at
   `C:\Program Files\Arcane EDR\bin\ArcaneEDR.exe`
 - runs `--version` and `--validate-config` after install

@@ -15,7 +15,9 @@ privileges and perform only approved operations.
 ## Approved Tasks
 
 - `PublishRestart`: stop service if installed, build from source, publish while
-  preserving live config, then restart the service.
+  preserving live config, then restart the service. When tasks are registered
+  in installed-only mode, this restarts the installed payload without source
+  build/publish.
 - `InstallService`: publish, install the Windows service, configure service
   recovery, then start it.
 - `UninstallService`: stop and remove the Windows service.
@@ -27,8 +29,15 @@ privileges and perform only approved operations.
 Run once from elevated PowerShell:
 
 ```powershell
-cd C:\Development\ArcaneEDR
+cd <repo-root>
 .\scripts\install-admin-tasks.cmd
+```
+
+For an MSI-owned install that should not depend on the source checkout:
+
+```powershell
+cd "C:\Program Files\Arcane EDR"
+.\scripts\repair-msi-local-config.cmd -RegisterAdminTasks
 ```
 
 ## Usage
@@ -54,14 +63,14 @@ After setup, validate the bridge from a normal shell:
 
 A successful run reports `LastTaskResult: 0`, writes
 `SUCCESS ValidateAdmin`, and records elevated validation output in
-`C:\Security\AdminTasks\ValidateAdmin.log`.
+`%ProgramData%\ArcaneEDR\AdminTasks\ValidateAdmin.log`.
 
 ## Logs
 
 Task output is written to:
 
 ```text
-C:\Security\AdminTasks\<TaskName>.log
+%ProgramData%\ArcaneEDR\AdminTasks\<TaskName>.log
 ```
 
 ## Removal
@@ -69,7 +78,7 @@ C:\Security\AdminTasks\<TaskName>.log
 Run from elevated PowerShell:
 
 ```powershell
-cd C:\Development\ArcaneEDR
+cd <repo-root>
 .\scripts\uninstall-admin-tasks.cmd
 ```
 

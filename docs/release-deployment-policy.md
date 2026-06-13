@@ -14,10 +14,10 @@ This keeps the running monitor stable while development continues.
 
 ## Paths
 
-Default source folder:
+Source folder:
 
 ```text
-C:\Development\ArcaneEDR
+<repo-root>
 ```
 
 Default live application folder:
@@ -37,7 +37,7 @@ Default machine data/log folder:
 During normal development:
 
 ```powershell
-cd C:\Development\ArcaneEDR
+cd <repo-root>
 .\scripts\build.cmd
 .\bin\ArcaneEDR.exe --validate-config
 ```
@@ -72,7 +72,7 @@ the service, GUI, shortcut, repair, upgrade, and uninstall path.
 Preferred deployment path from an elevated PowerShell session:
 
 ```powershell
-cd C:\Development\ArcaneEDR
+cd <repo-root>
 .\scripts\install-msi-local.cmd -ReplaceExistingService
 ```
 
@@ -83,6 +83,15 @@ installed executable version, service path, config, and service status.
 
 The constrained admin task bridge remains available for source-driven
 development, diagnostics, and break-glass repair.
+
+If admin tasks are needed on an MSI-owned workstation, register them in
+installed-only mode so Task Scheduler references the installed product path
+instead of a source checkout:
+
+```powershell
+cd "C:\Program Files\Arcane EDR"
+.\scripts\repair-msi-local-config.cmd -RegisterAdminTasks
+```
 
 ## Explicit Live Update
 

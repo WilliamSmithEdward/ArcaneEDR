@@ -300,14 +300,23 @@ break-glass repair. See `docs\elevation-strategy.md` for the operating model.
 Run once from an elevated PowerShell session in the source repo:
 
 ```powershell
-cd C:\Development\ArcaneEDR
+cd <repo-root>
 .\scripts\install-admin-tasks.cmd
+```
+
+For an MSI-owned machine where maintenance should not depend on a source
+checkout, register installed-only tasks from an elevated PowerShell session:
+
+```powershell
+cd "C:\Program Files\Arcane EDR"
+.\scripts\repair-msi-local-config.cmd -RegisterAdminTasks
 ```
 
 This registers these on-demand tasks under `\ArcaneEDR\`:
 
-- `PublishRestart`: stop service if installed, build from source, publish while
-  preserving live config, then restart the service.
+- `PublishRestart`: for source-driven tasks, stop service, build from source,
+  publish while preserving live config, then restart; for installed-only tasks,
+  restart using the installed payload.
 - `InstallService`: publish, install the Windows service, configure service
   recovery, then start it.
 - `UninstallService`: stop and remove the Windows service.
@@ -327,7 +336,7 @@ workflow still works on machines where local `.ps1` execution is restricted.
 Task output is written to:
 
 ```text
-C:\Security\AdminTasks\<TaskName>.log
+%ProgramData%\ArcaneEDR\AdminTasks\<TaskName>.log
 ```
 
 Remove the tasks from an elevated PowerShell session:
@@ -1149,7 +1158,7 @@ Example:
 EnableAgentProfile=true
 AgentProcessNames=Codex.exe,codex.exe
 AgentChildProcessNames=powershell.exe,pwsh.exe,cmd.exe,git.exe,git-remote-https.exe,node.exe,npm.exe,npm.cmd,python.exe,pip.exe,curl.exe
-AgentWorkspaceRoots=C:\Development\
+AgentWorkspaceRoots=
 AgentPublishRoots=
 AgentPackageManagerProcesses=git.exe,git-remote-https.exe,node.exe,npm.exe,npm.cmd,python.exe,pip.exe,curl.exe
 AgentApprovedAdminTaskNames=\ArcaneEDR\PublishRestart,\ArcaneEDR\InstallService,\ArcaneEDR\ValidateAdmin

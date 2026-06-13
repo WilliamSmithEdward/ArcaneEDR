@@ -33,6 +33,11 @@
                 <Setter Property="IsTextSelectionEnabled" Value="True" />
                 <Setter Property="TextWrapping" Value="Wrap" />
             </Style>
+            <Style x:Key="MetricValueTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="20" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
             <Style x:Key="PageScrollViewerStyle" TargetType="ScrollViewer">
                 <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
                 <Setter Property="HorizontalScrollMode" Value="Disabled" />

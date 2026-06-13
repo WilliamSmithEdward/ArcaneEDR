@@ -158,8 +158,9 @@ Arcane decision:
   sortable scan columns, selected-row detail.
 - [x] Policy: inspect/preview/open workflow remains available; the Policy tab
   provides structured create/read/update/delete, header sorting, hide-disabled
-  filtering, move up/down ordering, and a guided Add policy wizard. Raw policy
-  JSON remains available as an escape hatch.
+  filtering, move up/down ordering, and a guided Add policy wizard. The wizard
+  and setting editor consume the same policy metadata catalog as the rest of the
+  Policy tab. Raw policy JSON remains available as an escape hatch.
 - [x] Reports: preview/JSON/send are available and output is scroll-safe.
 - [x] Configuration: guided controls, advanced key editor, policy JSON editor,
   validation, reset with backup.
@@ -182,7 +183,21 @@ Arcane decision:
 - Alerts now uses local JSONL parsing for operator rows and keeps raw evidence
   as a secondary tab.
 - Policy now uses a shared scope catalog for entry type labels, order, section
-  names, default actions, and wizard/editor dropdowns.
+  names, default actions, setting keys, match-field choices, alert-derived
+  defaults, and wizard/editor dropdowns. The GUI policy oracle compares catalog
+  keys with `config\arcane-policy.example.json` so default configuration and GUI
+  affordances stay aligned.
+- The second polish pass constrained the navigation pane, stretched Maintenance
+  commands into predictable columns, lowered the default Alerts metadata height
+  so the table remains the primary scan surface, and moved Reports preview away
+  from markdown-looking section underline artifacts.
+- The third polish pass removed stray add-tab buttons from fixed tab sets,
+  replaced silent ellipses in scan-heavy rows with hover text, shortened Policy
+  metrics so cards read as metrics instead of clipped sentences, and reused one
+  metric text style for Overview and Policy.
+- Per-user table/filter preferences now save without reapplying Windows startup
+  registration. Startup registration remains owned by the Settings page and the
+  MSI-owned Program Files GUI launch path.
 - Configuration saves runtime/deployment config through GUI controls, creates
   timestamped backups, and validates with Arcane's real CLI validator.
 - High-impact maintenance actions use confirmation dialogs with safe cancel

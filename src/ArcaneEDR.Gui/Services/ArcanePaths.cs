@@ -94,8 +94,6 @@ internal sealed class ArcanePaths
         {
             yield return Path.Combine(programFiles, "Arcane EDR");
         }
-
-        yield return @"C:\Development\ArcaneEDR";
     }
 
     private static string Existing(params string[] paths)
