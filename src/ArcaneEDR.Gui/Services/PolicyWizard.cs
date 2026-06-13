@@ -148,7 +148,8 @@ internal static class PolicyWizard
         TextBlock statusText = new TextBlock
         {
             Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
-            TextWrapping = TextWrapping.Wrap
+            TextWrapping = TextWrapping.Wrap,
+            MinHeight = 24
         };
         TextBlock settingHintText = new TextBlock
         {
@@ -297,10 +298,10 @@ internal static class PolicyWizard
             TextWrapping = TextWrapping.Wrap
         });
         body.Children.Add(top);
+        body.Children.Add(statusText);
         body.Children.Add(rulePanel);
         body.Children.Add(settingPanel);
         body.Children.Add(previewBox);
-        body.Children.Add(statusText);
 
         ScrollViewer scroll = new ScrollViewer
         {
@@ -419,21 +420,36 @@ internal static class PolicyWizard
             }
         }
 
+        ContentDialog? dialog = null;
+
         void updatePreview()
         {
             string scope = ComboValue(typeBox, "Remote endpoint");
             bool isRule = ArcanePolicyStore.IsRuleScope(scope);
+            string readiness = SaveReadinessMessage(scope, valueJsonBox.Text, choices);
+            bool canSave = String.IsNullOrWhiteSpace(readiness);
+            if (dialog != null)
+            {
+                dialog.IsPrimaryButtonEnabled = canSave;
+            }
+
             try
             {
                 previewBox.Text = isRule
                     ? BuildRulePreview(scope, ComboValue(actionBox, ArcanePolicyStore.DefaultActionForScope(scope)), idBox.Text, reasonBox.Text, scoreBox.Text, deltaBox.Text, ownerBox.Text, tagBox.Text, FormatExpirationUtc(expiresDatePicker, expiresTimePicker), choices)
                     : BuildSettingPreview(scope, idBox.Text, valueJsonBox.Text);
-                statusText.Text = "";
+                statusText.Text = canSave
+                    ? "Ready to save. A backup and validation run will happen automatically."
+                    : readiness;
             }
             catch (Exception ex)
             {
                 previewBox.Text = "";
-                statusText.Text = ex.Message;
+                statusText.Text = FirstNonEmpty(readiness, ex.Message);
+                if (dialog != null)
+                {
+                    dialog.IsPrimaryButtonEnabled = false;
+                }
             }
         }
 
@@ -497,7 +513,7 @@ internal static class PolicyWizard
 
         refresh(true);
 
-        ContentDialog dialog = new ContentDialog
+        dialog = new ContentDialog
         {
             XamlRoot = xamlRoot,
             Title = alert == null ? "New policy wizard" : "Create policy from alert",
@@ -506,6 +522,7 @@ internal static class PolicyWizard
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary
         };
+        updatePreview();
 
         dialog.PrimaryButtonClick += async (_, args) =>
         {
@@ -546,6 +563,7 @@ internal static class PolicyWizard
             {
                 args.Cancel = true;
                 statusText.Text = "Policy was not saved: " + ex.Message;
+                dialog.IsPrimaryButtonEnabled = false;
             }
             finally
             {
@@ -555,6 +573,42 @@ internal static class PolicyWizard
 
         await dialog.ShowAsync();
         return result;
+    }
+
+    private static string SaveReadinessMessage(
+        string scope,
+        string valueJson,
+        IReadOnlyList<PolicyWizardFieldChoice> choices)
+    {
+        if (ArcanePolicyStore.IsRuleScope(scope))
+        {
+            bool hasAnyApplicableValue = false;
+            foreach (PolicyWizardFieldChoice choice in choices)
+            {
+                if (!choice.AppliesTo(scope)) continue;
+                if (!String.IsNullOrWhiteSpace(choice.Value())) hasAnyApplicableValue = true;
+                if (choice.CheckBox?.IsChecked == true)
+                {
+                    return String.IsNullOrWhiteSpace(choice.Value())
+                        ? choice.Label + " is selected but has no value."
+                        : "";
+                }
+            }
+
+            return hasAnyApplicableValue
+                ? "Choose at least one match field below before saving. For alert tuning, start narrow: Rule ID plus Process name is usually a good first draft."
+                : "Enter at least one match value before saving.";
+        }
+
+        string trimmed = valueJson.Trim();
+        if (String.IsNullOrWhiteSpace(trimmed) ||
+            trimmed.Equals("[]", StringComparison.Ordinal) ||
+            trimmed.Equals("{}", StringComparison.Ordinal))
+        {
+            return "Enter at least one value for this policy list before saving.";
+        }
+
+        return "";
     }
 
     private static ComboBox PolicyTypeBox(string selectedScope)
@@ -683,6 +737,8 @@ internal static class PolicyWizard
         AddChoice(choices, "Rule ID", "", "rule_id", alert?.RuleId, "Match the alert rule id.");
         AddChoice(choices, "Category", "", "category", alert?.Category, "Match the alert category.", OptionsWithInitial(alert?.Category, KnownCategories()));
         AddChoice(choices, "Process name", "process_name", "process_name", alert?.Process, "Match the process name from the alert.");
+        AddChoice(choices, "Process path prefix", "", "path_prefix", alert?.MetadataValue("process_path"), "Match the executable path prefix. Edit a full path to the stable parent folder when possible.");
+        AddChoice(choices, "Signer", "", "signer", alert?.MetadataValue("signer"), "Match the signer subject from the alert. Leave blank for unsigned files.");
         AddChoice(choices, "Remote IP / CIDR", "remote_ip", "ip_cidr", alert?.RemoteIp, "Match this exact remote IP, or edit to a CIDR range.");
         AddChoice(choices, "Remote port", "port", "port", alert?.MetadataValue("remote_port"), "Match the remote port. Enter any TCP/UDP port number.");
         AddChoice(choices, "Company / owner", "remote_identity", "", alert?.Company, "Match provider identity text such as owner, ASN org, or ASN.");
